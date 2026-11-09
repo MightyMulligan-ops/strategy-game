@@ -1,0 +1,24 @@
+
+{
+  "name": "strategy-game",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.18.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @strategy-game/web --filter @strategy-game/server run dev",
+    "dev:web": "pnpm --filter @strategy-game/web dev",
+    "dev:server": "pnpm --filter @strategy-game/server dev",
+    "build": "pnpm --filter @strategy-game/web build",
+    "typecheck": "pnpm --filter @strategy-game/web typecheck && pnpm --filter @strategy-game/server typecheck",
+    "lint": "pnpm --filter @strategy-game/web lint"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "typescript": "~6.0.3",
+    "vitest": "^4.0.0"
+  }
+}
