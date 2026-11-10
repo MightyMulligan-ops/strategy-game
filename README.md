@@ -4,12 +4,12 @@ A browser-based, multiplayer 2D grand strategy game inspired by the broad gamepl
 
 ## Project status
 
-**Pre-production / foundation.** The repository is being initialized. No playable game systems have been implemented yet.
+**Pre-production / foundation.** The pnpm workspace has starter React/Vite and Fastify applications, validated shared turn/order contracts, and a tested pure turn lifecycle. There is no playable game, persistence, scheduler, or multiplayer transport yet.
 
 ## Product direction
 
 - Browser-based 2D multiplayer strategy.
-- Simultaneous turns with configurable turn duration.
+- Simultaneous turns with a duration configured at match creation and fixed for that match. A turn closes at its server deadline or when all active players mark Ready, whichever happens first.
 - Target scale: up to 40 players, subject to performance testing.
 - World, regional, national, and custom maps.
 - Countries, territories, cities, capitals, ports, and geographic unit positions.
@@ -38,6 +38,8 @@ Use a **server-authoritative modular monolith** initially. Do not introduce micr
 - `docs/DEVELOPMENT_ROADMAP.md` — milestones and vertical-slice priorities.
 - `docs/ATWAR_REFERENCE.md` — reference observations, sources, and unresolved verification items.
 - `AGENTS.md` — instructions for AI coding agents and contributors.
+- `packages/shared-types/` — strict, versioned runtime schemas and transport types.
+- `packages/game-engine/` — server-only pure turn lifecycle; no gameplay execution yet.
 
 ## Development principles
 
@@ -51,8 +53,21 @@ Use a **server-authoritative modular monolith** initially. Do not introduce micr
 
 ## Getting started
 
-The local development environment is being prepared. Setup instructions will be added when the initial workspace and application packages are implemented.
+Use Node.js 22.13+ on the 22.x line, or Node.js 24+, and the pnpm version pinned in `package.json`.
+
+```sh
+pnpm install --frozen-lockfile
+pnpm typecheck
+pnpm test
+pnpm lint
+pnpm build
+pnpm dev
+```
+
+`pnpm dev` starts the Vite starter client and Fastify server (`http://127.0.0.1:3001/health`; optional `PORT` override). They are not connected to each other yet. `pnpm lint` runs the existing frontend ESLint checks. Type checks include application source and the new package tests; builds cover all implemented workspace packages. Type checks and tests first build shared-types so its package exports work from a clean checkout.
+
+Zod is the shared package's only new runtime dependency. It validates unknown input, rejects extra fields, and derives TypeScript contracts from the same schemas. Vitest was already a workspace dependency. No database or environment file is required for the current checks.
 
 ## Current next step
 
-Establish the monorepo foundation and a small end-to-end playable slice before expanding the feature set.
+Add durable order storage and atomic turn closure/recovery before complex gameplay. The current in-memory lifecycle does not provide durable acknowledgements or advance offline matches automatically. See the early turn-foundation milestones in `docs/DEVELOPMENT_ROADMAP.md`.

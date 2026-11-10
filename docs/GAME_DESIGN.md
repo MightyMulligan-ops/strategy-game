@@ -24,6 +24,21 @@ The first playable game should cover the actual strategy-game loop rather than b
 
 Leadership-dependent movement and the basic Military Supplies system are core differentiators and belong in the first playable implementation—not indefinitely deferred features.
 
+### Turn submission and advancement — approved rules
+
+- Players submit orders simultaneously; the server alone resolves their outcomes deterministically.
+- Turn advancement is **hybrid**: close at the server-controlled deadline or immediately when every active player is Ready, whichever occurs first.
+- Turn duration is configured at match creation and remains fixed for that match.
+- Players may create, revise, or cancel orders while the turn is open. Submitting an order changes the player's draft, not authoritative positions, resources, or combat state.
+- Ready can be set or cleared before closure. **An accepted order replacement or cancellation clears that player's Ready status** (owner clarification for Assignment 002). Once the final active player marks Ready, closure is immediate; a later unready command cannot reopen that turn.
+- A player with no submitted orders performs no new actions. This does not freeze positions or exempt existing units/passive states from future approved rules. No previous-turn orders are automatically copied forward by the current contracts.
+- The server decides acceptance using its own turn state and time, not a client clock or send timestamp.
+- Matches must progress while all players are offline. Connection status is not Ready status and does not determine whether a player is active.
+- Acknowledged submissions must eventually be durable. Assignment 002 defines and tests in-memory contracts only; it does not provide a production acknowledgement, database, scheduler, or gameplay resolver.
+- Explicit attack orders remain a separate intent from movement orders.
+
+The exact states, boundary convention, revision protocol, and unimplemented edge cases are specified in `TECHNICAL_ARCHITECTURE.md`, section 8. Operational lifecycle ordering does not decide the gameplay phase order for movement, supply, economy, or combat.
+
 ## 2. World, territories, and positions
 
 Keep these concepts separate:
@@ -45,7 +60,7 @@ Territories remain important for ownership, income, recruitment, borders, supply
 - The server validates every movement order.
 - A stack's movement capability must be calculated from its composition and applicable rules; the exact mixed-stack range calculation remains to be confirmed.
 - Players may move groups and split formations.
-- Combat may begin when a movement order encounters hostile forces, subject to diplomacy and combat rules. The interface should also support an explicit attack command.
+- Combat may begin when a movement order encounters hostile forces, subject to diplomacy and combat rules. Explicit attack orders are distinct from movement orders. Attack targeting and the interaction between explicit attacks and movement-triggered encounters remain unspecified; the contracts do not execute either behavior.
 - Defense lines are separate geographic objects. Hostile units cannot pass an enemy defense line without attacking it; peace may permit passage. Exact geometry, placement, and UI details need further reference verification.
 
 ### 3.2 Leadership requirement
@@ -268,7 +283,7 @@ Reference behavior observed: hostile units cannot pass an enemy defense line wit
 Desired game configuration includes:
 - Public/private/password-protected access.
 - Teams.
-- Match duration and turn duration.
+- Match duration and turn duration (turn duration is selected at creation and fixed for that match).
 - Starting funds and countries.
 - Join cutoff.
 - Victory conditions.
@@ -291,5 +306,9 @@ Do not silently settle these during implementation:
 8. Full diplomacy transitions and passage rules.
 9. Exact map projection, coordinate system, and map data licensing.
 10. Whether primary leader specialization should remain inactive, particularly for a General.
+11. Gameplay resolution phase order, simultaneous movement/contact conflicts, and explicit attack targeting/interaction with movement encounters.
+12. Active-player membership changes, surrender/elimination/join timing, and what to do if no active players remain. The current lifecycle requires a nonempty fixed active roster.
+13. Scheduling of the next turn, downtime catch-up, clock corrections, pauses, and durable retry/acknowledgement behavior. These must preserve hybrid closure and offline progression.
+14. Product limits for turn duration and order payload size. Current numeric validation enforces safe positive integer milliseconds, not approved balance limits.
 
 When a task depends on one of these, ask for a decision or implement only the unambiguous portion behind a clearly marked configuration boundary.

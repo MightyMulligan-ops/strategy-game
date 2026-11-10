@@ -1,6 +1,6 @@
 # Development Roadmap
 
-**Status:** Initial sequence. Reorder only when dependencies or prototype results justify it.
+**Status:** Foundation in progress. Turn contracts and lifecycle now precede complex gameplay because simultaneous submission, hybrid closure, and durable orders are foundational dependencies.
 
 ## Guiding approach
 
@@ -12,10 +12,11 @@ The first playable prototype should demonstrate the strategy-game loop and inclu
 
 **Goal:** Make the repository safe and understandable for ongoing development.
 
-- [ ] Initialize pnpm workspace and TypeScript conventions.
-- [ ] Add formatting, linting, type-checking, and Vitest.
-- [ ] Create initial web and server applications.
-- [ ] Establish shared types and package boundaries.
+- [x] Initialize pnpm workspace and TypeScript conventions.
+- [x] Add frontend linting, workspace type-checking/builds, and runnable Vitest tests.
+- [ ] Establish a workspace-wide formatting/lint policy beyond the existing frontend checks.
+- [x] Create initial web and server applications.
+- [x] Establish shared turn/order contracts and server-only lifecycle package boundaries.
 - [ ] Add environment configuration and `.env.example`.
 - [ ] Add PostgreSQL/Prisma foundation when persistence is introduced.
 - [ ] Complete an atWar reference audit for mechanics that will be reproduced.
@@ -23,6 +24,32 @@ The first playable prototype should demonstrate the strategy-game loop and inclu
 - [ ] Establish GitHub Issues/PR workflow and branch conventions.
 
 **Exit criteria:** A clean install, type-check, and test command work; web and server can start locally; core design docs are discoverable.
+
+## Phase 0A — Turn contracts and lifecycle (Assignment 002)
+
+**Goal:** Define and test simultaneous submission before implementing gameplay outcomes.
+
+- [x] Record hybrid deadline/unanimous-Ready closure and fixed-per-match duration.
+- [x] Add strict, versioned runtime contracts with distinct move and attack orders.
+- [x] Test Ready/unready, order replacement/cancellation, Ready clearing after edits, and stale revisions.
+- [x] Test `open -> closed -> resolving -> resolved`, exact-deadline rejection, and immutable snapshots.
+- [x] Keep private drafts in the server-only engine and document unsupported edge cases.
+
+**Exit criteria:** Contracts and lifecycle checks pass. This is a tested in-memory foundation, not a playable turn resolver, durable submission API, or offline scheduler.
+
+## Phase 0B — Durable orders and turn execution foundations
+
+**Goal:** Make the approved asynchronous model reliable before complex movement/combat work.
+
+- [ ] Add minimal PostgreSQL/Prisma order, turn, and snapshot persistence.
+- [ ] Add authenticated/authorized command handling and own-player draft responses.
+- [ ] Persist accepted revisions before acknowledging them; define idempotent retries.
+- [ ] Atomically freeze eligible orders and commit one resolution per turn.
+- [ ] Add deadline scheduling and restart recovery that progress games while everyone is offline.
+- [ ] Approve gameplay phase order and simultaneous-order conflict rules, then add deterministic empty-turn resolution/replay tests.
+- [ ] Exercise two-player submissions, deadline races, early Ready closure, and crash recovery.
+
+**Exit criteria:** Durable orders and hybrid closure survive retries/restarts without client-trusted outcomes. No production capacity claim yet.
 
 ## Phase 1 — Map and game shell
 
@@ -53,7 +80,7 @@ The first playable prototype should demonstrate the strategy-game loop and inclu
 - [ ] Persist and reload a scenario.
 - [ ] Add tests for movement, leader succession, splitting, and combat modifiers.
 
-**Exit criteria:** A player can recruit, organize, move, and fight in a small scenario; illegal movement is rejected by the server.
+**Exit criteria:** An internal scenario supports recruiting, organizing, moving, and fighting with illegal movement rejected by the server. It is not the first playable baseline until the basic Military Supplies work below is integrated; keep that integration in the same small scenario.
 
 ## Phase 3 — Basic Military Supplies
 
@@ -70,7 +97,7 @@ The first playable prototype should demonstrate the strategy-game loop and inclu
 - [ ] Split/merge rules that prevent supply-ratio exploits.
 - [ ] Tests for stockpile accounting, consumption, and formation changes.
 
-**Exit criteria:** Supply can be generated, allocated, consumed, replenished, and shown to affect attack/defense only.
+**Exit criteria:** Supply can be generated, allocated, consumed, replenished, and shown to affect attack/defense only. Together with Phase 2 and the turn foundations, this completes the first playable baseline with both core differentiators.
 
 ## Phase 4 — Core strategy systems
 
@@ -91,13 +118,12 @@ The first playable prototype should demonstrate the strategy-game loop and inclu
 
 **Goal:** Make multiplayer reliable and fair.
 
-- [ ] Two-player end-to-end testing early in this phase (and preferably during Phase 2).
-- [ ] Simultaneous-turn submission and resolution.
-- [ ] Deterministic ordering and tie-breaking.
+- [ ] Expand the two-player scenarios established in Phase 0B to complete matches.
+- [ ] Harden simultaneous resolution and approved deterministic tie-breaking across the broader gameplay systems.
 - [ ] WebSocket lobby and game updates.
-- [ ] Reconnect, idempotency, and stale-command handling.
-- [ ] Per-player visibility filtering.
-- [ ] Basic abuse prevention and authorization tests.
+- [ ] Harden reconnect, idempotency, and stale-command handling beyond the foundational API.
+- [ ] Expand per-player projections to the approved fog-of-war/detection rules; never expose private drafts or hidden state in earlier APIs.
+- [ ] Expand abuse prevention and authorization tests introduced with command handling.
 - [ ] Load tests; validate practical player capacity before claiming 40-player support.
 
 **Exit criteria:** Multiple players can complete a match without client-trusted outcomes or information leaks.
