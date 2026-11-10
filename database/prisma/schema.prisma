@@ -35,7 +35,56 @@ enum RevisionKind {
 
 model PlayerIdentity {
   id           String             @id
+  username     String?
+  usernameKey  String?            @unique
+  createdAt    DateTime           @default(now()) @db.Timestamptz(3)
   participants MatchParticipant[]
+  oauthAccounts OAuthAccount[]
+  authSessions AuthSession[]
+  oauthAttempts OAuthAttempt[]
+}
+
+enum OAuthProvider {
+  DISCORD
+  GOOGLE
+}
+
+model OAuthAccount {
+  provider   OAuthProvider
+  subject    String
+  identityId String
+  createdAt  DateTime       @default(now()) @db.Timestamptz(3)
+  identity   PlayerIdentity @relation(fields: [identityId], references: [id], onDelete: Restrict)
+
+  @@id([provider, subject])
+  @@unique([identityId, provider])
+}
+
+model AuthSession {
+  id         String         @id
+  generation String
+  identityId String?
+  data       Json
+  expiresAt  DateTime       @db.Timestamptz(3)
+  revokedAt  DateTime?      @db.Timestamptz(3)
+  identity   PlayerIdentity? @relation(fields: [identityId], references: [id], onDelete: Restrict)
+
+  @@index([identityId])
+  @@index([expiresAt])
+}
+
+model OAuthAttempt {
+  state            String          @id
+  provider         OAuthProvider
+  sessionBinding   String
+  targetIdentityId String?
+  codeVerifier     String
+  nonce            String?
+  expiresAt        DateTime        @db.Timestamptz(3)
+  targetIdentity   PlayerIdentity? @relation(fields: [targetIdentityId], references: [id], onDelete: Restrict)
+
+  @@index([sessionBinding])
+  @@index([expiresAt])
 }
 
 model Match {

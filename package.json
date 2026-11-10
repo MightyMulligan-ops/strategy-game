@@ -13,7 +13,7 @@
     "dev:web": "pnpm --filter @strategy-game/web dev",
     "dev:server": "pnpm --filter @strategy-game/server dev",
     "build": "pnpm -r --if-present run build",
-    "prepare:checks": "pnpm --filter @strategy-game/game-engine... build && pnpm db:generate",
+    "prepare:checks": "pnpm --filter @strategy-game/database... build",
     "typecheck": "pnpm prepare:checks && pnpm -r --if-present run typecheck",
     "test": "pnpm prepare:checks && vitest run",
     "test:db": "pnpm prepare:checks && node --experimental-strip-types --env-file-if-exists=.env scripts/test-database.ts",

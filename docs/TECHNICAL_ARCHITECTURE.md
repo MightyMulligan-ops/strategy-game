@@ -24,6 +24,8 @@
 | ORM | Prisma | Database schema and migrations |
 | Realtime | WebSockets | Lobby updates, game events, player state |
 | Tests | Vitest | Unit and package tests; integration tests as architecture grows |
+| OAuth/OIDC | openid-client | Server-only Discord authorization code and Google validated ID-token flows |
+| Sessions | Fastify cookie/session/CSRF/rate-limit plugins | PostgreSQL-backed browser sessions and protected account actions |
 
 Versions should be selected for current compatibility when the workspace is initialized and pinned through the package manager lockfile. Do not assume this document fixes exact version numbers.
 
@@ -176,7 +178,7 @@ Future infrastructure must drive expiry with no connected clients, persist the d
 
 ### 8.4 Draft and revision protocol
 
-All command envelopes contain `schemaVersion: 1`, `gameId`, `turnNumber`, and `expectedRevision`. Acting player identity is a separate trusted server argument, never a client-supplied payload field. This is an integration boundary, not implemented authentication.
+All command envelopes contain `schemaVersion: 1`, `gameId`, `turnNumber`, and `expectedRevision`. Acting player identity is a separate trusted server argument, never a client-supplied payload field. Account sessions exist in section 9.2; binding them to authorized game commands remains future work.
 
 - `replace_orders` creates/revises a player's entire draft. An empty array clears it. Order IDs must be unique within that draft.
 - `cancel_order` removes one existing order by ID. Missing IDs are rejected without changing readiness or revision.
@@ -202,7 +204,7 @@ Retries currently encounter revision checks; there is no durable idempotency rec
 
 ### 8.6 Explicitly unresolved / future work
 
-Do not infer policies for joins, elimination, surrender, an empty active roster, pause/resume, wall-clock correction, minimum/maximum duration, payload/rate limits, next-turn opening time, or downtime catch-up. Membership is fixed for the supported lifecycle. The caller chooses when to open the next record; the function does not schedule it. Player-facing acknowledgement/retry semantics, authentication, and scheduler recovery are future assignments. Internal atomic persistence is provided by section 9.1 and covered by the live PostgreSQL suite.
+Do not infer policies for joins, elimination, surrender, an empty active roster, pause/resume, wall-clock correction, minimum/maximum duration, game-command payload/rate limits, next-turn opening time, or downtime catch-up. Membership is fixed for the supported lifecycle. The caller chooses when to open the next record; the function does not schedule it. Player-facing acknowledgement/retry semantics, match authorization, and scheduler recovery remain future assignments. Account authentication is provided by section 9.2; internal atomic persistence is provided by section 9.1 and covered by the live PostgreSQL suite.
 
 Likewise, no gameplay phase order, movement path/leader validation, attack legality, combat formula, resource reservation, or same-stack conflicting-order policy has been implemented. Existing leadership, supply, and economy rules remain authoritative and will be applied by later domain modules.
 
@@ -273,7 +275,7 @@ Do not design every table before a vertical slice. Evolve schema around tested d
 
 ### 9.1 Assignment 004A persistence foundation
 
-`@strategy-game/database` is a workspace package in the documented `database/` directory. It depends on the existing engine/contracts; the engine remains pure and has no database import. Fastify still exposes only health. Prisma 7.10.1 CLI/client and its PostgreSQL adapter are pinned together; no new dependency is added to the browser or game engine. Client generation uses ESM TypeScript sources and needs no running database.
+`@strategy-game/database` is a workspace package in the documented `database/` directory. It depends on the existing engine/contracts; the engine remains pure and has no database import. Fastify exposes health and the separate account endpoints in section 9.2, with no game command APIs. Prisma 7.10.1 CLI/client and its PostgreSQL adapter are pinned together; no database dependency is added to the browser or game engine. Client generation uses ESM TypeScript sources and needs no running database.
 
 The schema separates matches/configuration, opaque identities/participants, authoritative snapshots, turns, per-player Ready/revision state, append-only accepted draft revisions, current/canceled order records, future dependencies, frozen inputs, and resolution results. JSON fields retain the existing strict Zod contracts and version metadata. Database integers preserve safe millisecond/counter values with bigint-to-number checks. Full snapshots, drafts, frozen inputs, and result/events remain server-private.
 
@@ -284,6 +286,20 @@ Repository operations use a common turn row lock and short interactive transacti
 Resolution preparation pins the caller-supplied seed before computation. After a restart, a fresh repository/client can load the same snapshot, frozen queues, ruleset, and seed without process memory. Resolution computation/validation happens outside the write transaction; a guarded transaction commits one output snapshot/result and advances the match version once. Identical result retries return the committed audit. These are recovery primitives, not an implemented job runner/scheduler, authentication layer, or player-facing acknowledgement API. The existing resolver still rejects nonempty gameplay.
 
 The initial migration and local-only Compose services require no production credentials. Unit tests run without a database; PostgreSQL integration tests require an explicit local `_test` URL and migrated test instance. The follow-up passed all 11 integration tests against the existing PostgreSQL 17.11 test database, covering persistence, constraints, competing submissions, rollback, new-client recovery, and result retries. Cleanup explicitly deletes children before parents inside a transaction, using only tracked fixture IDs; cross-referencing `NO ACTION` foreign keys remain unchanged. Future production match deletion must likewise define dependency order. See `database/README.md` for cleanup details and the remaining Prisma/pg deprecation warning.
+
+### 9.2 Account authentication and persistent sessions (Assignment 004B.1)
+
+`apps/server/src/auth` owns provider configuration, `openid-client` protocol adapters, Fastify routes, CSRF protection, and the persistent session-store adapter. `buildApp` constructs the app without listening so HTTP behavior is testable through injection. Startup alone loads environment configuration and creates the Prisma client. `database/AuthRepository` owns provider mapping, username selection, one-use attempts, and session transactions. These boundaries do not import or change game simulation. The web client imports only the strict public account schemas.
+
+`PlayerIdentity.id` remains stable; nullable username/display and normalized unique username key extend it without replacing existing game identity references. `OAuthAccount` uniquely maps `(provider, subject)` to one identity, with at most one account per provider on an identity. No email lookup, email-based merging, passwords, or stored provider tokens exist. New identity plus provider mapping is one atomic nested write; explicit linking is transactional and rejects conflicting ownership. Username selection uses conditional writes and database uniqueness to resolve concurrent claims.
+
+`AuthSession` stores server-only JSON, an optional identity reference, absolute expiry, generation, and revocation tombstone. The maintained Fastify session plugin signs cookies and generates/rotates identifiers; the store's conditional generation update prevents stale writes after rotation, logout, or expiry. Sessions survive a new database client/process; activity does not extend their original expiry. `OAuthAttempt` stores short-lived state/PKCE verifier and Google nonce, bound to browser session generation, provider, and optional authenticated linking target. Consumption is atomic and one-use, including concurrent callbacks.
+
+Google uses OIDC discovery, PKCE S256, state, nonce, issuer/audience/expiry checks, and explicit ID-token signature verification against provider keys. Discord uses state, PKCE S256, and the protected current-user endpoint. Requested scopes are only Google `openid` and Discord `identify`; stable validated subjects identify users. Successful callbacks rotate the browser session. Linking requires an existing authenticated session and CSRF-protected initiation; it never silently switches accounts.
+
+Cookies are host-only, HTTP-only, SameSite=Lax, Secure on HTTPS, and use the `__Host-` prefix on HTTPS. Local HTTP is allowed only for loopback development. Account POST requests require both an exact configured Origin and a session-bound CSRF token. Login/link initiation is POST-only; callbacks are GET and require one-use OAuth state. Responses never include provider subjects, tokens, session data, or authoritative game state. Own-profile responses identify their user from the session, not a submitted ID. Fastify request URL logging is disabled and error responses/logs omit sensitive provider details.
+
+The additive `202611100002_authentication` migration preserves the prior game schema and custom SQL constraints. The live suite now includes six account/session persistence tests in addition to the eleven existing tests. HTTP/provider unit tests use mocks, including signed Google ID tokens with invalid-claim/signature rejection. Real provider consent and production HTTPS/proxy behavior still require deployment verification. Configuration, endpoint details, rate limits, and deferred operational/product decisions are in [AUTHENTICATION.md](AUTHENTICATION.md). Authentication alone supplies no match authorization or game-data endpoints.
 
 ## 10. Multiplayer and security
 

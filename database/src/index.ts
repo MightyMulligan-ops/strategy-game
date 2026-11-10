@@ -2,3 +2,6 @@
 export { createDatabaseClient } from "./client.js";
 export { MatchRepository } from "./repository.js";
 export { PersistenceError } from "./errors.js";
+export { AuthRepository } from "./auth-repository.js";
+export { AuthError } from "./auth-types.js";
+export type { AuthPersistence, OAuthAttemptData, SessionWrite } from "./auth-types.js";

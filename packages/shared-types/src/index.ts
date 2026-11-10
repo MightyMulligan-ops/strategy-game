@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { identifier, nonnegativeInteger, positiveInteger, version } from "./primitives.js";
+export { AuthenticatedPlayerSchema, OAuthProviderSchema, UsernameSchema, UsernameSelectionSchema } from "./auth.js";
+export type { AuthenticatedPlayer, OAuthProvider } from "./auth.js";
 
 // Version 1 is deliberately small. Adding gameplay fields requires an explicit
 // contract change, not permissive passthrough of unknown properties.

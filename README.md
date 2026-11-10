@@ -4,7 +4,7 @@ A browser-based, multiplayer 2D grand strategy game inspired by the broad gamepl
 
 ## Project status
 
-**Pre-production / foundation.** The pnpm workspace has starter React/Vite and Fastify applications, validated turn/order contracts, a pure turn lifecycle, deterministic empty-turn resolution, a movement-queue planning helper, and a PostgreSQL/Prisma persistence foundation. There is no playable game, scheduler, or multiplayer transport. Live PostgreSQL behavior requires the separate integration suite below.
+**Pre-production / foundation.** The pnpm workspace has React/Vite and Fastify applications, validated turn/order contracts, a pure turn lifecycle, deterministic empty-turn resolution, a movement-queue planning helper, PostgreSQL/Prisma persistence, and Discord/Google sign-in with persistent accounts and sessions. Authentication requires local provider configuration; it is disabled by default. There is no playable game, scheduler, or multiplayer transport. Live PostgreSQL behavior requires the separate integration suite below.
 
 ## Product direction
 
@@ -37,6 +37,7 @@ Use a **server-authoritative modular monolith** initially. Do not introduce micr
 - `docs/TECHNICAL_ARCHITECTURE.md` — system boundaries, stack, data flow, and module contracts.
 - `docs/DEVELOPMENT_ROADMAP.md` — milestones and vertical-slice priorities.
 - `docs/ATWAR_REFERENCE.md` — reference observations, sources, and unresolved verification items.
+- `docs/AUTHENTICATION.md` — OAuth/session behavior, endpoints, provider setup, and security limitations.
 - `AGENTS.md` — instructions for AI coding agents and contributors.
 - `packages/shared-types/` — strict, versioned runtime schemas and transport types.
 - `packages/game-engine/` — server-only lifecycle, empty-turn resolver, and movement-queue planning; no gameplay execution yet.
@@ -66,23 +67,25 @@ pnpm build
 pnpm dev
 ```
 
-`pnpm dev` starts the Vite starter client and Fastify server (`http://127.0.0.1:3001/health`; optional `PORT` override). The server still exposes only health; it does not start database jobs or expose player APIs. `pnpm lint` runs the existing frontend ESLint checks. Type checks include application source and package tests; builds cover all implemented packages. Test/type-check preparation builds the engine dependency graph and generates Prisma Client, without connecting to PostgreSQL. The first Prisma command may need to download its schema engine.
+`pnpm dev` starts the Vite account page at `http://127.0.0.1:5173` and Fastify (`http://127.0.0.1:3001/health`; optional `PORT` override). Vite proxies `/auth` to port 3001; update the proxy target if overriding that port. The server loads the root `.env`. Authentication is optional during setup; game command APIs and database jobs remain unimplemented. `pnpm lint` runs the existing frontend ESLint checks. Type checks include application source and package tests; builds cover all implemented packages. Test/type-check preparation builds the database dependency graph and generates Prisma Client, without connecting to PostgreSQL. The first Prisma command may need to download its schema engine.
 
 Zod validates contracts. Assignment 004A adds pinned Prisma 7 CLI/client and its PostgreSQL driver adapter; the adapter supplies the PostgreSQL driver. No extra web framework, environment loader, or database test double is introduced. Prisma's ESM client/adapter setup follows its [PostgreSQL guide](https://www.prisma.io/docs/v7/prisma-orm/quickstart/postgresql).
 
+Assignment 004B.1 adds `openid-client` for OAuth/OIDC protocol handling and Fastify's cookie, session, CSRF, and rate-limit plugins. PostgreSQL stores sessions; provider access/refresh tokens are never stored or sent to the browser. `jose` is a test-only direct dependency for signed mock Google ID tokens. See [authentication setup](docs/AUTHENTICATION.md) for exact callbacks, environment variables, and production proxy requirements.
+
 ### Local PostgreSQL setup
 
-Install Docker with Compose, or provide your own local PostgreSQL 17 instance. The Assignment 004A follow-up verified the existing test migration on PostgreSQL 17.11 and passed all 11 live integration tests after correcting dependency-ordered fixture cleanup. No schema or migration change was required.
+Install Docker with Compose, or provide your own local PostgreSQL 17 instance. Assignment 004B.1 adds an authentication migration after the existing persistence migrations. Apply pending migrations to both local databases; no reset or recreation is needed.
 
 1. Copy `.env.example` to `.env`. Replace `replace_me` consistently in `POSTGRES_PASSWORD`, `DATABASE_URL`, and `TEST_DATABASE_URL` (URL-encode special characters in connection URLs). No production credentials are needed.
 2. Start development storage: `docker compose up -d --wait db`. It listens only on `127.0.0.1:5433` and uses a named volume.
 3. Apply the committed migration with `pnpm db:migrate`, then inspect it with `pnpm db:status`.
 4. For integration tests, start the separate database: `docker compose --profile test up -d --wait db-test` on port 5434. Run `pnpm db:migrate:test`, then `pnpm test:db`.
 
-The default `pnpm test` runs unit tests and explicitly skips live database tests. `pnpm test:db` requires `TEST_DATABASE_URL` pointing to a local database whose name ends in `_test`; it never falls back to `DATABASE_URL`. It uses the committed migration, not schema push/reset. Missing or unreachable PostgreSQL fails that explicit command. Integration tests delete only their generated match/identity records.
+The default `pnpm test` runs unit tests and explicitly skips live database tests. `pnpm test:db` requires `TEST_DATABASE_URL` pointing to a local database whose name ends in `_test`; it never falls back to `DATABASE_URL`. It uses committed migrations, not schema push/reset. Missing or unreachable PostgreSQL fails that explicit command. Integration tests delete only their tracked fixture records, including test accounts and sessions. The 17 live tests cover turn persistence plus identity uniqueness, linking, username races, OAuth-state consumption, session recovery, expiration, and revocation. Mocked OAuth unit tests require no real provider credentials.
 
 `pnpm db:validate` and schema-to-SQL diff generation work without a running database. Schema validation does not prove migration SQL, triggers, concurrency, rollback, or restart recovery work against PostgreSQL; those require the live suite. Generated Prisma sources are ignored and regenerated from the pinned toolchain.
 
 ## Current next step
 
-The live persistence suite now passes against the existing migrated test database. Next add authenticated command APIs and scheduling/restart orchestration. Repository calls return after their transaction commits, but there is no player-facing acknowledgement API or scheduler yet. See `docs/DEVELOPMENT_ROADMAP.md`.
+Configure provider credentials and manually verify consent/callbacks before deploying sign-in. Next add match membership authorization and authenticated command APIs, followed by scheduling/restart orchestration. Authentication alone does not authorize access to another player's game data. Repository calls return after their transaction commits, but there is no player-facing order acknowledgement API or scheduler yet. See `docs/DEVELOPMENT_ROADMAP.md`.

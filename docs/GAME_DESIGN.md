@@ -39,6 +39,12 @@ Leadership-dependent movement and the basic Military Supplies system are core di
 
 The exact states, boundary convention, revision protocol, and unimplemented edge cases are specified in `TECHNICAL_ARCHITECTURE.md`, section 8. Operational lifecycle ordering does not decide the gameplay phase order for movement, supply, economy, or combat.
 
+### Player accounts (Assignment 004B.1)
+
+Players sign in with Discord or Google; there is no email/password authentication. Each account has one stable internal player ID independent of its provider. An authenticated player may explicitly link the other provider. Matching email addresses never merge accounts, and linking cannot transfer an identity belonging to another account.
+
+The owner-approved initial username policy is 3–24 ASCII letters, digits, or underscores, starting with a letter, unique without regard to case. Players choose it after first sign-in; existing identities may initially have no username. Renaming, unlinking, recovery, and merging separately created accounts need later decisions. Authentication does not imply match membership, permissions, or access to hidden information. Match creation/joining remains unimplemented. See `AUTHENTICATION.md` for the implemented account boundary; gameplay rules below are unchanged.
+
 ## 2. World, territories, and positions
 
 Keep these concepts separate:

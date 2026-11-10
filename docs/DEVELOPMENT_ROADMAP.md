@@ -69,6 +69,18 @@ The first playable prototype should demonstrate the strategy-game loop and inclu
 
 Assignment 004A supplies schema and internal storage operations, not production authentication, command APIs, scheduling, or WebSockets. Current draft contracts are unchanged. Future prerequisite storage does not decide dependency cancellation or recruitment execution. The live storage suite now passes, including scoped cleanup without weakening foreign keys; full scheduler/crash orchestration and the other unchecked work remain required before this phase is complete.
 
+## Phase 0B.1 — Account foundation (Assignment 004B.1)
+
+- [x] Add stable provider-independent identities, explicit Discord/Google linking, and unique initial usernames.
+- [x] Add authorization-code flows with state, PKCE, Google nonce/signature checks, and minimal scopes.
+- [x] Persist server-managed sessions with secure cookies, absolute expiration, logout/global invalidation, CSRF, and rate limits.
+- [x] Add account-only endpoints and a minimal login/profile page; keep gameplay APIs out of scope.
+- [x] Add mocked HTTP/provider tests and live PostgreSQL account/session tests.
+- [ ] Verify real provider consent/callbacks with owner-supplied client credentials and production HTTPS/proxy settings.
+- [ ] Decide account recovery, unlinking, renaming, session/attempt retention, and any fresh-sign-in requirement before linking.
+
+Account authentication is implemented independently of match authorization. Phase 0B's authenticated commands, membership checks, order acknowledgements, and scheduler remain incomplete. See [AUTHENTICATION.md](AUTHENTICATION.md) for setup and the precise implemented boundary.
+
 ## Phase 1 — Map and game shell
 
 **Goal:** Render a navigable 2D map and establish a game session.

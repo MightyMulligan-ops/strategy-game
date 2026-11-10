@@ -1,13 +1,16 @@
 # PostgreSQL persistence foundation
 
-This package is server-only. It imports validated contracts and the pure game engine; neither the browser nor the engine imports Prisma. The health-only Fastify app remains unchanged.
+This package is server-only. It imports validated contracts and the pure game engine; neither the browser nor the engine imports Prisma. Fastify uses separate match and authentication repositories; only authentication has HTTP endpoints so far.
 
 ## Models
 
 | Model | Responsibility |
 |---|---|
 | `Match` / `MatchConfiguration` | Match identity and current state version; fixed configuration, duration, and pinned ruleset/simulation metadata. Configuration updates are blocked by a database trigger. |
-| `PlayerIdentity` / `MatchParticipant` | Opaque global player reference and game-scoped participant identity. No authentication provider, password, or private profile data. |
+| `PlayerIdentity` / `MatchParticipant` | Stable global player reference with nullable username/unique normalized key, separate from game-scoped participant identity. |
+| `OAuthAccount` | Unique provider/subject ownership; one identity per provider account, at most one provider account of each kind per identity. No emails or tokens. |
+| `AuthSession` | Server-private JSON, generation, optional identity, absolute expiry, and revocation tombstone. |
+| `OAuthAttempt` | One-use state bound to browser session generation/provider/link target, PKCE verifier, Google nonce, and expiry. |
 | `GameSnapshotRecord` | Validated authoritative JSON with unique snapshot ID and match/state-version key. |
 | `Turn` | Fixed starting snapshot, integer-millisecond deadline, lifecycle status, closure reason, and last server observation. |
 | `PlayerTurnState` | Per-turn active membership snapshot, current revision, and Ready flag. Connection status is not membership. |
@@ -39,6 +42,14 @@ Writes serialize on the same turn row using Prisma interactive transactions and 
 
 Deferred database checks require a frozen input at closure, a pinned seed for resolution, a result for `RESOLVED`, and unanimous active readiness for Ready closure. Archives/settings cannot be updated; frozen input content cannot change, and a non-null seed cannot be replaced. All application writes must use repository transaction boundaries rather than independent Prisma model writes. Administrative deletion/retention and database role privileges remain future operational decisions.
 
+## Authentication repository
+
+`AuthRepository` implements the server-only `AuthPersistence` interface. Provider sign-in atomically creates the internal identity/mapping or reuses the unique winning mapping after a concurrent callback. Linking is a short transaction and never transfers an identity. Initial username selection is conditional on an unset name, with the normalized unique key resolving case-insensitive claim races. Existing identity IDs and match references are preserved by the additive `202611100002_authentication` migration.
+
+OAuth attempts are inserted transactionally, replacing the browser generation's previous pending attempt; consumption checks state/provider/browser/link target/expiry and deletes exactly once in a transaction. Concurrent callbacks can consume only once. Session creation is insert-only; updates compare generation and require unexpired, unrevoked records. Expiry is absolute and unchanged by updates. Logout leaves a revocation tombstone so stale writes cannot recreate a session. A fresh Prisma client can read the same persisted session after restart. No authentication operation writes gameplay tables or invokes simulation.
+
+Account tables reference identities with restrictive foreign keys; deletion needs an explicit retention/dependency policy. Tests remove only their tracked attempts/sessions/provider mappings/identities, in that order. No automatic cleanup of old failed-run fixtures is performed. Expired attempt/session pruning is deferred; no scheduler is introduced. See [authentication documentation](../docs/AUTHENTICATION.md) for configuration and security behavior.
+
 ## Dependencies and deferred decisions
 
 `OrderDependency` has scoped foreign keys and rejects self-links. The repository currently refuses order edits if dependencies exist rather than inventing a cancellation policy. No API creates dependencies. Before enabling recruitment references, approve block-versus-cascade cancellation, validate cycles/output quantities, add versioned contracts, and warn about affected dependent orders.
@@ -47,7 +58,7 @@ Seed generation/reveal, roster changes, pauses, clock correction, acknowledgemen
 
 ## Validation
 
-Root `pnpm test` runs mapping/environment unit tests without PostgreSQL and explicitly skips `persistence.integration.test.ts`. The opt-in suite exercises actual migrations/constraints, Ready/revisions/cancellations, competing submissions, closure rollback, seed recovery on a new client, idempotent commits, and future dependency storage. Run it only after the separate local `_test` database has been migrated using the root README instructions.
+Root `pnpm test` runs mapping/environment and mocked authentication unit tests without PostgreSQL, explicitly skipping both database integration files. The opt-in suite exercises actual migrations/constraints, Ready/revisions/cancellations, competing submissions, closure rollback, seed recovery on a new client, idempotent commits, future dependency storage, and account/session persistence. It currently has 17 live tests. Run it only after the separate local `_test` database has been migrated using the root README instructions.
 
 Prisma schema validation, generation, TypeScript checks, and an offline schema-to-SQL diff can run without credentials. The initial implementation used a supplementary in-memory PGlite SQL smoke check; no application code or committed tests depend on PGlite. The follow-up verified the owner-applied initial migration on the existing PostgreSQL 17.11 test database and passed all 11 live integration tests, including a new fixture-isolation regression. No database reset, migration reapplication, schema change, or foreign-key relaxation was needed.
 
