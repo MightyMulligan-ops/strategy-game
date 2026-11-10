@@ -1,15 +1,8 @@
 import { z } from "zod";
+import { identifier, nonnegativeInteger, positiveInteger, version } from "./primitives.js";
 
 // Version 1 is deliberately small. Adding gameplay fields requires an explicit
 // contract change, not permissive passthrough of unknown properties.
-const version = z.literal(1);
-const identifier = z.string().min(1).refine(
-  (value) => value.trim() === value,
-  "Identifiers must not have surrounding whitespace"
-);
-const nonnegativeInteger = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
-const positiveInteger = nonnegativeInteger.min(1);
-
 export const GameConfigSchema = z.strictObject({
   schemaVersion: version,
   gameId: identifier,
@@ -78,10 +71,19 @@ export type AttackOrder = z.infer<typeof AttackOrderSchema>;
 export const OrderSchema = z.discriminatedUnion("type", [MoveOrderSchema, AttackOrderSchema]);
 export type Order = z.infer<typeof OrderSchema>;
 
-const orders = z.array(OrderSchema).refine(
+export const OrderListSchema = z.array(OrderSchema).refine(
   (items) => new Set(items.map((order) => order.orderId)).size === items.length,
   "Order IDs must be unique within a submission"
 ).readonly();
+
+// Derived from the position among moves in a player's ordered draft. Attacks
+// never consume a movement number. Do not maintain a second mutable queue index.
+export const MovementQueueEntrySchema = z.strictObject({
+  playerId: identifier,
+  moveNumber: positiveInteger,
+  order: MoveOrderSchema
+}).readonly();
+export type MovementQueueEntry = z.infer<typeof MovementQueueEntrySchema>;
 
 const commandFields = {
   schemaVersion: version,
@@ -95,7 +97,7 @@ const commandFields = {
 export const OrderSubmissionSchema = z.strictObject({
   ...commandFields,
   kind: z.literal("replace_orders"),
-  orders
+  orders: OrderListSchema
 }).readonly();
 export type OrderSubmission = z.infer<typeof OrderSubmissionSchema>;
 
@@ -126,6 +128,6 @@ export const OwnTurnSubmissionSchema = z.strictObject({
   turnNumber: positiveInteger,
   revision: nonnegativeInteger,
   ready: z.boolean(),
-  orders
+  orders: OrderListSchema
 }).readonly();
 export type OwnTurnSubmission = z.infer<typeof OwnTurnSubmissionSchema>;

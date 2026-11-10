@@ -29,7 +29,7 @@ Leadership-dependent movement and the basic Military Supplies system are core di
 - Players submit orders simultaneously; the server alone resolves their outcomes deterministically.
 - Turn advancement is **hybrid**: close at the server-controlled deadline or immediately when every active player is Ready, whichever occurs first.
 - Turn duration is configured at match creation and remains fixed for that match.
-- Players may create, revise, or cancel orders while the turn is open. Submitting an order changes the player's draft, not authoritative positions, resources, or combat state.
+- Players may create, revise, reorder, or cancel orders while the turn is open. Submitting an order changes the player's draft, not authoritative positions, resources, or combat state.
 - Ready can be set or cleared before closure. **An accepted order replacement or cancellation clears that player's Ready status** (owner clarification for Assignment 002). Once the final active player marks Ready, closure is immediate; a later unready command cannot reopen that turn.
 - A player with no submitted orders performs no new actions. This does not freeze positions or exempt existing units/passive states from future approved rules. No previous-turn orders are automatically copied forward by the current contracts.
 - The server decides acceptance using its own turn state and time, not a client clock or send timestamp.
@@ -62,6 +62,18 @@ Territories remain important for ownership, income, recruitment, borders, supply
 - Players may move groups and split formations.
 - Combat may begin when a movement order encounters hostile forces, subject to diplomacy and combat rules. Explicit attack orders are distinct from movement orders. Attack targeting and the interaction between explicit attacks and movement-triggered encounters remain unspecified; the contracts do not execute either behavior.
 - Defense lines are separate geographic objects. Hostile units cannot pass an enemy defense line without attacking it; peace may permit passage. Exact geometry, placement, and UI details need further reference verification.
+
+### Player-relative movement queues — approved rules
+
+- Each player has a movement queue numbered **Move 1, Move 2, Move 3**, and so on. All eligible Move 1 orders have priority over eligible Move 2 orders, independently of submission timestamps.
+- Equal move numbers across players use **seeded randomized sequential precedence** as a provisional, replaceable policy. This is not a permanent combat/collision formula or permission to execute movement before other unapproved phases.
+- The current contract derives move numbers from the relative positions of `move` entries in each player's existing ordered draft. Attacks do not consume movement numbers. Stable `orderId` values identify orders even after reordering; cancellation compacts the surviving movement numbers.
+- Reordering uses the existing complete-draft revision operation. Reordering, editing, and cancellation clear Ready. The final queue and revision are captured at turn closure and cannot subsequently change.
+- The future UI must show dotted movement paths with cancellation controls and a separate **Movement Queue** panel. No gameplay UI is implemented in Assignment 003.
+- Recruitment-to-movement prerequisites must eventually use stable references and be validated. Canceling a prerequisite must warn about dependent orders and leave no executable orphan. Whether to block cancellation or also cancel dependents requires an owner decision; recruitment and dependency execution are not implemented.
+- Explicit attack orders remain separate. Their final phase precedence, targeting, and interaction with movement encounters are still unresolved.
+
+Assignment 003 only groups queues and calculates reproducible precedence; it does not establish movement eligibility, move stacks, or resolve encounters. The empty-turn resolver rejects all nonempty move/attack lists rather than reporting successful execution. See technical architecture sections 8.7–8.9 for server-only snapshots, audit results, operational phases, and the future dependency model.
 
 ### 3.2 Leadership requirement
 
@@ -306,9 +318,10 @@ Do not silently settle these during implementation:
 8. Full diplomacy transitions and passage rules.
 9. Exact map projection, coordinate system, and map data licensing.
 10. Whether primary leader specialization should remain inactive, particularly for a General.
-11. Gameplay resolution phase order, simultaneous movement/contact conflicts, and explicit attack targeting/interaction with movement encounters.
+11. Gameplay resolution phase order, simultaneous movement/contact conflicts, and explicit attack targeting/interaction with movement encounters. Player-relative move-number priority is approved; equal-number seeded sequential precedence is provisional.
 12. Active-player membership changes, surrender/elimination/join timing, and what to do if no active players remain. The current lifecycle requires a nonempty fixed active roster.
 13. Scheduling of the next turn, downtime catch-up, clock corrections, pauses, and durable retry/acknowledgement behavior. These must preserve hybrid closure and offline progression.
 14. Product limits for turn duration and order payload size. Current numeric validation enforces safe positive integer milliseconds, not approved balance limits.
+15. Dependency cancellation policy (block versus cascading cancellation), failed/blocked movement handling, and production seed generation/storage/reveal. The current ordering helper executes none of these behaviors.
 
 When a task depends on one of these, ask for a decision or implement only the unambiguous portion behind a clearly marked configuration boundary.

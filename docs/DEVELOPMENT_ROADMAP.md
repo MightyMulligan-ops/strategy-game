@@ -37,6 +37,19 @@ The first playable prototype should demonstrate the strategy-game loop and inclu
 
 **Exit criteria:** Contracts and lifecycle checks pass. This is a tested in-memory foundation, not a playable turn resolver, durable submission API, or offline scheduler.
 
+## Phase 0A.1 — Empty resolution and movement-queue contracts (Assignment 003)
+
+**Goal:** Advance a frozen empty turn reproducibly without implementing gameplay.
+
+- [x] Add server-only snapshot, frozen input, result, rejection, and domain-event schemas with pinned version metadata.
+- [x] Resolve empty turns using deterministic operational phases and stable audit IDs; reject all nonempty gameplay orders.
+- [x] Derive player-relative movement numbers from existing ordered drafts and preserve stable order IDs.
+- [x] Test reproducible, replaceable equal-number seeded precedence independently of execution.
+- [x] Document future dotted paths/cancellation controls, Movement Queue panel, and recruitment-to-movement dependencies.
+- [x] Test replay, immutable inputs/outputs, version mismatches, and malformed frozen inputs.
+
+**Exit criteria:** Empty-turn resolution and queue-planning tests pass. Movement, attacks, dependencies, and passive systems do not execute. Phase precedence beyond move-number priority remains open.
+
 ## Phase 0B — Durable orders and turn execution foundations
 
 **Goal:** Make the approved asynchronous model reliable before complex movement/combat work.
@@ -46,7 +59,7 @@ The first playable prototype should demonstrate the strategy-game loop and inclu
 - [ ] Persist accepted revisions before acknowledging them; define idempotent retries.
 - [ ] Atomically freeze eligible orders and commit one resolution per turn.
 - [ ] Add deadline scheduling and restart recovery that progress games while everyone is offline.
-- [ ] Approve gameplay phase order and simultaneous-order conflict rules, then add deterministic empty-turn resolution/replay tests.
+- [ ] Approve gameplay phase order and remaining simultaneous-order conflict rules before extending the tested empty-turn resolver.
 - [ ] Exercise two-player submissions, deadline races, early Ready closure, and crash recovery.
 
 **Exit criteria:** Durable orders and hybrid closure survive retries/restarts without client-trusted outcomes. No production capacity claim yet.
@@ -75,6 +88,9 @@ The first playable prototype should demonstrate the strategy-game loop and inclu
 - [ ] Enforce leader ranks, one-per-rank, primary/secondary roles, and creation-time specialization selection.
 - [ ] Implement leader-commanded geographic movement.
 - [ ] Implement the single-infantry original-source-node movement exception.
+- [ ] Integrate numbered movement queues with eligible-order execution using an explicitly pinned equal-priority policy.
+- [ ] Show dotted map paths with cancellation controls and a separate Movement Queue panel.
+- [ ] Approve and validate recruitment prerequisites and safe dependent-order cancellation before executing recruitment-to-movement chains.
 - [ ] Implement a simple deterministic combat encounter using explicitly approved formulas.
 - [ ] Add basic city income/recruitment costs.
 - [ ] Persist and reload a scenario.

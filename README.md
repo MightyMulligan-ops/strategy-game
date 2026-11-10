@@ -4,7 +4,7 @@ A browser-based, multiplayer 2D grand strategy game inspired by the broad gamepl
 
 ## Project status
 
-**Pre-production / foundation.** The pnpm workspace has starter React/Vite and Fastify applications, validated shared turn/order contracts, and a tested pure turn lifecycle. There is no playable game, persistence, scheduler, or multiplayer transport yet.
+**Pre-production / foundation.** The pnpm workspace has starter React/Vite and Fastify applications, validated turn/order contracts, a pure turn lifecycle, deterministic empty-turn resolution, and a seeded movement-queue planning helper. There is no playable game, persistence, scheduler, or multiplayer transport yet.
 
 ## Product direction
 
@@ -39,7 +39,8 @@ Use a **server-authoritative modular monolith** initially. Do not introduce micr
 - `docs/ATWAR_REFERENCE.md` — reference observations, sources, and unresolved verification items.
 - `AGENTS.md` — instructions for AI coding agents and contributors.
 - `packages/shared-types/` — strict, versioned runtime schemas and transport types.
-- `packages/game-engine/` — server-only pure turn lifecycle; no gameplay execution yet.
+- `packages/game-engine/` — server-only lifecycle, empty-turn resolver, and movement-queue planning; no gameplay execution yet.
+- `@strategy-game/shared-types/server` — authoritative snapshot/resolution schemas; never send these directly to clients.
 
 ## Development principles
 
