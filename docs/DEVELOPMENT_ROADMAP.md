@@ -17,8 +17,8 @@ The first playable prototype should demonstrate the strategy-game loop and inclu
 - [ ] Establish a workspace-wide formatting/lint policy beyond the existing frontend checks.
 - [x] Create initial web and server applications.
 - [x] Establish shared turn/order contracts and server-only lifecycle package boundaries.
-- [ ] Add environment configuration and `.env.example`.
-- [ ] Add PostgreSQL/Prisma foundation when persistence is introduced.
+- [x] Add database environment configuration and `.env.example` (Assignment 004A).
+- [x] Add PostgreSQL/Prisma schema, initial migration, and repository foundation (Assignment 004A; follow-up live database suite passed).
 - [ ] Complete an atWar reference audit for mechanics that will be reproduced.
 - [ ] Record open decisions rather than inventing formulas.
 - [ ] Establish GitHub Issues/PR workflow and branch conventions.
@@ -54,15 +54,20 @@ The first playable prototype should demonstrate the strategy-game loop and inclu
 
 **Goal:** Make the approved asynchronous model reliable before complex movement/combat work.
 
-- [ ] Add minimal PostgreSQL/Prisma order, turn, and snapshot persistence.
+- [x] Add PostgreSQL/Prisma match, participant, turn, Ready, order/revision, frozen input, snapshot, and result persistence foundation (Assignment 004A).
+- [x] Add partial queue uniqueness, immutable settings, atomic closure checks, and seed/result recovery primitives in migration/repository code.
+- [x] Add database mapping unit tests and opt-in PostgreSQL persistence tests with a safe local development setup.
+- [x] Verify the owner-applied initial test migration and pass the live PostgreSQL suite (11 tests on PostgreSQL 17.11; no schema changes).
 - [ ] Add authenticated/authorized command handling and own-player draft responses.
-- [ ] Persist accepted revisions before acknowledging them; define idempotent retries.
-- [ ] Atomically freeze eligible orders and commit one resolution per turn.
+- [ ] Expose acknowledgements only after the repository commit and define request-level idempotent retries in authenticated APIs.
+- [x] Implement atomic closure/frozen inputs and idempotent empty-turn result commits in the repository (live integration suite passed).
 - [ ] Add deadline scheduling and restart recovery that progress games while everyone is offline.
 - [ ] Approve gameplay phase order and remaining simultaneous-order conflict rules before extending the tested empty-turn resolver.
 - [ ] Exercise two-player submissions, deadline races, early Ready closure, and crash recovery.
 
 **Exit criteria:** Durable orders and hybrid closure survive retries/restarts without client-trusted outcomes. No production capacity claim yet.
+
+Assignment 004A supplies schema and internal storage operations, not production authentication, command APIs, scheduling, or WebSockets. Current draft contracts are unchanged. Future prerequisite storage does not decide dependency cancellation or recruitment execution. The live storage suite now passes, including scoped cleanup without weakening foreign keys; full scheduler/crash orchestration and the other unchecked work remain required before this phase is complete.
 
 ## Phase 1 — Map and game shell
 

@@ -1,0 +1,193 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum TurnStatus {
+  OPEN
+  CLOSED
+  RESOLVING
+  RESOLVED
+}
+
+enum ClosureReason {
+  DEADLINE
+  ALL_READY
+}
+
+enum OrderKind {
+  MOVE
+  ATTACK
+}
+
+enum RevisionKind {
+  INITIAL
+  REPLACE_ORDERS
+  CANCEL_ORDER
+  SET_READY
+}
+
+model PlayerIdentity {
+  id           String             @id
+  participants MatchParticipant[]
+}
+
+model Match {
+  id                  String               @id
+  currentStateVersion BigInt               @default(0)
+  configuration       MatchConfiguration?
+  participants        MatchParticipant[]
+  snapshots           GameSnapshotRecord[]
+  turns               Turn[]
+}
+
+model MatchConfiguration {
+  matchId           String @id
+  schemaVersion     Int
+  turnDurationMs    BigInt
+  rulesetId         String
+  rulesetVersion    String
+  simulationVersion String
+  config            Json
+  pinnedRuleset     Json
+  match             Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+}
+
+model MatchParticipant {
+  matchId    String
+  playerId   String
+  identityId String
+  active     Boolean
+  match      Match             @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  identity   PlayerIdentity    @relation(fields: [identityId], references: [id], onDelete: Restrict)
+  turns      PlayerTurnState[]
+
+  @@id([matchId, playerId])
+  @@index([identityId])
+}
+
+model GameSnapshotRecord {
+  matchId             String
+  stateVersion        BigInt
+  snapshotId          String             @unique
+  completedTurnNumber BigInt
+  payload             Json
+  match               Match              @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  startingTurns       Turn[]
+  resolutions         ResolutionResult[]
+
+  @@id([matchId, stateVersion])
+}
+
+model Turn {
+  matchId              String
+  number               BigInt
+  startingStateVersion BigInt
+  status               TurnStatus
+  openedAtMs           BigInt
+  deadlineAtMs         BigInt
+  lastObservedAtMs     BigInt
+  closedAtMs           BigInt?
+  closeReason          ClosureReason?
+  match                Match               @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  startingSnapshot     GameSnapshotRecord   @relation(fields: [matchId, startingStateVersion], references: [matchId, stateVersion], onDelete: NoAction)
+  players              PlayerTurnState[]
+  frozenInput          FrozenTurnInputRecord?
+  resolution           ResolutionResult?
+
+  @@id([matchId, number])
+  @@index([status, deadlineAtMs])
+}
+
+model PlayerTurnState {
+  matchId     String
+  turnNumber  BigInt
+  playerId    String
+  active      Boolean
+  revision    BigInt
+  ready       Boolean
+  turn        Turn                       @relation(fields: [matchId, turnNumber], references: [matchId, number], onDelete: Cascade)
+  participant MatchParticipant           @relation(fields: [matchId, playerId], references: [matchId, playerId], onDelete: NoAction)
+  orders      PlayerOrder[]
+  revisions   PlayerSubmissionRevision[]
+
+  @@id([matchId, turnNumber, playerId])
+}
+
+model PlayerSubmissionRevision {
+  matchId    String
+  turnNumber BigInt
+  playerId   String
+  revision   BigInt
+  kind       RevisionKind
+  ready      Boolean
+  orders     Json
+  command    Json?
+  recordedAt DateTime        @default(now()) @db.Timestamptz(3)
+  player     PlayerTurnState @relation(fields: [matchId, turnNumber, playerId], references: [matchId, turnNumber, playerId], onDelete: Cascade)
+
+  @@id([matchId, turnNumber, playerId, revision])
+}
+
+model PlayerOrder {
+  matchId       String
+  turnNumber    BigInt
+  playerId      String
+  orderId       String
+  kind          OrderKind
+  payload       Json
+  active        Boolean
+  draftPosition Int?
+  moveNumber    Int?
+  lastRevision  BigInt
+  player        PlayerTurnState @relation(fields: [matchId, turnNumber, playerId], references: [matchId, turnNumber, playerId], onDelete: Cascade)
+  prerequisites OrderDependency[] @relation("DependentOrder")
+  dependents    OrderDependency[] @relation("PrerequisiteOrder")
+
+  @@id([matchId, turnNumber, playerId, orderId])
+  @@index([matchId, turnNumber, playerId, active])
+  // Partial active queue uniqueness and row checks live in migration SQL.
+}
+
+model OrderDependency {
+  matchId             String
+  turnNumber          BigInt
+  playerId            String
+  orderId             String
+  prerequisiteOrderId String
+  requiredOutputRef   String?
+  dependent           PlayerOrder @relation("DependentOrder", fields: [matchId, turnNumber, playerId, orderId], references: [matchId, turnNumber, playerId, orderId], onDelete: Cascade)
+  prerequisite        PlayerOrder @relation("PrerequisiteOrder", fields: [matchId, turnNumber, playerId, prerequisiteOrderId], references: [matchId, turnNumber, playerId, orderId], onDelete: NoAction)
+
+  @@id([matchId, turnNumber, playerId, orderId, prerequisiteOrderId])
+}
+
+model FrozenTurnInputRecord {
+  matchId    String
+  turnNumber BigInt
+  payload    Json
+  seed       BigInt?
+  frozenAt   DateTime @default(now()) @db.Timestamptz(3)
+  turn       Turn     @relation(fields: [matchId, turnNumber], references: [matchId, number], onDelete: Cascade)
+
+  @@id([matchId, turnNumber])
+}
+
+model ResolutionResult {
+  matchId          String
+  turnNumber       BigInt
+  resolutionId     String             @unique
+  nextStateVersion BigInt
+  payload          Json
+  recordedAt       DateTime           @default(now()) @db.Timestamptz(3)
+  turn             Turn               @relation(fields: [matchId, turnNumber], references: [matchId, number], onDelete: Cascade)
+  nextSnapshot     GameSnapshotRecord @relation(fields: [matchId, nextStateVersion], references: [matchId, stateVersion], onDelete: NoAction)
+
+  @@id([matchId, turnNumber])
+}

@@ -7,6 +7,7 @@ node_modules/
 dist/
 build/
 coverage/
+database/src/generated/
 
 # Environment variables and secrets
 .env

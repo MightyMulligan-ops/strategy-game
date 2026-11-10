@@ -13,8 +13,15 @@
     "dev:web": "pnpm --filter @strategy-game/web dev",
     "dev:server": "pnpm --filter @strategy-game/server dev",
     "build": "pnpm -r --if-present run build",
-    "typecheck": "pnpm --filter @strategy-game/shared-types build && pnpm -r --if-present run typecheck",
-    "test": "pnpm --filter @strategy-game/shared-types build && vitest run",
+    "prepare:checks": "pnpm --filter @strategy-game/game-engine... build && pnpm db:generate",
+    "typecheck": "pnpm prepare:checks && pnpm -r --if-present run typecheck",
+    "test": "pnpm prepare:checks && vitest run",
+    "test:db": "pnpm prepare:checks && node --experimental-strip-types --env-file-if-exists=.env scripts/test-database.ts",
+    "db:migrate:test": "node --experimental-strip-types --env-file-if-exists=.env scripts/test-database.ts --migrate",
+    "db:generate": "pnpm --filter @strategy-game/database generate",
+    "db:validate": "pnpm --filter @strategy-game/database validate",
+    "db:migrate": "pnpm --filter @strategy-game/database migrate",
+    "db:status": "pnpm --filter @strategy-game/database migration:status",
     "lint": "pnpm --filter @strategy-game/web lint"
   },
   "devDependencies": {

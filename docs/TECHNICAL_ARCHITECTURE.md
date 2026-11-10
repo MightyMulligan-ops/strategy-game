@@ -63,7 +63,7 @@ strategy-game/
 │       ├── defense-lines/
 │       ├── visibility/
 │       └── diplomacy/
-├── database/                # Prisma schema and migrations
+├── database/                # Server-only Prisma schema, migrations, and repository
 ├── assets/                  # Original or properly licensed assets and attribution
 ├── tests/                   # Cross-package scenarios and fixtures
 ├── docs/
@@ -188,7 +188,7 @@ All command envelopes contain `schemaVersion: 1`, `gameId`, `turnNumber`, and `e
 
 The pure functions return new frozen snapshots and do not mutate their inputs. They contain no map, unit, combat, or economy state. Consequently a draft change cannot execute an order. Frozen drafts are a future resolution input, not a gameplay-resolved result.
 
-Retries currently encounter revision checks; there is no durable idempotency receipt or accepted-submission acknowledgement API. A future storage adapter must acknowledge only after its durability guarantee is met and must atomically coordinate acceptance, closure, snapshotting, and recovery.
+Retries currently encounter revision checks; there is no durable idempotency receipt or accepted-submission acknowledgement API. The internal storage adapter in section 9.1 commits draft writes/closure before returning. A future authenticated API must acknowledge only after that commit and define request receipt/retry semantics.
 
 ### 8.5 Package and privacy boundaries
 
@@ -198,11 +198,11 @@ Retries currently encounter revision checks; there is no durable idempotency rec
 - `TurnRecord` contains lifecycle metadata only. `GamePlayer` contains game-scoped membership, not account credentials/identities. `OwnTurnSubmission` may be returned only to its owner by a future authenticated adapter; it is not a public broadcast contract.
 - `packages/game-engine` owns server-only `TurnState`, roster snapshots, and all private drafts. Never send it to clients or import it into the browser. Runtime schemas do not replace authorization or visibility checks.
 - `@strategy-game/shared-types/server` is a separate server-only entry point for authoritative snapshot/resolution schemas. They are not re-exported by the public transport entry point. This is a code boundary, not a substitute for future transport filtering.
-- No Fastify refactor is needed for this assignment: lifecycle tests require neither HTTP startup nor transport. Zod is the only new runtime dependency; Vitest was already installed. The other domain packages remain unimplemented.
+- Assignment 002 needed no Fastify refactor: lifecycle tests require neither HTTP startup nor transport. Zod was introduced for those contracts; Vitest was already installed. Prisma dependencies are introduced separately in section 9.1. The other gameplay domain packages remain unimplemented.
 
 ### 8.6 Explicitly unresolved / future work
 
-Do not infer policies for joins, elimination, surrender, an empty active roster, pause/resume, wall-clock correction, minimum/maximum duration, payload/rate limits, next-turn opening time, or downtime catch-up. Membership is fixed for the supported lifecycle. The caller chooses when to open the next record; the function does not schedule it. Acknowledgement/retry semantics, atomic persistence, authentication, and scheduler recovery are future assignments.
+Do not infer policies for joins, elimination, surrender, an empty active roster, pause/resume, wall-clock correction, minimum/maximum duration, payload/rate limits, next-turn opening time, or downtime catch-up. Membership is fixed for the supported lifecycle. The caller chooses when to open the next record; the function does not schedule it. Player-facing acknowledgement/retry semantics, authentication, and scheduler recovery are future assignments. Internal atomic persistence is provided by section 9.1 and covered by the live PostgreSQL suite.
 
 Likewise, no gameplay phase order, movement path/leader validation, attack legality, combat formula, resource reservation, or same-stack conflicting-order policy has been implemented. Existing leadership, supply, and economy rules remain authoritative and will be applied by later domain modules.
 
@@ -254,7 +254,7 @@ Before that feature ships, validate prerequisite existence, ownership, output ty
 
 ## 9. Persistence and data
 
-PostgreSQL is the planned persistent store. Prisma is the planned schema/migration tool.
+PostgreSQL is the persistent store and Prisma is the schema/migration tool. Assignment 004A introduces the initial storage implementation; its follow-up passed the live PostgreSQL persistence suite.
 
 Likely data domains:
 - Users and authentication identities.
@@ -270,6 +270,20 @@ Likely data domains:
 - Ruleset/module configuration.
 
 Do not design every table before a vertical slice. Evolve schema around tested domain behavior and use migrations.
+
+### 9.1 Assignment 004A persistence foundation
+
+`@strategy-game/database` is a workspace package in the documented `database/` directory. It depends on the existing engine/contracts; the engine remains pure and has no database import. Fastify still exposes only health. Prisma 7.10.1 CLI/client and its PostgreSQL adapter are pinned together; no new dependency is added to the browser or game engine. Client generation uses ESM TypeScript sources and needs no running database.
+
+The schema separates matches/configuration, opaque identities/participants, authoritative snapshots, turns, per-player Ready/revision state, append-only accepted draft revisions, current/canceled order records, future dependencies, frozen inputs, and resolution results. JSON fields retain the existing strict Zod contracts and version metadata. Database integers preserve safe millisecond/counter values with bigint-to-number checks. Full snapshots, drafts, frozen inputs, and result/events remain server-private.
+
+Move numbers and complete-draft positions are persisted independently; attacks have no move number. Scoped primary keys prevent duplicate active IDs; PostgreSQL partial indexes prevent duplicate active queue slots. Cancellation preserves historical IDs. Dependency foreign keys reference stable same-player/turn order IDs, never movement numbers. There is no dependency execution or choice of cancellation cascade policy; edits involving stored dependencies are unsupported until that feature is approved.
+
+Repository operations use a common turn row lock and short interactive transactions. The server samples acceptance time only after obtaining that lock. Draft/revision/Ready writes and hybrid closure/frozen inputs commit together. Deferred SQL checks reject a closed turn without a frozen input or a resolved turn without a result. Match configuration updates, archive updates, frozen content changes, and seed replacements are blocked by triggers. Partial indexes/checks/triggers are maintained in migration SQL and must not be discarded by schema push or future regenerated migrations.
+
+Resolution preparation pins the caller-supplied seed before computation. After a restart, a fresh repository/client can load the same snapshot, frozen queues, ruleset, and seed without process memory. Resolution computation/validation happens outside the write transaction; a guarded transaction commits one output snapshot/result and advances the match version once. Identical result retries return the committed audit. These are recovery primitives, not an implemented job runner/scheduler, authentication layer, or player-facing acknowledgement API. The existing resolver still rejects nonempty gameplay.
+
+The initial migration and local-only Compose services require no production credentials. Unit tests run without a database; PostgreSQL integration tests require an explicit local `_test` URL and migrated test instance. The follow-up passed all 11 integration tests against the existing PostgreSQL 17.11 test database, covering persistence, constraints, competing submissions, rollback, new-client recovery, and result retries. Cleanup explicitly deletes children before parents inside a transaction, using only tracked fixture IDs; cross-referencing `NO ACTION` foreign keys remain unchanged. Future production match deletion must likewise define dependency order. See `database/README.md` for cleanup details and the remaining Prisma/pg deprecation warning.
 
 ## 10. Multiplayer and security
 
