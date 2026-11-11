@@ -36,10 +36,10 @@ const request = vi.fn(async (path: string, init: RequestInit = {}): Promise<Resp
   if (path === '/auth/username') { user = profile; return json({ user }) }
   if (path.startsWith('/auth/logout')) return json(null, 204)
   if (path.startsWith('/auth/login/') || path.startsWith('/auth/link/')) return json({ authorizationUrl: 'https://identity.example/authorize' })
-  if (path === '/api/lobbies?status=OPEN') {
+  if (path === '/api/lobbies?status=OPEN' || path === '/api/lobbies?status=RUNNING') {
     const { participants: roster, viewer, ...summary } = current
     void roster; void viewer
-    return json({ schemaVersion: 1, lobbies: listed ? [summary] : [] })
+    return json({ schemaVersion: 1, lobbies: path.endsWith('RUNNING') ? current.status === 'RUNNING' ? [summary] : [] : listed ? [summary] : [] })
   }
   if (path === '/api/lobbies' && init.method === 'POST') {
     const body = JSON.parse(init.body as string)
@@ -235,6 +235,15 @@ describe('Sovereign account and lobby UI', () => {
     }
     await click('Start Match'); expect(text()).toContain('This match has already started.')
     expect(button('Start Match').disabled).toBe(true); expect(posts()).toHaveLength(1)
+  })
+  it('lets a fresh page discover and inspect started lobbies with persisted duration and closed controls', async () => {
+    current = room('HOST', 'RUNNING', true); listed = false; await mount()
+    expect(text()).toContain('No open lobbies yet.')
+    await value('lobby-status', 'RUNNING'); await click('Inspect Evening Council')
+    expect(text()).toContain('Started lobbies'); expect(text()).toContain('RUNNING'); expect(text()).toContain('5 minutes')
+    expect(button('Start Match').disabled).toBe(true)
+    expect([...host.querySelectorAll('button')].some((b) => /^(Mark|Join lobby|Leave lobby)/.test(b.textContent ?? ''))).toBe(false)
+    await value('lobby-status', 'OPEN'); expect(text()).toContain('No open lobbies yet.')
   })
   it('reloads stale/full/closed state once and never retries the rejected mutation', async () => {
     await mount(); await click('Inspect Evening Council')

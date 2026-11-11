@@ -17,6 +17,7 @@ export default function LobbyBrowser({ busy, onBegin, onEnd, onSessionError }: {
   busy: boolean; onBegin: () => boolean; onEnd: () => void; onSessionError: () => Promise<void>
 }) {
   const [lobbies, setLobbies] = useState<readonly LobbySummary[] | null>(null)
+  const [listStatus, setListStatus] = useState<'OPEN' | 'RUNNING'>('OPEN')
   const [detail, setDetail] = useState<LobbyDetail | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
   const [listLoading, setListLoading] = useState(true)
@@ -44,8 +45,9 @@ export default function LobbyBrowser({ busy, onBegin, onEnd, onSessionError }: {
   const loadList = useCallback(async () => {
     listRead.current?.abort()
     const controller = new AbortController(); listRead.current = controller
+    setListLoading(true)
     try {
-      const result = await lobbyRequest('/api/lobbies?status=OPEN', ListLobbiesResponseSchema, controller.signal)
+      const result = await lobbyRequest(`/api/lobbies?status=${listStatus}`, ListLobbiesResponseSchema, controller.signal)
       if (!controller.signal.aborted) { setLobbies(result.lobbies); setListError('') }
     } catch (error) {
       if (!controller.signal.aborted) {
@@ -53,7 +55,7 @@ export default function LobbyBrowser({ busy, onBegin, onEnd, onSessionError }: {
         if (!controller.signal.aborted) { setLobbies(null); setListError(message) }
       }
     } finally { if (!controller.signal.aborted) setListLoading(false) }
-  }, [explain])
+  }, [explain, listStatus])
 
   function refreshList() { setListLoading(true); setListError(''); return loadList() }
 
@@ -135,9 +137,11 @@ export default function LobbyBrowser({ busy, onBegin, onEnd, onSessionError }: {
       <span className="development-label">Lobby readiness · Gameplay coming later</span></div>
     <div className="lobby-grid">
       <section className="panel lobby-list" aria-labelledby="open-lobbies-title" aria-busy={listLoading}>
-        <div className="section-heading"><h2 id="open-lobbies-title">Open lobbies</h2><button disabled={disabled || listLoading} onClick={() => void refreshList()}>Refresh list</button></div>
+        <div className="section-heading"><h2 id="open-lobbies-title">{listStatus === 'OPEN' ? 'Open lobbies' : 'Started lobbies'}</h2><button disabled={disabled || listLoading} onClick={() => void refreshList()}>Refresh list</button></div>
+        <label htmlFor="lobby-status">Lobby status</label><select id="lobby-status" value={listStatus} disabled={disabled || listLoading}
+          onChange={(event) => setListStatus(event.target.value === 'RUNNING' ? 'RUNNING' : 'OPEN')}><option value="OPEN">Open</option><option value="RUNNING">Started</option></select>
         {listLoading ? <p role="status">Loading lobbies…</p> : listError ? <p role="alert" className="notice">{listError}</p>
-          : lobbies?.length === 0 ? <div className="empty-state"><h3>A seat at the table</h3><p className="muted">No open lobbies yet. Create one for other players to discover.</p></div>
+          : lobbies?.length === 0 ? <div className="empty-state"><h3>{listStatus === 'OPEN' ? 'A seat at the table' : 'Awaiting the first start'}</h3><p className="muted">{listStatus === 'OPEN' ? 'No open lobbies yet. Create one for other players to discover.' : 'No started lobbies yet. Hosts can start once every player is ready.'}</p></div>
           : <ul className="lobby-cards">{lobbies?.map((lobby) => <li key={lobby.lobbyId}>
             <div className="section-heading"><h3>{lobby.settings.name}</h3><span className="badge">{lobby.durationCategory}</span></div>
             <p className="muted">Hosted by {lobby.host.username}</p>
