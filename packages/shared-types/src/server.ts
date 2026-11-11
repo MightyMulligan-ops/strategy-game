@@ -3,6 +3,14 @@
 import { z } from "zod";
 import { GameConfigSchema, GamePlayerSchema, OrderListSchema, TurnRecordSchema } from "./index.js";
 import { identifier, nonnegativeInteger, positiveInteger, version } from "./primitives.js";
+export {
+  WORLD_GENERATOR_VERSION, WORLD_MAX_TERRITORIES, WorldSeedSchema, WorldGenerationSettingsSchema,
+  WorldGenerationInputSchema, WorldPointSchema, WorldTerrainSchema, WorldTerritorySchema,
+  WorldStartingStateSchema, GeneratedWorldSchema, WorldGenerationErrorSchema, WorldGenerationResultSchema
+} from "./world.js";
+export type {
+  WorldGenerationInput, WorldTerritory, WorldStartingState, GeneratedWorld, WorldGenerationError, WorldGenerationResult
+} from "./world.js";
 
 export const SeedSchema = nonnegativeInteger.max(0xffff_ffff);
 export const RulesetReferenceSchema = z.strictObject({
