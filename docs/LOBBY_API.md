@@ -1,6 +1,6 @@
 # Authenticated public lobby REST API (004B.2C / Issue #11)
 
-Fastify exposes seven operations backed by PostgreSQL `LobbyRepository`, using persistent sessions and registered usernames. The [Sovereign frontend](LOBBY_UI.md) integrates them. Issue #17 adds own readiness and host-only lifecycle start. World initialization, Turn 1, deadlines and scheduling remain future work.
+Fastify exposes seven lobby operations using persistent sessions and registered usernames. Approved 005B.2 / Issue #22 makes host start atomically persist an initial world while preserving the existing start envelope and retry outcomes. A separate participant-only GET world endpoint and explicit public projection are documented in [INITIAL_WORLD.md](INITIAL_WORLD.md). Turn 1, deadlines and scheduling remain future work.
 
 ## Prerequisites and database safety
 
@@ -28,7 +28,7 @@ All response envelopes contain `schemaVersion: 1` and validate against the share
 
 For GET, an omitted version defaults to 1; only exact query string `1` is normalized. Unknown/repeated filters, unsupported versions and invalid IDs fail. Join/leave/ready/start bodies omit the path-owned ID, then are reconstructed/validated as full shared commands. A body lobbyId is rejected even if it matches. Ready requires a strict boolean, never a toggle/string/coercion. Public participants/host now include `ready`; summaries/details include `readyCount`. Envelopes remain version 1 as a coordinated pre-release shared-types/server/client update; older strict clients must be rebuilt.
 
-New/rejoining players are NOT_READY; active duplicate joins preserve readiness. Only an active participant may set their own readiness while OPEN, including the host. Only the host may start, with at least two active players and all READY. Membership/readiness/start serialize on the same parent Match lock; the transaction checks authoritative current state and conditionally writes OPEN→RUNNING. A concurrent earlier writer is observed; a later writer sees RUNNING and fails. A repeated host start returns ALREADY_STARTED; a non-host receives HOST_REQUIRED even after start. Responses follow commit. Start preserves immutable configuration/turn duration and creates no map, pins, snapshot, turn, deadline or turn result. Existing RUNNING data is not assigned invented readiness history.
+New/rejoining players are NOT_READY; active duplicate joins preserve readiness. Only an active participant may set their own readiness while OPEN, including the host. Only the host may start, with at least two active players and all READY. Membership/readiness/start serialize on the parent Match lock; the transaction now validates/inserts the initial world and conditionally writes OPEN→RUNNING together. Failure rolls back both. Earlier writers are observed; later membership/readiness writes see RUNNING and fail. Repeated host start returns ALREADY_STARTED without generation/backfill; a non-host receives HOST_REQUIRED even after start. Responses follow commit. Configuration/turn duration, pins, snapshots, turns, deadlines and turn results stay unchanged. Historical RUNNING data receives no invented world/readiness history.
 
 ## Authentication, CSRF and authorization
 

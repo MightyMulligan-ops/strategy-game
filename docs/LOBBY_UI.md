@@ -1,6 +1,6 @@
 # Sovereign lobby and account shell (004B.2D / Issue #13)
 
-The React client provides public lobby browsing, creation, joining/leaving, player readiness and host-only lifecycle start alongside account flows. Sovereign branding remains unchanged. A RUNNING lobby has no world, Turn 1, map, scheduler, presence or playable match yet.
+The React client provides account/lobby flows and a participant-only initial SVG map after atomic host start (005B.2 / Issue #22). Sovereign branding remains unchanged. Legacy RUNNING lobbies may have no initialized world; the map shows that explicit state without repair. No Turn 1, scheduler, presence or playable turn exists. See [INITIAL_WORLD.md](INITIAL_WORLD.md) for map navigation, visibility and tests.
 
 ## Account and API boundaries
 

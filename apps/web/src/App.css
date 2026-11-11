@@ -73,3 +73,13 @@
   .account-panel { padding: 36px 28px; } .registered-layout { padding: 28px 16px; } .panel { padding: 20px; }
   .workspace-heading { display: block; } .workspace-heading .development-label { display: block; margin-top: 16px; max-width: none; } .section-heading { flex-wrap: wrap; }
 }
+/* Initial map: bounded SVG geometry with text ownership and keyboard selection. */
+.world-workspace { min-width: 0; }
+.world-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 300px); gap: 1rem; align-items: start; }
+.world-map { overflow: auto; min-width: 0; padding: 8px; background: #0A0F16; border: 1px solid #C9CDD640; }
+.world-map svg { display: block; width: 100%; max-height: 75vh; }
+.world-map polygon { cursor: pointer; }
+.world-map polygon:focus-visible { outline: 3px solid #D4AF37; }
+.world-legend { display: flex; flex-wrap: wrap; gap: .6rem 1rem; padding: 0; list-style: none; }
+.territory-inspector { overflow-wrap: anywhere; }
+@media (max-width: 900px) { .world-grid { grid-template-columns: minmax(0, 1fr); } }

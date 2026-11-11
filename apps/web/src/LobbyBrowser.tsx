@@ -7,6 +7,7 @@ import {
 } from '@strategy-game/shared-types'
 import type { LobbyDetail, LobbySummary } from '@strategy-game/shared-types'
 import { lobbyRequest, LobbyRequestError } from './lobby-api'
+import WorldView from './WorldView'
 
 function duration(ms: number): string {
   return ms % 3_600_000 === 0 ? `${ms / 3_600_000} hour${ms === 3_600_000 ? '' : 's'}`
@@ -16,6 +17,17 @@ function duration(ms: number): string {
 export default function LobbyBrowser({ busy, onBegin, onEnd, onSessionError }: {
   busy: boolean; onBegin: () => boolean; onEnd: () => void; onSessionError: () => Promise<void>
 }) {
+  const readWorldId = () => new URLSearchParams((window.location.hash ?? '').slice(1)).get('world')
+  const [worldId, setWorldId] = useState<string | null>(readWorldId)
+  useEffect(() => {
+    const changed = () => setWorldId(readWorldId())
+    window.addEventListener('hashchange', changed); window.addEventListener('popstate', changed)
+    return () => { window.removeEventListener('hashchange', changed); window.removeEventListener('popstate', changed) }
+  }, [])
+  function showWorld(id: string | null) {
+    window.history.pushState(null, '', id ? `#world=${encodeURIComponent(id)}` : '#')
+    setWorldId(id)
+  }
   const [lobbies, setLobbies] = useState<readonly LobbySummary[] | null>(null)
   const [listStatus, setListStatus] = useState<'OPEN' | 'RUNNING'>('OPEN')
   const [detail, setDetail] = useState<LobbyDetail | null>(null)
@@ -99,7 +111,7 @@ export default function LobbyBrowser({ busy, onBegin, onEnd, onSessionError }: {
       if (controller.signal.aborted) return
       setNotice(action === 'create' ? 'Lobby created. You are the host.' : action === 'leave' ? 'You left the lobby.'
         : action === 'ready' ? 'Your readiness was updated.'
-          : action === 'start' ? ('outcome' in result && result.outcome === 'ALREADY_STARTED' ? 'This match has already started.' : 'Match started. Gameplay setup is a future milestone.')
+          : action === 'start' ? ('outcome' in result && result.outcome === 'ALREADY_STARTED' ? 'This match has already started.' : 'Match started. Open the initial map to inspect your world.')
             : 'outcome' in result && result.outcome === 'ALREADY_JOINED' ? 'You already belong to this lobby.' : 'You joined the lobby.')
       if (action === 'create') setName('')
       await Promise.all([refreshList(), loadDetail(result.lobby.lobbyId)])
@@ -131,6 +143,7 @@ export default function LobbyBrowser({ busy, onBegin, onEnd, onSessionError }: {
       : !ownParticipant?.ready ? 'Mark yourself ready before starting.'
         : detail.readyCount !== detail.participantCount ? 'Waiting for every player to be ready.'
           : 'All players are ready. You can start the match.'
+  if (worldId !== null) return <WorldView matchId={worldId} onClose={() => showWorld(null)} onSessionError={onSessionError} />
   return <section className="lobby-workspace" aria-labelledby="lobbies-title">
     <div className="workspace-heading"><div><p className="eyebrow">Multiplayer / public lobbies</p><h1 id="lobbies-title">The assembly</h1>
       <p className="muted">Find your company. Set the pace. Prepare for what comes next.</p></div>
@@ -163,6 +176,7 @@ export default function LobbyBrowser({ busy, onBegin, onEnd, onSessionError }: {
             onClick={() => void act('ready', { schemaVersion: 1, ready: !ownParticipant.ready })}>{ownParticipant.ready ? 'Mark not ready' : 'Mark ready'}</button>}
           {detail.viewer.canJoin && <button className="primary" disabled={disabled} onClick={() => void act('join')}>Join lobby</button>}
           {detail.viewer.canLeave && <button disabled={disabled} onClick={() => void act('leave')}>Leave lobby</button>}
+          {detail.status === 'RUNNING' && ownParticipant && <button className="primary" disabled={disabled} onClick={() => showWorld(detail.lobbyId)}>View map</button>}
           {detail.viewer.role === 'HOST' && <><button className="primary" disabled={disabled || !detail.viewer.canStart}
             aria-describedby="start-reason" onClick={() => void act('start')}>Start Match</button>
             <p id="start-reason" className="small muted">{startReason}</p><p className="small muted">You are the host. Hosts cannot leave.</p></>}

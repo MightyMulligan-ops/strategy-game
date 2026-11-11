@@ -264,6 +264,14 @@ The owner split milestone 005B (parent Issue #19) into three phases. Phase 1 add
 
 This data is not a public DTO and does not widen the empty-world `GameSnapshot` or `empty-turn-v1` resolver. Existing match-start/readiness/authentication behavior remains unchanged. Phase 2 separately adds persistence, atomic start integration, authorized world projections and a minimal renderer; phase 3 handles explicitly invoked legacy initialization and acceptance hardening. No migration, database access, HTTP endpoint, UI or turn initialization occurs in phase 1.
 
+### 8.11 Persistent initial world and public map (005B.2 / Issue #22)
+
+The owner approved JSONB initial archives, server-selected regionSide=5 and complete initial-map visibility for active participants. `MatchWorld` stores one immutable approved-generator result with uint32 seed in BIGINT. Lobby start inserts the world and changes lifecycle under the same parent lock as membership/readiness; deferred SQL constraints protect new transitions while allowing legacy worldless RUNNING rows. No reads or host retries backfill them. Configuration, deadlines, turns, armies and empty-turn snapshots remain unchanged.
+
+`WorldRepository` authorizes active membership before loading the archive in a consistent transaction. Its explicit bounded public projection exposes geometry/terrain/initial fixtures and public roster only, never seed/raw JSONB/account IDs. Fastify retains session/onboarding/private headers/rate controls. React uses public contracts for the first responsive, keyboard-accessible SVG inspector and hash-based reload navigation; no public generator or gameplay controls. Geometry/terrain primitives are shared without importing authoritative schemas into the browser graph. No new dependencies or remote execution.
+
+See [INITIAL_WORLD.md](INITIAL_WORLD.md) for storage/rollback tradeoffs, endpoint states, SQL safeguards, visibility and CI-only acceptance. The 005B.1 generator and its golden outputs remain unchanged; future gameplay and legacy initialization still require separate design/authorization.
+
 ## 9. Persistence and data
 
 PostgreSQL is the persistent store and Prisma is the schema/migration tool. Assignment 004A introduces the initial storage implementation; its follow-up passed the live PostgreSQL persistence suite.

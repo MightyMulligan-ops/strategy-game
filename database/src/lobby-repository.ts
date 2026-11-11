@@ -7,6 +7,7 @@ import type { LobbyDetail, LobbySummary } from "@strategy-game/shared-types";
 import { Prisma } from "./generated/prisma/client.js";
 import type { PrismaClient } from "./generated/prisma/client.js";
 import { json, safeNumber } from "./mappings.js";
+import { makeInitialWorld, insertInitialWorld } from "./world-repository.js";
 
 export type LobbyErrorCode = "UNAUTHENTICATED" | "USERNAME_REQUIRED" | "INVALID_INPUT" | "NOT_FOUND"
   | "LOBBY_NOT_OPEN" | "LOBBY_FULL" | "HOST_CANNOT_LEAVE" | "NOT_A_PARTICIPANT" | "INVALID_STORAGE"
@@ -85,10 +86,10 @@ function detail(row: LobbyRow, identityId: string, username: string): LobbyDetai
 }
 
 /** Server-only. Identity IDs must come from trusted authentication, never request bodies.
- * Starting changes lifecycle only; no method creates a world/turn or authenticates HTTP.
+ * Starting atomically persists an initial world; no method creates a turn or authenticates HTTP.
  */
 export class LobbyRepository {
-  constructor(private readonly client: PrismaClient) {}
+  constructor(private readonly client: PrismaClient, private readonly worldFactory: typeof makeInitialWorld = makeInitialWorld) {}
 
   private async withLobby<T>(id: string, identityId: string,
     work: (tx: Transaction, row: LobbyRow, username: string) => Promise<T>): Promise<T> {
@@ -170,9 +171,11 @@ export class LobbyRepository {
       if (row.status === "RUNNING") return Object.freeze({ lobby: detail(row, identityId, username), outcome: "ALREADY_STARTED" as const });
       if (row.participants.length < 2) throw new LobbyError("NOT_ENOUGH_PARTICIPANTS");
       if (row.participants.some((participant) => !participant.lobbyReady)) throw new LobbyError("NOT_ALL_READY");
+      const players = row.participants.map((p) => p.playerId);
+      await insertInitialWorld(tx, row.id, this.worldFactory(players), players);
       const updated = await tx.match.updateMany({ where: { id: row.id, status: "OPEN" }, data: { status: "RUNNING" } });
       if (updated.count !== 1) throw new LobbyError("LOBBY_NOT_OPEN");
-      // No configuration change, world, runtime pin, snapshot, Turn 1 or deadline.
+      // No configuration change, runtime pin, snapshot, Turn 1 or deadline.
       return Object.freeze({ lobby: detail(await readLobby(tx, row.id), identityId, username), outcome: "STARTED" as const });
     });
   }

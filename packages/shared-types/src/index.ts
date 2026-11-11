@@ -1,4 +1,6 @@
 import { z } from "zod";
+export { ReadWorldRequestSchema, ReadWorldResponseSchema, PublicWorldSchema } from "./world-view.js";
+export type { ReadWorldResponse, PublicWorld } from "./world-view.js";
 import { identifier, nonnegativeInteger, positiveInteger, version } from "./primitives.js";
 export { AuthenticatedPlayerSchema, OAuthProviderSchema, UsernameSchema, UsernameSelectionSchema } from "./auth.js";
 export type { AuthenticatedPlayer, OAuthProvider } from "./auth.js";

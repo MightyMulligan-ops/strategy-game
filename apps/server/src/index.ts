@@ -2,7 +2,7 @@
 import { existsSync } from "node:fs";
 import { loadEnvFile } from "node:process";
 import { fileURLToPath } from "node:url";
-import { AuthRepository, createDatabaseClient, LobbyRepository } from "@strategy-game/database";
+import { AuthRepository, createDatabaseClient, LobbyRepository, WorldRepository } from "@strategy-game/database";
 import { buildApp } from "./app.js";
 import { readAuthConfig } from "./auth/config.js";
 
@@ -17,7 +17,7 @@ try {
     logger: true,
     trustProxy: process.env.AUTH_TRUST_PROXY ? process.env.AUTH_TRUST_PROXY.split(",") : false,
     ...(config && database ? { auth: { config, persistence: new AuthRepository(database),
-      ...(config.devLoginEnabled ? { localTestLogin: new AuthRepository(database) } : {}) }, lobbies: new LobbyRepository(database) } : {})
+      ...(config.devLoginEnabled ? { localTestLogin: new AuthRepository(database) } : {}) }, lobbies: new LobbyRepository(database), worlds: new WorldRepository(database) } : {})
   });
   const ownedDatabase = database;
   if (ownedDatabase) app.addHook("onClose", async () => ownedDatabase.$disconnect());
