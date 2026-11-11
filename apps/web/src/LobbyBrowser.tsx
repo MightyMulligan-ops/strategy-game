@@ -138,7 +138,7 @@ export default function LobbyBrowser({ busy, onBegin, onEnd, onSessionError }: {
     <div className="lobby-grid">
       <section className="panel lobby-list" aria-labelledby="open-lobbies-title" aria-busy={listLoading}>
         <div className="section-heading"><h2 id="open-lobbies-title">{listStatus === 'OPEN' ? 'Open lobbies' : 'Started lobbies'}</h2><button disabled={disabled || listLoading} onClick={() => void refreshList()}>Refresh list</button></div>
-        <label htmlFor="lobby-status">Lobby status</label><select id="lobby-status" value={listStatus} disabled={disabled || listLoading}
+        <label htmlFor="lobby-status">Lobby status</label><select id="lobby-status" value={listStatus} disabled={disabled || listLoading || detailLoading}
           onChange={(event) => setListStatus(event.target.value === 'RUNNING' ? 'RUNNING' : 'OPEN')}><option value="OPEN">Open</option><option value="RUNNING">Started</option></select>
         {listLoading ? <p role="status">Loading lobbies…</p> : listError ? <p role="alert" className="notice">{listError}</p>
           : lobbies?.length === 0 ? <div className="empty-state"><h3>{listStatus === 'OPEN' ? 'A seat at the table' : 'Awaiting the first start'}</h3><p className="muted">{listStatus === 'OPEN' ? 'No open lobbies yet. Create one for other players to discover.' : 'No started lobbies yet. Hosts can start once every player is ready.'}</p></div>

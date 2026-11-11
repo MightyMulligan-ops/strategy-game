@@ -294,6 +294,7 @@ describe('Sovereign account and lobby UI', () => {
     await mount(); let resolve!: (response: Response) => void
     intercept = (path) => path === '/api/lobbies/council' ? new Promise<Response>((done) => { resolve = done }) : undefined
     await click('Inspect Evening Council'); expect(text()).toContain('Loading lobby details…')
+    expect(host.querySelector<HTMLSelectElement>('#lobby-status')!.disabled).toBe(true)
     const signal = request.mock.calls.at(-1)![1]!.signal!
     await act(async () => root.render(<StrictMode><p>Different screen</p></StrictMode>)); expect(signal.aborted).toBe(true)
     await act(async () => resolve(json({ schemaVersion: 1, lobby: room() }))); expect(text()).toBe('Different screen')
