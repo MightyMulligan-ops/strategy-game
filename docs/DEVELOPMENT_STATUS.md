@@ -15,7 +15,7 @@ This is a short, evidence-based handoff, not a replacement for the authoritative
 | Lobby contracts and documentation (004B.2A / Issue #7) | Merged | [PR #8](https://github.com/MightyMulligan-ops/strategy-game/pull/8), `b0164b7`; lifecycle, privacy, capacity, deadline-overflow contracts |
 | PostgreSQL lobby persistence (004B.2B / Issue #9) | Merged | [PR #10](https://github.com/MightyMulligan-ops/strategy-game/pull/10), `df975a2`; migration is not approved for the existing development DB; 21 lobby tests / 38 repository tests |
 | Authenticated lobby REST API (004B.2C / Issue #11) | Merged | [PR #12](https://github.com/MightyMulligan-ops/strategy-game/pull/12), `5cbd901`; five session-bound operations, safe envelopes and 45 live tests; existing development migration remains unapproved |
-| Sovereign account/lobby UI and proxy (004B.2D / Issue #13) | In progress, unmerged | `issue/13-sovereign-lobby-ui`; branded login/onboarding/profile and API-backed lobby flows, 15 byte-identical asset moves, 32 frontend DOM tests; Chromium mock/proxy/asset/layout checks; no existing database access or match start |
+| Sovereign account/lobby UI and proxy (004B.2D / Issue #13) | In review, unmerged | [Draft PR #14](https://github.com/MightyMulligan-ops/strategy-game/pull/14), `issue/13-sovereign-lobby-ui`; branded login/onboarding/profile and API-backed lobby flows, 15 byte-identical asset moves, 32 frontend DOM tests; Chromium mock/proxy/asset/layout checks; no existing database access or match start |
 | Match authorization, command APIs, scheduler | Planned | Next Phase 0B work; account authentication does not grant match permissions |
 | Map, gameplay, leadership, Military Supplies | Planned | Rules remain in GAME_DESIGN.md; no claim of implemented gameplay |
 
