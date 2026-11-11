@@ -298,6 +298,20 @@ Reference behavior observed: hostile units cannot pass an enemy defense line wit
 
 ## 9. Configurability and game setup
 
+### Approved initial public lobbies (004B.2A / Issue #7)
+
+These are documented rules and contract validation only; working lobby storage, APIs, and UI remain unimplemented. See [MATCH_LOBBIES.md](MATCH_LOBBIES.md).
+
+- Authenticated players with registered usernames can discover/view public lobby metadata. The creator is the host and first participant.
+- Capacity is 2–40 slots including the host. Creation begins `OPEN`; `DRAFT` is reserved for future use. Only `OPEN` lobbies admit new participants.
+- Duplicate joins are idempotent and consume no extra slot. An existing member retry can acknowledge membership after start without admitting a new player.
+- Non-host participants may leave before start. The host cannot leave before start. Only the host may start, with at least two participants. No new joining or leaving occurs after start; the roster is then fixed.
+- All match settings are immutable after creation. Quick means 1–12-minute turns; Casual means 12–48-hour turns, inclusive. Other valid positive-safe integer durations remain uncategorized.
+- Initial presets are 5 minutes, 15 minutes, 1 hour, 12 hours, and 24 hours. The middle two are uncategorized. Presets do not restrict other valid durations.
+- Era/scenario selection is unavailable. Empty-world fixtures are internal development tools only. Lobby metadata viewing grants no game spectator access.
+
+### Broader future configuration
+
 Desired game configuration includes:
 - Public/private/password-protected access.
 - Teams.
@@ -325,7 +339,7 @@ Do not silently settle these during implementation:
 9. Exact map projection, coordinate system, and map data licensing.
 10. Whether primary leader specialization should remain inactive, particularly for a General.
 11. Gameplay resolution phase order, simultaneous movement/contact conflicts, and explicit attack targeting/interaction with movement encounters. Player-relative move-number priority is approved; equal-number seeded sequential precedence is provisional.
-12. Active-player membership changes, surrender/elimination/join timing, and what to do if no active players remain. The current lifecycle requires a nonempty fixed active roster.
+12. In-match membership changes, surrender/elimination/late joining, and what to do if no active players remain. The current lifecycle requires a nonempty fixed active roster. Initial pre-start public lobby membership is approved in MATCH_LOBBIES.md; late joining, host transfer, and cancellation remain future decisions.
 13. Scheduling of the next turn, downtime catch-up, clock corrections, pauses, and durable retry/acknowledgement behavior. These must preserve hybrid closure and offline progression.
 14. Product limits for turn duration and order payload size. Current numeric validation enforces safe positive integer milliseconds, not approved balance limits.
 15. Dependency cancellation policy (block versus cascading cancellation), failed/blocked movement handling, and production seed generation/storage/reveal. The current ordering helper executes none of these behaviors.

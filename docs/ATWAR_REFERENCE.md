@@ -63,6 +63,16 @@ Selected reference material reported:
 - Peace may permit passage.
 - Exact geometry, placement, creation interface, manning, and combat effects have not been fully verified.
 
+### Lobby source check for Issue #7 (accessed 2026-11-11)
+
+The following selected official pages were opened for the lobby contract assignment. This remains a partial audit; no source code, images, UI text, or datasets were copied.
+
+- [The lobby, FAQ 8](https://atwar-game.com/faq.php?faq_id=8) describes browsing open matches and Quick (1–12-minute) / Casual (12–48-hour) turns. Issue #7 explicitly adopts those timing ranges; other positive-safe integer durations stay uncategorized in this project.
+- [Joining, FAQ 9](https://atwar-game.com/faq.php?faq_id=9) describes lobby information, a creator-controlled pre-start screen, and also reference behaviors for spectators, private games, and joining after a game has begun. Issue #7 approves public pre-start membership only; spectators, private/invite-only access, and late joining remain deferred here.
+- [Creating, FAQ 10](https://atwar-game.com/faq.php?faq_id=10) describes settings such as teams, maps/scenarios, starting funds/countries, game duration, and joining cutoff. These are reference observations, not implemented or silently adopted project settings. Our approved v1 fields and rejected selectors are defined in [MATCH_LOBBIES.md](MATCH_LOBBIES.md).
+
+The project's 2–40 capacity, two-participant start, host rules, username requirement, immutable settings, and initial presets are owner-approved Issue #7 decisions; this source check does not claim they were established by those reference pages. A configurable capacity of 40 remains a validation target, not a measured 40-player performance guarantee.
+
 ## 3. Data research
 
 A community-maintained atWar data table was found during research. It exposed fields such as city names, country, reinforcements, income, and port designation. Exact raw population values per city were not verified from that source.

@@ -39,10 +39,12 @@ Use a **server-authoritative modular monolith** initially. Do not introduce micr
 - `docs/ATWAR_REFERENCE.md` — reference observations, sources, and unresolved verification items.
 - `docs/AUTHENTICATION.md` — OAuth/session behavior, endpoints, provider setup, and security limitations.
 - `docs/CI.md` — GitHub Actions jobs, failure diagnostics, and recommended required checks for `main`.
+- `docs/MATCH_LOBBIES.md` — approved lobby rules and strict versioned contracts; lobby APIs, persistence, and UI remain unimplemented.
 - `docs/CODEX_WORKFLOW.md` — human-started Windows VS Code issue-to-draft-PR workflow and metadata labels.
 - `docs/DEVELOPMENT_STATUS.md` — evidence-based progress handoff and update policy.
 - `AGENTS.md` — instructions for AI coding agents and contributors.
 - `packages/shared-types/` — strict, versioned runtime schemas and transport types.
+- `packages/shared-types/src/lobby.ts` — public lobby requests/responses, roster/viewer validation, and Quick/Casual classification (004B.2A).
 - `packages/game-engine/` — server-only lifecycle, empty-turn resolver, and movement-queue planning; no gameplay execution yet.
 - `@strategy-game/shared-types/server` — authoritative snapshot/resolution schemas; never send these directly to clients.
 - `database/` — server-only Prisma schema, initial migration, mappings, and transactional match repository. See `database/README.md` for storage details.
@@ -220,4 +222,4 @@ The default `pnpm test` runs unit tests and explicitly skips live database tests
 
 For focused issue work, use the [local Codex workflow](docs/CODEX_WORKFLOW.md) and [reusable issue prompt](.github/CODEX_ISSUE_PROMPT.md). A person starts Codex in VS Code with ChatGPT sign-in; GitHub metadata automation never invokes it and requires no OpenAI API key. Review current progress in [DEVELOPMENT_STATUS.md](docs/DEVELOPMENT_STATUS.md).
 
-Configure provider credentials and manually verify consent/callbacks before deploying sign-in. Next add match membership authorization and authenticated command APIs, followed by scheduling/restart orchestration. Authentication alone does not authorize access to another player's game data. Repository calls return after their transaction commits, but there is no player-facing order acknowledgement API or scheduler yet. See `docs/DEVELOPMENT_ROADMAP.md`.
+Configure provider credentials and manually verify consent/callbacks before deploying sign-in. Issue #7 (004B.2A) establishes lobby contracts and documentation only: 2–40 player capacity, registered authenticated callers, host-only start with at least two participants, public discovery, and no new joins/leaves after start. It adds no endpoints, lobby database models, or UI. Next implement authorized lobby/match membership and command adapters, followed by durable acknowledgements and scheduling/restart orchestration. Authentication alone does not authorize game data. See [MATCH_LOBBIES.md](docs/MATCH_LOBBIES.md) and `docs/DEVELOPMENT_ROADMAP.md`.

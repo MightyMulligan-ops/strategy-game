@@ -2,6 +2,21 @@ import { z } from "zod";
 import { identifier, nonnegativeInteger, positiveInteger, version } from "./primitives.js";
 export { AuthenticatedPlayerSchema, OAuthProviderSchema, UsernameSchema, UsernameSelectionSchema } from "./auth.js";
 export type { AuthenticatedPlayer, OAuthProvider } from "./auth.js";
+export {
+  LOBBY_TURN_DURATION_PRESETS_MS, classifyLobbyTurnDuration, lobbyActionRequestSchema,
+  LobbyCapacitySchema, LobbyStatusSchema, LobbyDurationCategorySchema, LobbySettingsSchema,
+  LobbyParticipantSchema, LobbyViewerSchema, LobbySummarySchema, LobbyDetailSchema,
+  CreateLobbyRequestSchema, ListLobbiesRequestSchema, ViewLobbyRequestSchema,
+  JoinLobbyRequestSchema, LeaveLobbyRequestSchema, StartLobbyRequestSchema,
+  CreateLobbyResponseSchema, ListLobbiesResponseSchema, ViewLobbyResponseSchema,
+  JoinLobbyResponseSchema, LeaveLobbyResponseSchema, StartLobbyResponseSchema, LobbyErrorResponseSchema
+} from "./lobby.js";
+export type {
+  LobbyDurationCategory, LobbySettings, LobbyParticipant, LobbyViewer, LobbySummary, LobbyDetail,
+  CreateLobbyRequest, ListLobbiesRequest, ViewLobbyRequest, JoinLobbyRequest, LeaveLobbyRequest, StartLobbyRequest,
+  CreateLobbyResponse, ListLobbiesResponse, ViewLobbyResponse, JoinLobbyResponse, LeaveLobbyResponse,
+  StartLobbyResponse, LobbyErrorResponse
+} from "./lobby.js";
 
 // Version 1 is deliberately small. Adding gameplay fields requires an explicit
 // contract change, not permissive passthrough of unknown properties.
