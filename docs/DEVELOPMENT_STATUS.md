@@ -1,6 +1,6 @@
 # Development status
 
-This is a short, evidence-based handoff, not a replacement for the authoritative rules or roadmap. The baseline below is checked against `main` at `9a45f27` (PR #14 squash merge). New work in a feature branch remains unmerged even when its tests pass.
+This is a short, evidence-based handoff, not a replacement for the rules or roadmap. Baseline: `main` at `40c56a3` (PR #16 squash merge). Feature work remains unmerged even when its tests pass.
 
 | Area | State | Evidence / limitations |
 |---|---|---|
@@ -16,7 +16,8 @@ This is a short, evidence-based handoff, not a replacement for the authoritative
 | PostgreSQL lobby persistence (004B.2B / Issue #9) | Merged | [PR #10](https://github.com/MightyMulligan-ops/strategy-game/pull/10), `df975a2`; migration is not approved for the existing development DB; 21 lobby tests / 38 repository tests |
 | Authenticated lobby REST API (004B.2C / Issue #11) | Merged | [PR #12](https://github.com/MightyMulligan-ops/strategy-game/pull/12), `5cbd901`; five session-bound operations, safe envelopes and 45 live tests; existing development migration remains unapproved |
 | Sovereign account/lobby UI and proxy (004B.2D / Issue #13) | Merged | [PR #14](https://github.com/MightyMulligan-ops/strategy-game/pull/14), `9a45f27`; branded account/lobby UI, original assets and same-origin proxy |
-| Loopback local test sign-in (004B.2E / Issue #15) | In review, unmerged | [Draft PR #16](https://github.com/MightyMulligan-ops/strategy-game/pull/16), `issue/15-local-test-sign-in`; explicit development/loopback gates, isolated fixture identities, normal sessions/CSRF/lobby authorization; 380 unit tests passed; existing dev/test/sandbox databases never connected |
+| Loopback local test sign-in (004B.2E / Issue #15) | Merged | [PR #16](https://github.com/MightyMulligan-ops/strategy-game/pull/16), `40c56a3`; explicit loopback/development gates, isolated fixtures and normal sessions/CSRF/lobby authorization |
+| Lobby readiness and host start (005A / Issue #17) | In review / unmerged | [Draft PR #18](https://github.com/MightyMulligan-ops/strategy-game/pull/18), `issue/17-lobby-readiness-start`; default-false readiness, serialized host/count/all-ready checks, lifecycle-only start and UI with Started-filter rediscovery; 409 local tests and two-context Chromium smoke passed. Initial [CI run 25](https://github.com/MightyMulligan-ops/strategy-game/actions/runs/43092036339) passed application checks and 61 integration tests across five files, zero skips, after migration on disposable PostgreSQL only; PR checks track subsequent commits. Existing databases remain untouched; readiness SQL is not approved for manual sandbox application |
 | Match authorization, command APIs, scheduler | Planned | Next Phase 0B work; account authentication does not grant match permissions |
 | Map, gameplay, leadership, Military Supplies | Planned | Rules remain in GAME_DESIGN.md; no claim of implemented gameplay |
 
@@ -31,4 +32,4 @@ This is a short, evidence-based handoff, not a replacement for the authoritative
 
 ## Next planned development slice
 
-Review Issue #15's local-only sign-in/security boundary, then follow the owner-only two-browser instructions in [LOCAL_TEST_LOGIN.md](LOCAL_TEST_LOGIN.md) after privately verifying the existing sandbox target. Codex/CI must never connect to existing development/test/sandbox databases. Real OAuth consent and manual sandbox verification remain owner actions. The next gameplay slice needs approved start/runtime-pin/world design, immutable settings and safe deadline arithmetic; request receipts, scheduling, maps and gameplay remain future work.
+Review Issue #17's readiness/start transaction, additive SQL and disposable-CI evidence. Separately approve any owner-only manual sandbox migration before following [two-browser acceptance](LOCAL_TEST_LOGIN.md#manual-two-browser-verification). Codex/CI must never connect to existing databases. Real OAuth consent/manual sandbox checks remain owner actions. Next: approve world/runtime-pin/Turn 1 initialization for lifecycle-started lobbies, including immutable settings and safe deadline arithmetic. Map generation, turn execution, scheduling and gameplay remain future work.

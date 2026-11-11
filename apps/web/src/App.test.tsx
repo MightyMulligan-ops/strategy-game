@@ -8,13 +8,14 @@ import App from './App'
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 const profile: AuthenticatedPlayer = { schemaVersion: 1, id: 'private-account', username: 'Commander', linkedProviders: ['google'] }
-function room(role: 'HOST' | 'PARTICIPANT' | 'NON_PARTICIPANT' = 'NON_PARTICIPANT', status: 'OPEN' | 'RUNNING' = 'OPEN'): LobbyDetail {
-  const host = { playerId: 'public-host', username: role === 'HOST' ? 'Commander' : 'HostUser' }
-  const participants = role === 'PARTICIPANT' || status === 'RUNNING' ? [host, { playerId: 'public-guest', username: 'Commander' }] : [host]
+function room(role: 'HOST' | 'PARTICIPANT' | 'NON_PARTICIPANT' = 'NON_PARTICIPANT', status: 'OPEN' | 'RUNNING' = 'OPEN', ready = false, pair = false): LobbyDetail {
+  const host = { playerId: 'public-host', username: role === 'HOST' ? 'Commander' : 'HostUser', ready }
+  const participants = pair || role === 'PARTICIPANT' || status === 'RUNNING' ? [host, { playerId: 'public-guest', username: role === 'HOST' ? 'OtherPlayer' : 'Commander', ready }] : [host]
   return LobbyDetailSchema.parse({ schemaVersion: 1, lobbyId: 'council', settings: { name: 'Evening Council', playerCapacity: 2, turnDurationMs: 300000, visibility: 'PUBLIC' },
-    status, host, participants, participantCount: participants.length, availableSlots: status === 'OPEN' ? 2 - participants.length : 0, durationCategory: 'QUICK',
+    status, host, participants, participantCount: participants.length, readyCount: ready ? participants.length : 0, availableSlots: status === 'OPEN' ? 2 - participants.length : 0, durationCategory: 'QUICK',
     viewer: { role, playerId: role === 'HOST' ? host.playerId : role === 'PARTICIPANT' ? 'public-guest' : null, username: 'Commander',
-      canJoin: status === 'OPEN' && role === 'NON_PARTICIPANT' && participants.length < 2, canLeave: status === 'OPEN' && role === 'PARTICIPANT', canStart: false } })
+      canJoin: status === 'OPEN' && role === 'NON_PARTICIPANT' && participants.length < 2, canLeave: status === 'OPEN' && role === 'PARTICIPANT',
+      canStart: status === 'OPEN' && role === 'HOST' && participants.length >= 2 && ready } })
 }
 const json = (data: unknown, status = 200) => new Response(status === 204 ? null : JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } })
 const failure = (error: string, status = 409) => json({ schemaVersion: 1, error }, status)
@@ -35,10 +36,10 @@ const request = vi.fn(async (path: string, init: RequestInit = {}): Promise<Resp
   if (path === '/auth/username') { user = profile; return json({ user }) }
   if (path.startsWith('/auth/logout')) return json(null, 204)
   if (path.startsWith('/auth/login/') || path.startsWith('/auth/link/')) return json({ authorizationUrl: 'https://identity.example/authorize' })
-  if (path === '/api/lobbies?status=OPEN') {
+  if (path === '/api/lobbies?status=OPEN' || path === '/api/lobbies?status=RUNNING') {
     const { participants: roster, viewer, ...summary } = current
     void roster; void viewer
-    return json({ schemaVersion: 1, lobbies: listed ? [summary] : [] })
+    return json({ schemaVersion: 1, lobbies: path.endsWith('RUNNING') ? current.status === 'RUNNING' ? [summary] : [] : listed ? [summary] : [] })
   }
   if (path === '/api/lobbies' && init.method === 'POST') {
     const body = JSON.parse(init.body as string)
@@ -48,6 +49,16 @@ const request = vi.fn(async (path: string, init: RequestInit = {}): Promise<Resp
   }
   if (path.endsWith('/join')) { current = room('PARTICIPANT'); return json({ schemaVersion: 1, lobby: current, outcome: 'JOINED' }) }
   if (path.endsWith('/leave')) { current = room(); return json({ schemaVersion: 1, lobby: current }) }
+  if (path.endsWith('/ready')) {
+    const ready = (JSON.parse(init.body as string) as { ready: boolean }).ready
+    const participants = current.participants.map((player) => player.playerId === current.viewer.playerId ? { ...player, ready } : player)
+    const readyCount = participants.filter((player) => player.ready).length
+    current = LobbyDetailSchema.parse({ ...current, participants, readyCount,
+      host: participants.find((player) => player.playerId === current.host.playerId),
+      viewer: { ...current.viewer, canStart: current.viewer.role === 'HOST' && participants.length >= 2 && readyCount === participants.length } })
+    return json({ schemaVersion: 1, lobby: current })
+  }
+  if (path.endsWith('/start')) { current = room('HOST', 'RUNNING', true); listed = false; return json({ schemaVersion: 1, lobby: current, outcome: 'STARTED' }) }
   if (path === '/api/lobbies/council') return json({ schemaVersion: 1, lobby: current })
   throw new Error(`Unexpected test request: ${path}`)
 })
@@ -166,7 +177,8 @@ describe('Sovereign account and lobby UI', () => {
     await value('lobby-name', 'Morning Council'); await value('capacity', '10'); await value('turn-duration', '3600000'); await submit('#lobby-name')
     expect(JSON.parse(posts()[0]?.[1]?.body as string)).toEqual({ schemaVersion: 1, settings: { name: 'Morning Council', playerCapacity: 10, turnDurationMs: 3600000, visibility: 'PUBLIC' } })
     expect(text()).toContain('Lobby created. You are the host.'); expect(text()).toContain('You are the host. Hosts cannot leave')
-    expect([...host.querySelectorAll('button')].some((b) => /^(Join lobby|Leave lobby|Start)/.test(b.textContent ?? ''))).toBe(false)
+    expect([...host.querySelectorAll('button')].some((b) => /^(Join lobby|Leave lobby)/.test(b.textContent ?? ''))).toBe(false)
+    expect(button('Start Match').disabled).toBe(true)
   })
   it.each([[' padded ', '10'], ['Valid', '1'], ['Valid', '41'], ['Valid', '2.5']])('rejects invalid creation settings %s / %s', async (name, capacity) => {
     await mount(); await value('lobby-name', name!); await value('capacity', capacity!); await submit('#lobby-name')
@@ -177,10 +189,66 @@ describe('Sovereign account and lobby UI', () => {
     expect([...host.querySelectorAll('button')].some((b) => b.textContent === 'Join lobby')).toBe(false)
     expect([...host.querySelectorAll('button')].some((b) => b.textContent === 'Leave lobby')).toBe(role === 'PARTICIPANT')
   })
+  it('shows readiness but offers no ready/start controls to nonparticipants', async () => {
+    await mount(); await click('Inspect Evening Council')
+    expect(text()).toContain('NOT READY'); expect(text()).toContain('0 / 1 ready')
+    expect([...host.querySelectorAll('button')].some((b) => /^(Mark|Start Match)/.test(b.textContent ?? ''))).toBe(false)
+  })
+  it.each(['HOST', 'PARTICIPANT'] as const)('sets explicit own readiness both ways for %s with fresh CSRF and authoritative refresh', async (role) => {
+    current = room(role); await mount(); await click('Inspect Evening Council')
+    await click('Mark ready'); expect(button('Mark not ready').getAttribute('aria-pressed')).toBe('true')
+    expect(posts()[0]?.[1]?.body).toBe(JSON.stringify({ schemaVersion: 1, ready: true }))
+    await click('Mark not ready'); expect(button('Mark ready').getAttribute('aria-pressed')).toBe('false')
+    expect(posts()[1]?.[1]?.body).toBe(JSON.stringify({ schemaVersion: 1, ready: false }))
+    expect(posts()[0]?.[1]?.headers).not.toEqual(posts()[1]?.[1]?.headers)
+    expect(request.mock.calls.filter(([path]) => path === '/api/lobbies/council')).toHaveLength(3)
+    expect([...host.querySelectorAll('button')].some((b) => b.textContent === 'Start Match')).toBe(role === 'HOST')
+  })
+  it('explains minimum count, host readiness and waiting for others before enabling host start', async () => {
+    current = room('HOST'); await mount(); await click('Inspect Evening Council')
+    expect(button('Start Match').disabled).toBe(true); expect(text()).toContain('At least two players')
+    current = room('HOST', 'OPEN', false, true); await click('Refresh details')
+    expect(button('Start Match').disabled).toBe(true); expect(text()).toContain('Mark yourself ready')
+    await click('Mark ready'); expect(button('Start Match').disabled).toBe(true); expect(text()).toContain('Waiting for every player')
+    current = room('HOST', 'OPEN', true, true); await click('Refresh details')
+    expect(button('Start Match').disabled).toBe(false); expect(text()).toContain('All players are ready')
+    await click('Start Match'); expect(button('Start Match').disabled).toBe(true)
+    expect(text()).toContain('Match started. Gameplay setup is a future milestone.')
+    expect(text()).toContain('RUNNING'); expect(text()).toContain('5 minutes')
+    expect(posts().at(-1)?.[1]?.body).toBe(JSON.stringify({ schemaVersion: 1 }))
+    expect([...host.querySelectorAll('button')].some((b) => b.textContent?.startsWith('Mark '))).toBe(false)
+    await click('Refresh details'); expect(text()).toContain('RUNNING')
+  })
+  it.each(['NOT_ALL_READY', 'NOT_ENOUGH_PARTICIPANTS', 'HOST_REQUIRED', 'LOBBY_NOT_OPEN'])('refreshes a rejected %s start without retrying it', async (code) => {
+    current = room('HOST', 'OPEN', true, true); await mount(); await click('Inspect Evening Council')
+    intercept = (path) => {
+      if (path.endsWith('/start')) { current = room('HOST', 'OPEN', false, true); return failure(code, code === 'HOST_REQUIRED' ? 403 : 409) }
+    }
+    await click('Start Match'); expect(host.querySelector('[role="alert"]')?.textContent).toBeTruthy()
+    expect(button('Start Match').disabled).toBe(true); expect(button('Mark ready').disabled).toBe(false)
+    expect(posts()).toHaveLength(1)
+  })
+  it('acknowledges an already-started host response and keeps running controls closed', async () => {
+    current = room('HOST', 'OPEN', true, true); await mount(); await click('Inspect Evening Council')
+    intercept = (path) => {
+      if (path.endsWith('/start')) { current = room('HOST', 'RUNNING', true); listed = false; return json({ schemaVersion: 1, lobby: current, outcome: 'ALREADY_STARTED' }) }
+    }
+    await click('Start Match'); expect(text()).toContain('This match has already started.')
+    expect(button('Start Match').disabled).toBe(true); expect(posts()).toHaveLength(1)
+  })
+  it('lets a fresh page discover and inspect started lobbies with persisted duration and closed controls', async () => {
+    current = room('HOST', 'RUNNING', true); listed = false; await mount()
+    expect(text()).toContain('No open lobbies yet.')
+    await value('lobby-status', 'RUNNING'); await click('Inspect Evening Council')
+    expect(text()).toContain('Started lobbies'); expect(text()).toContain('RUNNING'); expect(text()).toContain('5 minutes')
+    expect(button('Start Match').disabled).toBe(true)
+    expect([...host.querySelectorAll('button')].some((b) => /^(Mark|Join lobby|Leave lobby)/.test(b.textContent ?? ''))).toBe(false)
+    await value('lobby-status', 'OPEN'); expect(text()).toContain('No open lobbies yet.')
+  })
   it('reloads stale/full/closed state once and never retries the rejected mutation', async () => {
     await mount(); await click('Inspect Evening Council')
     intercept = (path) => { if (path.endsWith('/join')) { current = room('PARTICIPANT', 'RUNNING'); listed = false; return failure('LOBBY_NOT_OPEN') } }
-    await click('Join lobby'); expect(text()).toContain('That lobby is no longer open.'); expect(text()).toContain('Joining and leaving are closed.')
+    await click('Join lobby'); expect(text()).toContain('That lobby is no longer open.'); expect(text()).toContain('Joining, leaving and readiness changes are closed.')
     expect(posts()).toHaveLength(1); expect([...host.querySelectorAll('button')].some((b) => b.textContent === 'Join lobby')).toBe(false)
   })
   it.each(['LOBBY_FULL', 'HOST_CANNOT_LEAVE', 'NOT_A_PARTICIPANT', 'CSRF_REJECTED', 'RATE_LIMITED', 'INVALID_REQUEST', 'INTERNAL_ERROR'])('explains %s safely without automatically repeating an action', async (code) => {
@@ -226,6 +294,7 @@ describe('Sovereign account and lobby UI', () => {
     await mount(); let resolve!: (response: Response) => void
     intercept = (path) => path === '/api/lobbies/council' ? new Promise<Response>((done) => { resolve = done }) : undefined
     await click('Inspect Evening Council'); expect(text()).toContain('Loading lobby details…')
+    expect(host.querySelector<HTMLSelectElement>('#lobby-status')!.disabled).toBe(true)
     const signal = request.mock.calls.at(-1)![1]!.signal!
     await act(async () => root.render(<StrictMode><p>Different screen</p></StrictMode>)); expect(signal.aborted).toBe(true)
     await act(async () => resolve(json({ schemaVersion: 1, lobby: room() }))); expect(text()).toBe('Different screen')

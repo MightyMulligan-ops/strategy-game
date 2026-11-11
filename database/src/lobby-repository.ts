@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
   classifyLobbyTurnDuration, ListLobbiesRequestSchema, LobbyDetailSchema, LobbySettingsSchema,
-  LobbySummarySchema, UsernameSchema, ViewLobbyRequestSchema
+  LobbySummarySchema, SetLobbyReadyRequestSchema, UsernameSchema, ViewLobbyRequestSchema
 } from "@strategy-game/shared-types";
 import type { LobbyDetail, LobbySummary } from "@strategy-game/shared-types";
 import { Prisma } from "./generated/prisma/client.js";
@@ -9,7 +9,8 @@ import type { PrismaClient } from "./generated/prisma/client.js";
 import { json, safeNumber } from "./mappings.js";
 
 export type LobbyErrorCode = "UNAUTHENTICATED" | "USERNAME_REQUIRED" | "INVALID_INPUT" | "NOT_FOUND"
-  | "LOBBY_NOT_OPEN" | "LOBBY_FULL" | "HOST_CANNOT_LEAVE" | "NOT_A_PARTICIPANT" | "INVALID_STORAGE";
+  | "LOBBY_NOT_OPEN" | "LOBBY_FULL" | "HOST_CANNOT_LEAVE" | "NOT_A_PARTICIPANT" | "INVALID_STORAGE"
+  | "HOST_REQUIRED" | "NOT_ENOUGH_PARTICIPANTS" | "NOT_ALL_READY";
 
 /** Safe domain codes; adapters must not expose unexpected database exceptions. */
 export class LobbyError extends Error {
@@ -20,7 +21,7 @@ const lobbyInclude = {
   configuration: true,
   participants: {
     where: { active: true }, orderBy: { playerId: "asc" },
-    select: { playerId: true, identityId: true, identity: { select: { username: true } } }
+    select: { playerId: true, identityId: true, lobbyReady: true, identity: { select: { username: true } } }
   }
 } as const;
 type LobbyRow = Prisma.MatchGetPayload<{ include: typeof lobbyInclude }>;
@@ -56,8 +57,9 @@ function summary(row: LobbyRow): LobbySummary {
     schemaVersion: 1, lobbyId: row.id, status: row.status,
     settings: { name: config.name, playerCapacity: config.playerCapacity,
       turnDurationMs: safeNumber(config.turnDurationMs), visibility: "PUBLIC" },
-    host: { playerId: host.playerId, username: host.identity.username },
+    host: { playerId: host.playerId, username: host.identity.username, ready: host.lobbyReady },
     participantCount: row.participants.length,
+    readyCount: row.participants.filter((participant) => participant.lobbyReady).length,
     availableSlots: row.status === "OPEN" ? config.playerCapacity - row.participants.length : 0,
     durationCategory: classifyLobbyTurnDuration(safeNumber(config.turnDurationMs))
   });
@@ -72,17 +74,18 @@ function detail(row: LobbyRow, identityId: string, username: string): LobbyDetai
   const open = row.status === "OPEN";
   const result = LobbyDetailSchema.safeParse({
     ...base,
-    participants: row.participants.map((participant) => ({ playerId: participant.playerId, username: participant.identity.username })),
+    participants: row.participants.map((participant) => ({ playerId: participant.playerId, username: participant.identity.username, ready: participant.lobbyReady })),
     viewer: { role, username, playerId: member?.playerId ?? null,
       canJoin: open && !member && base.availableSlots > 0,
-      canLeave: open && role === "PARTICIPANT", canStart: open && role === "HOST" && base.participantCount >= 2 }
+      canLeave: open && role === "PARTICIPANT",
+      canStart: open && role === "HOST" && base.participantCount >= 2 && base.readyCount === base.participantCount }
   });
   if (!result.success) throw new LobbyError("INVALID_STORAGE");
   return result.data;
 }
 
 /** Server-only. Identity IDs must come from trusted authentication, never request bodies.
- * No method starts a match, creates a world/turn, or authenticates an HTTP request.
+ * Starting changes lifecycle only; no method creates a world/turn or authenticates HTTP.
  */
 export class LobbyRepository {
   constructor(private readonly client: PrismaClient) {}
@@ -92,8 +95,8 @@ export class LobbyRepository {
     const key = lobbyId(id);
     return this.client.$transaction(async (tx) => {
       const username = await registeredUsername(tx, identityId);
-      // Every membership writer locks the parent before reading lifecycle/roster.
-      // Future start orchestration must take this same lock before its checks.
+      // Membership, readiness and start share this lock before reading state.
+      // ReadCommitted ensures a waiter sees the preceding writer's committed roster.
       const rows = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
         SELECT "id" FROM "Match" WHERE "id" = ${key} FOR UPDATE
       `);
@@ -127,7 +130,7 @@ export class LobbyRepository {
       const member = row.participants.find((participant) => participant.identityId === identityId);
       if (!member) throw new LobbyError("NOT_A_PARTICIPANT");
       // Retain the identity/player mapping; rejoin reactivates this same slot.
-      await tx.matchParticipant.update({ where: { matchId_identityId: { matchId: row.id, identityId } }, data: { active: false } });
+      await tx.matchParticipant.update({ where: { matchId_identityId: { matchId: row.id, identityId } }, data: { active: false, lobbyReady: false } });
       return detail(await readLobby(tx, row.id), identityId, username);
     });
   }
@@ -141,9 +144,36 @@ export class LobbyRepository {
       if (summary(row).availableSlots === 0) throw new LobbyError("LOBBY_FULL");
       await tx.matchParticipant.upsert({
         where: { matchId_identityId: { matchId: row.id, identityId } },
-        create: { matchId: row.id, playerId: randomUUID(), identityId, active: true }, update: { active: true }
+        create: { matchId: row.id, playerId: randomUUID(), identityId, active: true, lobbyReady: false },
+        update: { active: true, lobbyReady: false }
       });
       return Object.freeze({ lobby: detail(await readLobby(tx, row.id), identityId, username), outcome: "JOINED" as const });
+    });
+  }
+
+  async setReady(id: string, identityId: string, ready: unknown): Promise<LobbyDetail> {
+    const parsed = SetLobbyReadyRequestSchema.safeParse({ schemaVersion: 1, lobbyId: id, ready });
+    if (!parsed.success) throw new LobbyError("INVALID_INPUT");
+    return this.withLobby(id, identityId, async (tx, row, username) => {
+      if (row.status !== "OPEN") throw new LobbyError("LOBBY_NOT_OPEN");
+      if (!row.participants.some((participant) => participant.identityId === identityId)) throw new LobbyError("NOT_A_PARTICIPANT");
+      // Explicit value makes a repeated request idempotent; never toggle on the server.
+      await tx.matchParticipant.update({ where: { matchId_identityId: { matchId: row.id, identityId } }, data: { lobbyReady: parsed.data.ready } });
+      return detail(await readLobby(tx, row.id), identityId, username);
+    });
+  }
+
+  async startLobby(id: string, identityId: string): Promise<{ readonly lobby: LobbyDetail; readonly outcome: "STARTED" | "ALREADY_STARTED" }> {
+    return this.withLobby(id, identityId, async (tx, row, username) => {
+      // Host authorization also applies to retries, before acknowledging RUNNING.
+      if (row.hostIdentityId !== identityId) throw new LobbyError("HOST_REQUIRED");
+      if (row.status === "RUNNING") return Object.freeze({ lobby: detail(row, identityId, username), outcome: "ALREADY_STARTED" as const });
+      if (row.participants.length < 2) throw new LobbyError("NOT_ENOUGH_PARTICIPANTS");
+      if (row.participants.some((participant) => !participant.lobbyReady)) throw new LobbyError("NOT_ALL_READY");
+      const updated = await tx.match.updateMany({ where: { id: row.id, status: "OPEN" }, data: { status: "RUNNING" } });
+      if (updated.count !== 1) throw new LobbyError("LOBBY_NOT_OPEN");
+      // No configuration change, world, runtime pin, snapshot, Turn 1 or deadline.
+      return Object.freeze({ lobby: detail(await readLobby(tx, row.id), identityId, username), outcome: "STARTED" as const });
     });
   }
 

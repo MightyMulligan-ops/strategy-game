@@ -1,14 +1,14 @@
 # Authenticated public lobby REST API (004B.2C / Issue #11)
 
-The Fastify server exposes five operations backed by the existing PostgreSQL `LobbyRepository`. They use persistent account sessions and registered usernames. The [Sovereign frontend](LOBBY_UI.md) now integrates these operations. Match start, world initialization, Turn 1, deadlines and scheduling remain future work; Issue #13 changes no backend behavior/schema/migrations.
+Fastify exposes seven operations backed by PostgreSQL `LobbyRepository`, using persistent sessions and registered usernames. The [Sovereign frontend](LOBBY_UI.md) integrates them. Issue #17 adds own readiness and host-only lifecycle start. World initialization, Turn 1, deadlines and scheduling remain future work.
 
 ## Prerequisites and database safety
 
 Authentication must be enabled and configured as described in [AUTHENTICATION.md](AUTHENTICATION.md). The auth and lobby repositories share one Prisma client; the server disconnects it on app close and startup failure. Tests inject repositories through `buildApp` without opening a network listener. When authentication is disabled, all lobby routes are absent (404), even if a repository is supplied to the builder.
 
-The target database must already have the three committed migrations, including `202611110001_lobby_persistence` from merged PR #10. **That migration has not been approved for the owner's existing development database. Do not run `pnpm db:migrate`, Prisma deploy/push/reset, or test fixtures against that database as part of this assignment.** Missing database/schema services produce sanitized errors; startup never applies migrations. Any existing-database rollout needs a separate owner-controlled SQL/conflict review.
+The target must have the committed migrations, including `202611110002_lobby_readiness` for Issue #17. **No existing database, including development, test or the sandbox on port 5435, may be connected to or modified during this task.** The new SQL was generated from local schema files and reviewed before testing. The owner authorized application/testing only in CI's newly provisioned disposable PostgreSQL service. Applying it manually to the sandbox still needs separate explicit owner approval. Missing schema/services produce sanitized errors; startup never applies migrations. See [database migration review](../database/README.md#lobby-readiness-migration-issue-17).
 
-For live verification, create a new PostgreSQL 17 instance with fresh storage, loopback-only access and a new `_test` database. Verify its provenance, role/database identity, and zero existing user tables before setting process-local `TEST_DATABASE_URL` and `DATABASE_URL` to that instance. Review committed SQL first, then run `pnpm db:migrate:test`, `pnpm test:db --reporter=default --reporter=json --outputFile=.cache/ci/database-results.json`, and `node --experimental-strip-types scripts/ci-reports.ts verify`. Never infer isolation merely from a `_test` suffix. This task used a new container with tmpfs storage and no existing volumes/binds; both pre-existing Compose databases were untouched.
+For this task, live verification runs only in CI's fresh PostgreSQL 17 service. CI applies committed migrations and runs all discovered integration suites plus the report guard; local checks explicitly use `RUN_DATABASE_TESTS=0`. Do not run local `test:db`, migration commands, the development preflight or the server to test against an existing database. A `_test` suffix alone is not proof of isolation.
 
 Fastify serves the API on loopback port 3001 in local development. Vite now forwards both `/auth` and `/api` through the same browser origin. REST clients retain auth cookies and the configured mutation Origin; the frontend obtains a current CSRF token before each explicit lobby POST. No CORS exemption or cross-origin credential fallback is added. Deployment must forward both paths through the configured HTTPS origin; this assignment performs no deployment. Existing development/test databases remain untouched, with the lobby migration still unapproved there.
 
@@ -23,8 +23,12 @@ All response envelopes contain `schemaVersion: 1` and validate against the share
 | `GET /api/lobbies/:lobbyId` | Lobby ID in path; optional `schemaVersion=1` query only | 200 `ViewLobbyResponse`: `{ schemaVersion, lobby }` |
 | `POST /api/lobbies/:lobbyId/join` | `{ "schemaVersion": 1 }`; target comes exclusively from validated path | 200 `JoinLobbyResponse`: `{ schemaVersion, lobby, outcome: "JOINED"\|"ALREADY_JOINED" }` |
 | `POST /api/lobbies/:lobbyId/leave` | `{ "schemaVersion": 1 }`; target comes exclusively from validated path | 200 `LeaveLobbyResponse`: `{ schemaVersion, lobby }`, caller is a non-participant |
+| `POST /api/lobbies/:lobbyId/ready` | `{ "schemaVersion": 1, "ready": true }` (or false); no identity fields | 200 `SetLobbyReadyResponse`: `{ schemaVersion, lobby }`, OPEN active-member detail |
+| `POST /api/lobbies/:lobbyId/start` | `{ "schemaVersion": 1 }` | 200 `StartLobbyResponse`: `{ schemaVersion, lobby, outcome: "STARTED"\|"ALREADY_STARTED" }`, RUNNING host detail |
 
-For GET, the omitted version defaults to 1; only the exact query string `1` is normalized to numeric 1. Unknown/repeated filters, unsupported versions, and whitespace/empty identifiers fail validation. Join/leave bodies are derived from the shared command schemas by omitting the path-owned lobby ID, then reconstructed/validated as the full shared command. A second body `lobbyId` is rejected, even if it agrees with the path. Existing request/success contracts and timing rules are preserved.
+For GET, an omitted version defaults to 1; only exact query string `1` is normalized. Unknown/repeated filters, unsupported versions and invalid IDs fail. Join/leave/ready/start bodies omit the path-owned ID, then are reconstructed/validated as full shared commands. A body lobbyId is rejected even if it matches. Ready requires a strict boolean, never a toggle/string/coercion. Public participants/host now include `ready`; summaries/details include `readyCount`. Envelopes remain version 1 as a coordinated pre-release shared-types/server/client update; older strict clients must be rebuilt.
+
+New/rejoining players are NOT_READY; active duplicate joins preserve readiness. Only an active participant may set their own readiness while OPEN, including the host. Only the host may start, with at least two active players and all READY. Membership/readiness/start serialize on the same parent Match lock; the transaction checks authoritative current state and conditionally writes OPEN→RUNNING. A concurrent earlier writer is observed; a later writer sees RUNNING and fails. A repeated host start returns ALREADY_STARTED; a non-host receives HOST_REQUIRED even after start. Responses follow commit. Start preserves immutable configuration/turn duration and creates no map, pins, snapshot, turn, deadline or turn result. Existing RUNNING data is not assigned invented readiness history.
 
 ## Authentication, CSRF and authorization
 
@@ -48,15 +52,17 @@ Registered lobby operations return `{ "schemaVersion": 1, "error": "CODE" }`, va
 | 403 | `USERNAME_REQUIRED` | Account has no valid registered username |
 | 403 | `INVALID_ORIGIN` | Mutation Origin is missing or differs from configured origin |
 | 403 | `CSRF_REJECTED` | Mutation CSRF secret/token is missing or invalid |
+| 403 | `HOST_REQUIRED` | Only the host may start or acknowledge an already-started lobby |
 | 404 | `NOT_FOUND` | Lobby is absent or is an internal legacy match without public metadata |
 | 409 | `LOBBY_NOT_OPEN`, `LOBBY_FULL`, `HOST_CANNOT_LEAVE`, `NOT_A_PARTICIPANT` | Repository rejected lifecycle/capacity/membership operation |
+| 409 | `NOT_ENOUGH_PARTICIPANTS`, `NOT_ALL_READY` | Start needs at least two active players and all active players READY, including host |
 | 429 | `RATE_LIMITED` | Existing per-IP limit exceeded; retains Retry-After |
 | 500 | `INTERNAL_ERROR` | Unexpected repository/session/storage/response failure; maps INVALID_STORAGE |
 
-Unsupported routes/methods retain Fastify's ordinary 404 response; no start/edit/delete operation is registered. The shared enum still reserves HOST_REQUIRED/NOT_ENOUGH_PARTICIPANTS for future start behavior, which is not exposed here.
+Unsupported methods/routes retain Fastify's ordinary 404; no edit/delete/settings override or gameplay operation is registered.
 
 ## Verification and deferred work
 
 Unit HTTP tests use real cookie/session/CSRF plugins and a memory auth fixture with mocked repository responses. Live HTTP tests use the actual auth and lobby repositories and PostgreSQL, mocking only the external OAuth provider. They cover safe creation/list/view, duplicate and concurrent membership, host/RUNNING rejection, persisted-session security and app-replacement recovery. Cleanup touches only tracked records created by the current test, in dependency order; no prefix sweep or reset is performed. The shared runner/CI report guard discovers both `database/tests` and `apps/server/tests` integration files and requires every suite to execute without skips.
 
-The [frontend/proxy integration](LOBBY_UI.md) is implemented in Issue #13 with mock HTTP/browser verification and no existing-database access. Real OAuth consent and live UI/database verification, match start and runtime-pin/world orchestration, game-command authorization, acknowledgements/retries, pagination, scheduling, private/invite access, host transfer/cancellation, spectators, teams, chat and gameplay remain separate work. There is no capacity/performance claim from these functional concurrency tests.
+Local UI/HTTP checks use memory fixtures. CI covers persisted readiness/rejoin/leave, host/count/all-ready rules, concurrent duplicate starts and start-vs-readiness/membership, configuration preservation and no turn advancement. See [owner-only two-browser acceptance](LOCAL_TEST_LOGIN.md#manual-two-browser-verification). Real OAuth consent, manual sandbox verification, runtime-pin/world orchestration, gameplay commands, durable receipts, pagination, scheduling and other future lobby features remain separate. Functional concurrency tests make no capacity claim.

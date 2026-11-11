@@ -8,10 +8,10 @@ import { buildApp } from "../src/app.js";
 import { MemoryAuth } from "./memory-auth.js";
 import { lobbyFixture, origin, settings } from "./lobby-fixture.js";
 
-const host = { playerId: "lobby-local-host", username: "Captain_1" };
+const host = { playerId: "lobby-local-host", username: "Captain_1", ready: false };
 const hostDetail = LobbyDetailSchema.parse({
   schemaVersion: 1, lobbyId: "lobby", status: "OPEN", settings, host, participants: [host],
-  participantCount: 1, availableSlots: 1, durationCategory: "QUICK",
+  participantCount: 1, readyCount: 0, availableSlots: 1, durationCategory: "QUICK",
   viewer: { role: "HOST", playerId: host.playerId, username: host.username, canJoin: false, canLeave: false, canStart: false }
 });
 const nonmemberDetail = LobbyDetailSchema.parse({ ...hostDetail,
@@ -19,9 +19,12 @@ const nonmemberDetail = LobbyDetailSchema.parse({ ...hostDetail,
   viewer: { role: "NON_PARTICIPANT", playerId: null, username: "Captain_1", canJoin: true, canLeave: false, canStart: false }
 });
 const { participants: _roster, viewer: _viewer, ...summary } = hostDetail;
+const runningDetail = LobbyDetailSchema.parse({ ...hostDetail, status: "RUNNING", participantCount: 2, readyCount: 2, availableSlots: 0,
+  host: { ...host, ready: true }, participants: [{ ...host, ready: true }, { playerId: "member", username: "Member", ready: true }] });
 const operations: [HTTPMethods, string, object?][] = [
   ["POST", "/api/lobbies", { schemaVersion: 1, settings }], ["GET", "/api/lobbies"], ["GET", "/api/lobbies/lobby"],
-  ["POST", "/api/lobbies/lobby/join", { schemaVersion: 1 }], ["POST", "/api/lobbies/lobby/leave", { schemaVersion: 1 }]
+  ["POST", "/api/lobbies/lobby/join", { schemaVersion: 1 }], ["POST", "/api/lobbies/lobby/leave", { schemaVersion: 1 }],
+  ["POST", "/api/lobbies/lobby/ready", { schemaVersion: 1, ready: true }], ["POST", "/api/lobbies/lobby/start", { schemaVersion: 1 }]
 ];
 const apps: FastifyInstance[] = [];
 afterEach(async () => { for (const app of apps.splice(0)) await app.close(); });
@@ -32,7 +35,9 @@ async function fixture() {
     listLobbies: vi.fn<LobbyPersistence["listLobbies"]>().mockResolvedValue([summary]),
     getLobby: vi.fn<LobbyPersistence["getLobby"]>().mockResolvedValue(hostDetail),
     joinLobby: vi.fn<LobbyPersistence["joinLobby"]>().mockResolvedValue({ lobby: hostDetail, outcome: "ALREADY_JOINED" }),
-    leaveLobby: vi.fn<LobbyPersistence["leaveLobby"]>().mockResolvedValue(nonmemberDetail)
+    leaveLobby: vi.fn<LobbyPersistence["leaveLobby"]>().mockResolvedValue(nonmemberDetail),
+    setReady: vi.fn<LobbyPersistence["setReady"]>().mockResolvedValue(hostDetail),
+    startLobby: vi.fn<LobbyPersistence["startLobby"]>().mockResolvedValue({ lobby: runningDetail, outcome: "STARTED" })
   };
   const f = await lobbyFixture(persistence, lobbies);
   apps.push(f.app);
@@ -59,11 +64,11 @@ describe("authenticated lobby HTTP boundary", () => {
     for (const call of Object.values(f.lobbies)) expect(call).not.toHaveBeenCalled();
   });
 
-  it("wires all five operations with only the session identity and versioned public envelopes", async () => {
+  it("wires all seven operations with only the session identity and versioned public envelopes", async () => {
     const f = await fixture(); const browser = await f.login();
     const responses = [];
     for (const [method, url, payload] of operations) responses.push(await f.request(browser, method, url, payload));
-    expect(responses.map((response) => response.statusCode)).toEqual([201, 200, 200, 200, 200]);
+    expect(responses.map((response) => response.statusCode)).toEqual([201, 200, 200, 200, 200, 200, 200]);
     for (const response of responses) {
       expect(response.json().schemaVersion).toBe(1);
       expect(response.headers["cache-control"]).toBe("no-store");
@@ -72,7 +77,8 @@ describe("authenticated lobby HTTP boundary", () => {
     }
     expect(f.lobbies.createLobby).toHaveBeenCalledWith(browser.identityId, settings);
     expect(f.lobbies.listLobbies).toHaveBeenCalledWith(browser.identityId, { schemaVersion: 1 });
-    for (const call of [f.lobbies.getLobby, f.lobbies.joinLobby, f.lobbies.leaveLobby]) expect(call).toHaveBeenCalledWith("lobby", browser.identityId);
+    for (const call of [f.lobbies.getLobby, f.lobbies.joinLobby, f.lobbies.leaveLobby, f.lobbies.startLobby]) expect(call).toHaveBeenCalledWith("lobby", browser.identityId);
+    expect(f.lobbies.setReady).toHaveBeenCalledWith("lobby", browser.identityId, true);
     const response = await f.app.inject({ url: "/api/lobbies?schemaVersion=1&status=OPEN&durationCategory=QUICK", headers: { cookie: browser.cookie } });
     expect(response.statusCode).toBe(200); // Read-only requests need no Origin/CSRF token.
     expect(f.lobbies.listLobbies).toHaveBeenLastCalledWith(browser.identityId, { schemaVersion: 1, status: "OPEN", durationCategory: "QUICK" });
@@ -146,7 +152,8 @@ describe("authenticated lobby HTTP boundary", () => {
   it.each([
     ["UNAUTHENTICATED", 401, "UNAUTHENTICATED"], ["USERNAME_REQUIRED", 403, "USERNAME_REQUIRED"], ["NOT_FOUND", 404, "NOT_FOUND"],
     ["LOBBY_NOT_OPEN", 409, "LOBBY_NOT_OPEN"], ["LOBBY_FULL", 409, "LOBBY_FULL"], ["HOST_CANNOT_LEAVE", 409, "HOST_CANNOT_LEAVE"],
-    ["NOT_A_PARTICIPANT", 409, "NOT_A_PARTICIPANT"], ["INVALID_INPUT", 400, "INVALID_REQUEST"], ["INVALID_STORAGE", 500, "INTERNAL_ERROR"]
+    ["NOT_A_PARTICIPANT", 409, "NOT_A_PARTICIPANT"], ["INVALID_INPUT", 400, "INVALID_REQUEST"], ["INVALID_STORAGE", 500, "INTERNAL_ERROR"],
+    ["HOST_REQUIRED", 403, "HOST_REQUIRED"], ["NOT_ENOUGH_PARTICIPANTS", 409, "NOT_ENOUGH_PARTICIPANTS"], ["NOT_ALL_READY", 409, "NOT_ALL_READY"]
   ] as const)("maps repository %s to safe HTTP %s", async (code: LobbyErrorCode, status, publicCode) => {
     const f = await fixture(); const browser = await f.login();
     f.lobbies.joinLobby.mockRejectedValue(new LobbyError(code));
@@ -200,9 +207,24 @@ describe("authenticated lobby HTTP boundary", () => {
     expect(response!.headers["retry-after"]).toBeDefined();
   });
 
-  it("adds no start, edit, delete or settings-update endpoints", async () => {
+  it.each([undefined, null, "true", "false", 0, 1])("rejects invalid readiness %j before calling persistence", async (ready) => {
     const f = await fixture(); const browser = await f.login();
-    for (const [method, url] of [["POST", "/api/lobbies/lobby/start"], ["PATCH", "/api/lobbies/lobby"], ["DELETE", "/api/lobbies/lobby"]] as const) {
+    const response = await f.request(browser, "POST", "/api/lobbies/lobby/ready", { schemaVersion: 1, ready });
+    expect(response.statusCode).toBe(400); expect(response.json()).toEqual(errorBody("INVALID_REQUEST"));
+    expect(f.lobbies.setReady).not.toHaveBeenCalled();
+  });
+
+  it("returns the stable repeated-start outcome without retrying persistence", async () => {
+    const f = await fixture(); const browser = await f.login();
+    f.lobbies.startLobby.mockResolvedValue({ lobby: runningDetail, outcome: "ALREADY_STARTED" });
+    const response = await f.request(browser, "POST", "/api/lobbies/lobby/start", { schemaVersion: 1 });
+    expect(response.statusCode).toBe(200); expect(response.json().outcome).toBe("ALREADY_STARTED");
+    expect(f.lobbies.startLobby).toHaveBeenCalledTimes(1);
+  });
+
+  it("adds no edit, delete or settings-update endpoints", async () => {
+    const f = await fixture(); const browser = await f.login();
+    for (const [method, url] of [["PATCH", "/api/lobbies/lobby"], ["DELETE", "/api/lobbies/lobby"]] as const) {
       expect((await f.request(browser, method, url, { schemaVersion: 1 })).statusCode).toBe(404);
     }
   });

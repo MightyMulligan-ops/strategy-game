@@ -4,7 +4,7 @@ A browser-based, multiplayer 2D grand strategy game inspired by the broad gamepl
 
 ## Project status
 
-**Pre-production / foundation.** The pnpm workspace has a Sovereign-branded login/account and multiplayer lobby browser, React/Vite and Fastify applications, validated turn/order contracts, a pure turn lifecycle, deterministic empty-turn resolution, movement-queue planning, PostgreSQL/Prisma persistence and authenticated lobby APIs. Authentication requires provider configuration; it is disabled by default. The existing development database still lacks the unapproved lobby migration, so live lobby UI testing there remains blocked pending separate owner approval. No playable game, match start, scheduler or realtime transport is implemented.
+**Pre-production / foundation.** The pnpm workspace has a Sovereign-branded account/lobby UI, player readiness and host-controlled OPEN→RUNNING start, React/Vite and Fastify, turn/order contracts, deterministic empty-turn resolution, movement planning and PostgreSQL/Prisma persistence. Authentication is disabled by default; enabled auth uses configured OAuth or the explicit loopback test-login mode. No playable game, world/Turn 1 initialization, scheduler or realtime transport exists. New readiness SQL remains unapplied to existing databases; only disposable CI migration testing is approved. Existing-database rollout and sandbox acceptance require owner review/approval.
 
 ## Product direction
 
@@ -41,7 +41,7 @@ Use a **server-authoritative modular monolith** initially. Do not introduce micr
 - `docs/LOCAL_TEST_LOGIN.md` — opt-in loopback fixture login, isolation safeguards and owner-only sandbox/two-browser launch steps; no automatic database access or preparation.
 - `docs/CI.md` — GitHub Actions jobs, failure diagnostics, and recommended required checks for `main`.
 - `docs/MATCH_LOBBIES.md` — approved lobby rules, versioned contracts, and PostgreSQL lobby persistence.
-- `docs/LOBBY_API.md` — authenticated lobby REST endpoints, CSRF/origin safeguards, errors and isolated test prerequisites; match start remains future work.
+- `docs/LOBBY_API.md` — authenticated lobby endpoints, readiness/start rules, CSRF/origin safeguards and isolated test prerequisites.
 - `docs/LOBBY_UI.md` — Sovereign account/lobby screens, same-origin API integration, verified asset inventory, accessibility, tests and live-database limitations.
 - `docs/CODEX_WORKFLOW.md` — human-started Windows VS Code issue-to-draft-PR workflow and metadata labels.
 - `docs/DEVELOPMENT_STATUS.md` — evidence-based progress handoff and update policy.

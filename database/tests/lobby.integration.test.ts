@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { CreateLobbyResponseSchema, JoinLobbyResponseSchema, LeaveLobbyResponseSchema } from "@strategy-game/shared-types";
+import { CreateLobbyResponseSchema, JoinLobbyResponseSchema, LeaveLobbyResponseSchema, StartLobbyResponseSchema } from "@strategy-game/shared-types";
 import { AuthRepository, createDatabaseClient, LobbyRepository } from "../src/index.js";
 import { Prisma } from "../src/generated/prisma/client.js";
 import { testDatabaseUrl } from "../src/environment.js";
@@ -83,7 +83,8 @@ describe.skipIf(process.env.RUN_DATABASE_TESTS !== "1")("PostgreSQL lobbies (liv
       const code = identity === unregistered ? "USERNAME_REQUIRED" : "UNAUTHENTICATED";
       for (const operation of [
         () => repository.createLobby(identity, settings()), () => repository.listLobbies(identity),
-        () => repository.getLobby(id, identity), () => repository.joinLobby(id, identity), () => repository.leaveLobby(id, identity)
+        () => repository.getLobby(id, identity), () => repository.joinLobby(id, identity), () => repository.leaveLobby(id, identity),
+        () => repository.setReady(id, identity, true), () => repository.startLobby(id, identity)
       ]) await expect(operation()).rejects.toMatchObject({ code });
     }
     expect(await activeCount(id)).toBe(1);
@@ -161,15 +162,132 @@ describe.skipIf(process.env.RUN_DATABASE_TESTS !== "1")("PostgreSQL lobbies (liv
     const guest = await account();
     const outsider = await account();
     await repository.joinLobby(id, guest);
-    // Simulate a future start transaction; no repository start API/Turn 1 is added.
+    // Legacy RUNNING data need not have historic lobby readiness.
     await client.match.update({ where: { id }, data: { status: "RUNNING" } });
     const before = await client.matchParticipant.findMany({ where: { matchId: id } });
     for (const identity of [host, guest, outsider]) {
       await expect(repository.joinLobby(id, identity)).rejects.toMatchObject({ code: "LOBBY_NOT_OPEN" });
       await expect(repository.leaveLobby(id, identity)).rejects.toMatchObject({ code: "LOBBY_NOT_OPEN" });
+      await expect(repository.setReady(id, identity, true)).rejects.toMatchObject({ code: "LOBBY_NOT_OPEN" });
     }
     expect(await client.matchParticipant.findMany({ where: { matchId: id } })).toEqual(before);
     await expect(client.match.update({ where: { id }, data: { status: "OPEN" } })).rejects.toThrow();
+  });
+
+  async function readyPair(capacity = 2) {
+    const f = await fresh(capacity);
+    const guest = await account();
+    await repository.joinLobby(f.id, guest);
+    await repository.setReady(f.id, f.host, true);
+    await repository.setReady(f.id, guest, true);
+    return { ...f, guest };
+  }
+
+  it("defaults new/rejoining players to not ready, preserves duplicate joins, and changes only the caller", async () => {
+    const { host, id, lobby } = await fresh(); const guest = await account();
+    expect(lobby.readyCount).toBe(0); expect(lobby.host.ready).toBe(false);
+    await repository.joinLobby(id, guest);
+    const ready = await repository.setReady(id, guest, true);
+    expect(ready.readyCount).toBe(1); expect(ready.host.ready).toBe(false);
+    expect(await repository.setReady(id, guest, true)).toEqual(ready);
+    expect((await repository.joinLobby(id, guest)).lobby).toEqual(ready);
+    expect((await repository.getLobby(id, host)).viewer.canStart).toBe(false);
+    const left = await repository.leaveLobby(id, guest);
+    expect(left.readyCount).toBe(0);
+    const rejoined = await repository.joinLobby(id, guest);
+    expect(rejoined.lobby.readyCount).toBe(0);
+    expect(rejoined.lobby.viewer.playerId).toBe(ready.viewer.playerId);
+    await expect(repository.setReady(id, await account(), true)).rejects.toMatchObject({ code: "NOT_A_PARTICIPANT" });
+    for (const value of [undefined, null, "true", 1]) await expect(repository.setReady(id, host, value)).rejects.toMatchObject({ code: "INVALID_INPUT" });
+  });
+
+  it("requires the host, two active players, and readiness from both host and member", async () => {
+    const { host, id } = await fresh(); const guest = await account(); const outsider = await account();
+    await expect(repository.startLobby(id, outsider)).rejects.toMatchObject({ code: "HOST_REQUIRED" });
+    await expect(repository.startLobby(id, host)).rejects.toMatchObject({ code: "NOT_ENOUGH_PARTICIPANTS" });
+    await repository.joinLobby(id, guest);
+    await repository.setReady(id, guest, true);
+    await expect(repository.startLobby(id, guest)).rejects.toMatchObject({ code: "HOST_REQUIRED" });
+    await expect(repository.startLobby(id, host)).rejects.toMatchObject({ code: "NOT_ALL_READY" });
+    await repository.setReady(id, host, true); await repository.setReady(id, guest, false);
+    await expect(repository.startLobby(id, host)).rejects.toMatchObject({ code: "NOT_ALL_READY" });
+    expect((await repository.getLobby(id, host)).status).toBe("OPEN");
+  });
+
+  it("excludes departed players from readiness and minimum count", async () => {
+    const { host, id, guest } = await readyPair(3); const third = await account();
+    await repository.joinLobby(id, third);
+    await expect(repository.startLobby(id, host)).rejects.toMatchObject({ code: "NOT_ALL_READY" });
+    await repository.leaveLobby(id, third);
+    expect((await repository.getLobby(id, host)).viewer.canStart).toBe(true);
+    await repository.leaveLobby(id, guest);
+    await expect(repository.startLobby(id, host)).rejects.toMatchObject({ code: "NOT_ENOUGH_PARTICIPANTS" });
+  });
+
+  it("starts once across clients, survives refresh/retry and preserves configuration without advancing a turn", async () => {
+    const { host, id, guest } = await readyPair();
+    const config = await client.matchConfiguration.findUniqueOrThrow({ where: { matchId: id } });
+    const other = createDatabaseClient(testDatabaseUrl(process.env.TEST_DATABASE_URL));
+    try {
+      const restored = new LobbyRepository(other);
+      const results = await Promise.all([repository.startLobby(id, host), restored.startLobby(id, host)]);
+      expect(results.map((result) => result.outcome).sort()).toEqual(["ALREADY_STARTED", "STARTED"]);
+      for (const result of results) expect(StartLobbyResponseSchema.parse({ schemaVersion: 1, ...result }).lobby.settings.turnDurationMs).toBe(300_000);
+      const repeated = await restored.startLobby(id, host);
+      expect(repeated.outcome).toBe("ALREADY_STARTED"); expect(repeated.lobby.status).toBe("RUNNING");
+      expect(await restored.getLobby(id, host)).toEqual(repeated.lobby);
+      await expect(restored.startLobby(id, guest)).rejects.toMatchObject({ code: "HOST_REQUIRED" });
+      for (const identity of [host, guest]) await expect(restored.setReady(id, identity, false)).rejects.toMatchObject({ code: "LOBBY_NOT_OPEN" });
+      expect(await client.matchConfiguration.findUniqueOrThrow({ where: { matchId: id } })).toEqual(config);
+      expect(await client.match.findUniqueOrThrow({ where: { id } })).toMatchObject({ currentStateVersion: 0n });
+      expect(await client.turn.count({ where: { matchId: id } })).toBe(0);
+      expect(await client.gameSnapshotRecord.count({ where: { matchId: id } })).toBe(0);
+    } finally { await other.$disconnect(); }
+  });
+
+  it.each(["ready", "join", "leave"] as const)("serializes actual concurrent start vs %s without an invalid start", async (action) => {
+    const { host, id, guest } = await readyPair(3); const newcomer = await account();
+    const mutation = () => action === "ready" ? repository.setReady(id, guest, false)
+      : action === "join" ? repository.joinLobby(id, newcomer) : repository.leaveLobby(id, guest);
+    const [start, change] = await Promise.allSettled([repository.startLobby(id, host), mutation()]);
+    const final = await repository.getLobby(id, host);
+    if (start.status === "fulfilled") {
+      expect(change).toMatchObject({ status: "rejected", reason: { code: "LOBBY_NOT_OPEN" } });
+      expect(final.status).toBe("RUNNING"); expect(final.readyCount).toBe(2); expect(final.participantCount).toBe(2);
+    } else {
+      expect(start.reason).toMatchObject({ code: action === "leave" ? "NOT_ENOUGH_PARTICIPANTS" : "NOT_ALL_READY" });
+      expect(change.status).toBe("fulfilled"); expect(final.status).toBe("OPEN");
+    }
+  });
+
+  it.each(["ready", "join", "leave"] as const)("rechecks %s changes committed while start waits for the parent lock", async (action) => {
+    const { host, id, guest } = await readyPair(3); const newcomer = await account();
+    const contender = createDatabaseClient(testDatabaseUrl(process.env.TEST_DATABASE_URL));
+    let starting: ReturnType<LobbyRepository["startLobby"]> | undefined;
+    try {
+      await contender.$connect();
+      await client.$transaction(async (tx) => {
+        await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Match" WHERE "id" = ${id} FOR UPDATE`);
+        const [holder] = await tx.$queryRaw<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`;
+        starting = new LobbyRepository(contender).startLobby(id, host); void starting.catch(() => undefined);
+        let waiting = false;
+        for (let attempt = 0; attempt < 100 && !waiting; attempt++) {
+          await tx.$executeRaw`SELECT pg_stat_clear_snapshot()`;
+          const [observed] = await tx.$queryRaw<{ waiting: boolean }[]>(Prisma.sql`
+            SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE ${holder!.pid} = ANY(pg_blocking_pids(pid))) AS waiting
+          `);
+          waiting = observed!.waiting;
+          if (!waiting) await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+        expect(waiting).toBe(true);
+        // Simulate a preceding membership/readiness writer holding the same lock.
+        if (action === "join") await tx.matchParticipant.create({ data: { matchId: id, identityId: newcomer, playerId: randomUUID(), active: true } });
+        else await tx.matchParticipant.update({ where: { matchId_identityId: { matchId: id, identityId: guest } },
+          data: action === "leave" ? { active: false, lobbyReady: false } : { lobbyReady: false } });
+      });
+      await expect(starting).rejects.toMatchObject({ code: action === "leave" ? "NOT_ENOUGH_PARTICIPANTS" : "NOT_ALL_READY" });
+      expect((await repository.getLobby(id, host)).status).toBe("OPEN");
+    } finally { await starting?.catch(() => undefined); await contender.$disconnect(); }
   });
 
   it("reads committed lifecycle after waiting for the parent Match lock", async () => {
