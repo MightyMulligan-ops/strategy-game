@@ -76,6 +76,11 @@ export default function WorldView({ matchId, onClose, onSessionError }: { matchI
     <div className="section-heading"><h1 id="world-title">Initial world</h1><button onClick={onClose}>Back to lobbies</button><button disabled={loading} onClick={() => void refresh()}>Refresh world</button></div>
     {loading ? <p role="status">Loading world…</p> : error ? <p role="alert">{error}</p>
       : result?.state === 'READY' ? <MapView world={result.world} />
-        : <p role="status">{result?.state === 'NOT_STARTED' ? 'This match has not started.' : 'This older match has no initialized world. Reading or retrying start will not create one.'}</p>}
+        : result?.state === 'UNINITIALIZED' ? <section className="panel" role="status" aria-live="polite" aria-atomic="true" aria-labelledby="world-unavailable-title">
+          <h2 id="world-unavailable-title">Map unavailable for this match</h2>
+          <p>This match started before world-map support was added and has no saved map to display.</p>
+          <p>Refreshing this view will not create a map. Return to lobbies to view a newer match.</p>
+        </section>
+          : result?.state === 'NOT_STARTED' ? <p role="status">This match has not started.</p> : null}
   </section>
 }
