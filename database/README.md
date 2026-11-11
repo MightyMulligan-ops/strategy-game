@@ -1,6 +1,20 @@
 # PostgreSQL persistence foundation
 
-This package is server-only. It imports validated contracts and the pure game engine; neither the browser nor the engine imports Prisma. Fastify uses separate match, authentication and lobby repositories. Authentication and lobby metadata have HTTP endpoints; game commands and match start remain unimplemented.
+This package is server-only. It imports validated contracts and the pure game engine; neither browser nor engine imports Prisma. Fastify uses separate match, authentication and lobby repositories. Authentication, lobby metadata, readiness and lifecycle start have HTTP endpoints; game commands/world/turn initialization remain unimplemented.
+
+## Lobby readiness migration (Issue #17)
+
+`prisma/migrations/202611110002_lobby_readiness/migration.sql` was generated offline from the before/after Prisma schema files and reviewed in full before testing. Its only statement is:
+
+```sql
+ALTER TABLE "MatchParticipant" ADD COLUMN "lobbyReady" BOOLEAN NOT NULL DEFAULT false;
+```
+
+This adds independent lobby readiness, leaving per-turn `PlayerTurnState.ready` unchanged. Existing rows receive false; historical RUNNING readiness is not invented. No existing table/column/constraint/trigger/migration is removed or rewritten. PostgreSQL applies this single DDL statement atomically; it takes a table lock, so an owner-controlled rollout must consider active sessions.
+
+**Approval boundary:** only newly provisioned disposable CI may apply/test this migration. Codex must not connect to, inspect, migrate, seed, clean up or otherwise modify any existing development/test/sandbox database (including port 5435). Local install/build/generate/schema-only diff/typecheck/unit tests need no database. No local server/preflight or DB command is run for Issue #17. Manual sandbox application requires separate explicit owner approval after SQL review; [owner acceptance steps](../docs/LOCAL_TEST_LOGIN.md#manual-two-browser-verification) are documentation, not authorization to execute.
+
+Rollback considerations: keep the additive column and recorded migration if reverting application code; the previous application ignores it. Do not automatically drop the column, delete migration records or reopen RUNNING lobbies. Such operations lose readiness/lifecycle information and require a separately reviewed owner plan. Start itself changes only OPEN→RUNNING, preserving configuration/state version and creating no turns, pins, snapshots, world or deadlines. Future initialization must treat lifecycle-started lobbies explicitly; no empty-world shortcut is introduced.
 
 ## Models
 
@@ -54,17 +68,19 @@ Account tables reference identities with restrictive foreign keys; deletion need
 
 ## Lobby repository (004B.2B / Issue #9)
 
-`new LobbyRepository(client)` accepts **trusted internal identity IDs**. The [authenticated server adapter](../docs/LOBBY_API.md) derives these exclusively from persistent sessions and invokes the repository using the same Prisma client as auth. The repository checks that an identity exists and has a registered username for every operation; HTTP authentication/CSRF enforcement belongs to the adapter. No lobby UI or match-start operation is implemented.
+`new LobbyRepository(client)` accepts **trusted internal identity IDs**. The [server adapter](../docs/LOBBY_API.md) derives these exclusively from persistent sessions, sharing Prisma with auth. Each operation rechecks registered identity/username; HTTP session/CSRF enforcement belongs to the adapter. The lobby UI uses the same API.
 
 | Method | Committed behavior |
 |---|---|
 | `createLobby(identityId, settings)` | Validate existing `LobbySettings`, create OPEN match, immutable configuration, host, server creation timestamp, and first membership atomically. |
 | `joinLobby(lobbyId, identityId)` | Lock parent Match, require OPEN, acknowledge active duplicate before capacity checking, otherwise create/reactivate membership if room. Returns detail and JOINED/ALREADY_JOINED. |
 | `leaveLobby(lobbyId, identityId)` | Take the same lock, require OPEN and a non-host active member, mark membership inactive. Never delete membership/history. |
+| `setReady(lobbyId, identityId, ready)` | Same lock, OPEN active caller only; set explicit own boolean, never toggle or accept another player ID. |
+| `startLobby(lobbyId, identityId)` | Same lock, host only, at least two active and all ready; guarded OPEN→RUNNING. Repeated host call returns ALREADY_STARTED; no initialization. |
 | `getLobby(lobbyId, identityId)` | Read a consistent detail with public roster and viewer projection in repeatable-read isolation. |
 | `listLobbies(identityId, filters?)` | Read consistent public summaries; optional version-1 status/duration-category filters. Historical internal matches lacking lobby metadata are excluded. |
 
-IDs are generated on the server, independent of account/provider/session IDs. `(matchId, identityId)` is unique even for inactive memberships; leaving frees capacity and rejoining retains the same match-local player ID. Only active membership counts toward capacity. All membership writers use parameterized `SELECT ... FOR UPDATE` on Match in a short read-committed transaction, reading lifecycle/roster **after** acquisition. A future start transaction must take this same lock before checking host/minimum roster and fixing membership. There is no start operation in this assignment. Success resolves after commit; SQL/transient failures roll back and propagate without hidden retries.
+IDs are server-generated and independent of account/provider/session IDs. `(matchId, identityId)` stays unique for inactive memberships; rejoin retains the public ID but resets readiness. Only active membership counts. Membership, readiness and start writers use parameterized `SELECT ... FOR UPDATE` on Match in a short ReadCommitted transaction, reading state **after** acquisition. Success follows commit; failures roll back without hidden retries. Host/count/readiness errors map to safe HTTP codes.
 
 Issue #9 and the owner's clarification require **all RUNNING join retries to fail**, including existing members. This is stricter than the unchanged version-1 schema's ability to represent an ALREADY_JOINED response after start. Domain failures use `LobbyError.code`: UNAUTHENTICATED, USERNAME_REQUIRED, INVALID_INPUT, NOT_FOUND, LOBBY_NOT_OPEN, LOBBY_FULL, HOST_CANNOT_LEAVE, NOT_A_PARTICIPANT, INVALID_STORAGE. Legacy matches are NOT_FOUND at the public lobby boundary. Later HTTP adapters must map unexpected SQL errors to safe responses rather than exposing driver exceptions.
 
@@ -84,7 +100,7 @@ Those are private internal IDs; inspect them locally, never paste them into publ
 
 Existing matches default to RUNNING. Their host, lobby name/capacity, and creation timestamp remain NULL; existing configurations, identities, authentication data, and turn archives stay intact. The original configuration/turn/history checks and triggers are preserved. Host/creation metadata is immutable; RUNNING cannot reopen. New configuration checks enforce name/capacity shape and complete-or-absent runtime pins. The only column relaxations remove NOT NULL from the four runtime pin fields so OPEN lobbies need no invented ruleset, simulation, or world. Legacy configurations still require complete pins; all existing values are preserved.
 
-New lobbies store the existing game ID/duration configuration and immutable lobby settings, but **no snapshot, active turn, deadline, ruleset pin, or world**. The future start assignment must define how initialized runtime pins are persisted without updating fixed settings, and validate safe opening-plus-duration arithmetic. This assignment does not relax the configuration update trigger or call internal empty-world initialization.
+New lobbies and Issue #17's lifecycle-only start store **no snapshot, active turn, deadline, ruleset pin or world**. Future world/turn orchestration must define runtime pins without rewriting fixed settings and validate safe opening-plus-duration arithmetic. No configuration trigger is relaxed and no internal empty-world initializer is called.
 
 SQL was generated offline from the prior/current Prisma schemas, then reviewed with the custom checks/triggers before execution. Local upgrade verification used a newly created PostgreSQL 17 container with tmpfs storage, no volume/bind mounts, and loopback-only networking; both pre-existing Compose databases were left untouched. Separate new databases verified: preservation of every legacy table and original SQL guard/index with synthetic auth, two-turn history, ordered drafts/dependency, frozen/result archives; readable legacy turns/accounts through existing repositories; and duplicate preflight rejection with unchanged records/schema. A third new database applied the full migration chain via `pnpm db:migrate:test` and ran all integration suites. No existing development/test data was reset, truncated, or deleted.
 

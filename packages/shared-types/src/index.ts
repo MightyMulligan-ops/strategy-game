@@ -7,15 +7,15 @@ export {
   LobbyCapacitySchema, LobbyStatusSchema, LobbyDurationCategorySchema, LobbySettingsSchema,
   LobbyParticipantSchema, LobbyViewerSchema, LobbySummarySchema, LobbyDetailSchema,
   CreateLobbyRequestSchema, ListLobbiesRequestSchema, ViewLobbyRequestSchema,
-  JoinLobbyRequestSchema, LeaveLobbyRequestSchema, StartLobbyRequestSchema,
+  JoinLobbyRequestSchema, LeaveLobbyRequestSchema, StartLobbyRequestSchema, SetLobbyReadyRequestSchema,
   CreateLobbyResponseSchema, ListLobbiesResponseSchema, ViewLobbyResponseSchema,
-  JoinLobbyResponseSchema, LeaveLobbyResponseSchema, StartLobbyResponseSchema, LobbyErrorResponseSchema
+  JoinLobbyResponseSchema, LeaveLobbyResponseSchema, StartLobbyResponseSchema, SetLobbyReadyResponseSchema, LobbyErrorResponseSchema
 } from "./lobby.js";
 export type {
   LobbyDurationCategory, LobbySettings, LobbyParticipant, LobbyViewer, LobbySummary, LobbyDetail,
   CreateLobbyRequest, ListLobbiesRequest, ViewLobbyRequest, JoinLobbyRequest, LeaveLobbyRequest, StartLobbyRequest,
   CreateLobbyResponse, ListLobbiesResponse, ViewLobbyResponse, JoinLobbyResponse, LeaveLobbyResponse,
-  StartLobbyResponse, LobbyErrorResponse
+  StartLobbyResponse, SetLobbyReadyRequest, SetLobbyReadyResponse, LobbyErrorResponse
 } from "./lobby.js";
 
 // Version 1 is deliberately small. Adding gameplay fields requires an explicit

@@ -24,8 +24,8 @@ export function classifyLobbyTurnDuration(turnDurationMs: unknown): LobbyDuratio
 export const LobbySettingsSchema = z.strictObject({
   name: identifier,
   playerCapacity: LobbyCapacitySchema,
-  // The future server must also check openedAtMs + turnDurationMs for safe
-  // deadline arithmetic before committing a match/start. This validates duration only.
+  // Future turn initialization must check openedAtMs + turnDurationMs for safe
+  // deadline arithmetic. Lobby start creates no turn/deadline.
   turnDurationMs: positiveInteger,
   visibility: z.literal("PUBLIC")
 }).readonly();
@@ -33,7 +33,9 @@ export type LobbySettings = z.infer<typeof LobbySettingsSchema>;
 
 // A lobby-scoped public participant ID, never an OAuth subject, session ID,
 // provider mapping, or authoritative account/database record.
-export const LobbyParticipantSchema = z.strictObject({ playerId: identifier, username: UsernameSchema }).readonly();
+export const LobbyParticipantSchema = z.strictObject({
+  playerId: identifier, username: UsernameSchema, ready: z.boolean()
+}).readonly();
 export type LobbyParticipant = z.infer<typeof LobbyParticipantSchema>;
 
 const summaryFields = {
@@ -43,11 +45,16 @@ const summaryFields = {
   status: LobbyStatusSchema,
   host: LobbyParticipantSchema,
   participantCount: z.number().int().min(1).max(40),
+  readyCount: nonnegativeInteger.max(40),
   availableSlots: nonnegativeInteger.max(39),
   durationCategory: LobbyDurationCategorySchema
 };
 
 function checkSummary(summary: z.infer<typeof summaryBase>, context: z.RefinementCtx): void {
+  if (summary.readyCount > summary.participantCount || (summary.host.ready && summary.readyCount === 0) ||
+      (!summary.host.ready && summary.readyCount === summary.participantCount)) {
+    context.addIssue({ code: "custom", path: ["readyCount"], message: "Readiness must agree with occupancy and host readiness" });
+  }
   if (summary.participantCount > summary.settings.playerCapacity) {
     context.addIssue({ code: "custom", path: ["participantCount"], message: "Roster exceeds player capacity" });
   }
@@ -86,12 +93,13 @@ export const LobbyDetailSchema = z.strictObject({
   checkSummary(lobby, context);
   const reject = (message: string) => context.addIssue({ code: "custom", message });
   if (lobby.participants.length !== lobby.participantCount) reject("Participant count must match the roster");
+  if (lobby.readyCount !== lobby.participants.filter((player) => player.ready).length) reject("Ready count must match the roster");
   if (new Set(lobby.participants.map((player) => player.playerId)).size !== lobby.participants.length ||
       new Set(lobby.participants.map((player) => player.username.toLowerCase())).size !== lobby.participants.length) {
     reject("Roster IDs and registered usernames must be unique");
   }
   const host = lobby.participants.find((player) => player.playerId === lobby.host.playerId);
-  if (!host || host.username !== lobby.host.username) reject("The host must occur exactly once in the roster");
+  if (!host || host.username !== lobby.host.username || host.ready !== lobby.host.ready) reject("The host must occur exactly once in the roster");
   const participant = lobby.participants.find((player) => player.playerId === lobby.viewer.playerId);
   const role = participant ? participant.playerId === lobby.host.playerId ? "HOST" : "PARTICIPANT" : "NON_PARTICIPANT";
   if (lobby.viewer.role !== role || (!participant && lobby.viewer.playerId !== null) ||
@@ -102,7 +110,7 @@ export const LobbyDetailSchema = z.strictObject({
   const open = lobby.status === "OPEN";
   if (lobby.viewer.canJoin !== (open && role === "NON_PARTICIPANT" && lobby.availableSlots > 0) ||
       lobby.viewer.canLeave !== (open && role === "PARTICIPANT") ||
-      lobby.viewer.canStart !== (open && role === "HOST" && lobby.participantCount >= 2)) {
+      lobby.viewer.canStart !== (open && role === "HOST" && lobby.participantCount >= 2 && lobby.readyCount === lobby.participantCount)) {
     reject("Viewer permissions must agree with lifecycle, occupancy, and host role");
   }
 }).readonly();
@@ -122,10 +130,12 @@ export const ViewLobbyRequestSchema = z.strictObject(lobbyIdRequestFields).reado
 export const JoinLobbyRequestSchema = z.strictObject(lobbyIdRequestFields).readonly();
 export const LeaveLobbyRequestSchema = z.strictObject(lobbyIdRequestFields).readonly();
 export const StartLobbyRequestSchema = z.strictObject(lobbyIdRequestFields).readonly();
+export const SetLobbyReadyRequestSchema = z.strictObject({ ...lobbyIdRequestFields, ready: z.boolean() }).readonly();
 export type ViewLobbyRequest = z.infer<typeof ViewLobbyRequestSchema>;
 export type JoinLobbyRequest = z.infer<typeof JoinLobbyRequestSchema>;
 export type LeaveLobbyRequest = z.infer<typeof LeaveLobbyRequestSchema>;
 export type StartLobbyRequest = z.infer<typeof StartLobbyRequestSchema>;
+export type SetLobbyReadyRequest = z.infer<typeof SetLobbyReadyRequestSchema>;
 
 // Optional context-dependent contract validation. The server must construct this
 // detail from its authenticated, registered viewer and latest locked lobby state.
@@ -152,7 +162,7 @@ const detailResponseFields = { schemaVersion: version, lobby: LobbyDetailSchema 
 export const ViewLobbyResponseSchema = z.strictObject(detailResponseFields).readonly();
 export type ViewLobbyResponse = z.infer<typeof ViewLobbyResponseSchema>;
 export const CreateLobbyResponseSchema = z.strictObject(detailResponseFields).refine(
-  ({ lobby }) => lobby.status === "OPEN" && lobby.participantCount === 1 && lobby.viewer.role === "HOST",
+  ({ lobby }) => lobby.status === "OPEN" && lobby.participantCount === 1 && lobby.readyCount === 0 && lobby.viewer.role === "HOST",
   "A new lobby is OPEN with its creator as the sole participant and host"
 ).readonly();
 export type CreateLobbyResponse = z.infer<typeof CreateLobbyResponseSchema>;
@@ -168,8 +178,16 @@ export const LeaveLobbyResponseSchema = z.strictObject(detailResponseFields).ref
   "Leaving must return an OPEN lobby in which the viewer is no longer a participant"
 ).readonly();
 export type LeaveLobbyResponse = z.infer<typeof LeaveLobbyResponseSchema>;
-export const StartLobbyResponseSchema = z.strictObject(detailResponseFields).refine(
-  ({ lobby }) => lobby.status === "RUNNING" && lobby.viewer.role === "HOST",
+export const SetLobbyReadyResponseSchema = z.strictObject(detailResponseFields).refine(
+  ({ lobby }) => lobby.status === "OPEN" && lobby.viewer.role !== "NON_PARTICIPANT",
+  "Only an active participant in an OPEN lobby may set readiness"
+).readonly();
+export type SetLobbyReadyResponse = z.infer<typeof SetLobbyReadyResponseSchema>;
+export const StartLobbyResponseSchema = z.strictObject({
+  ...detailResponseFields, outcome: z.enum(["STARTED", "ALREADY_STARTED"])
+}).refine(
+  ({ lobby, outcome }) => lobby.status === "RUNNING" && lobby.viewer.role === "HOST" &&
+    (outcome === "ALREADY_STARTED" || lobby.readyCount === lobby.participantCount),
   "Only the host may receive a successful start result with at least two participants"
 ).readonly();
 export type StartLobbyResponse = z.infer<typeof StartLobbyResponseSchema>;
@@ -177,7 +195,7 @@ export type StartLobbyResponse = z.infer<typeof StartLobbyResponseSchema>;
 export const LobbyErrorResponseSchema = z.strictObject({
   schemaVersion: version,
   error: z.enum(["UNAUTHENTICATED", "USERNAME_REQUIRED", "NOT_FOUND", "LOBBY_NOT_OPEN", "LOBBY_FULL",
-    "HOST_CANNOT_LEAVE", "HOST_REQUIRED", "NOT_A_PARTICIPANT", "NOT_ENOUGH_PARTICIPANTS",
+    "HOST_CANNOT_LEAVE", "HOST_REQUIRED", "NOT_A_PARTICIPANT", "NOT_ENOUGH_PARTICIPANTS", "NOT_ALL_READY",
     "INVALID_REQUEST", "INVALID_ORIGIN", "CSRF_REJECTED", "RATE_LIMITED", "INTERNAL_ERROR"])
 }).readonly();
 export type LobbyErrorResponse = z.infer<typeof LobbyErrorResponseSchema>;

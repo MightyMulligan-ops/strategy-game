@@ -5,33 +5,33 @@ import {
   CreateLobbyRequestSchema, CreateLobbyResponseSchema, ListLobbiesRequestSchema, ListLobbiesResponseSchema,
   ViewLobbyRequestSchema, ViewLobbyResponseSchema, JoinLobbyRequestSchema, JoinLobbyResponseSchema,
   LeaveLobbyRequestSchema, LeaveLobbyResponseSchema, StartLobbyRequestSchema, StartLobbyResponseSchema,
-  LobbyDetailSchema, LobbySummarySchema, LobbyErrorResponseSchema
+  LobbyDetailSchema, LobbySummarySchema, LobbyErrorResponseSchema, SetLobbyReadyRequestSchema, SetLobbyReadyResponseSchema
 } from "../src/index.js";
 
-const host = { playerId: "lobby-player-host", username: "Commander" };
-const member = { playerId: "lobby-player-member", username: "Captain" };
+const host = { playerId: "lobby-player-host", username: "Commander", ready: true };
+const member = { playerId: "lobby-player-member", username: "Captain", ready: true };
 const settings = { name: "World Conquest", playerCapacity: 4, turnDurationMs: 900_000, visibility: "PUBLIC" };
 const request = { schemaVersion: 1, lobbyId: "lobby-1" };
 const creation = { schemaVersion: 1, settings };
 function opening() {
   return {
-    ...request, settings: { ...settings }, status: "OPEN", host: { ...host }, participantCount: 2, availableSlots: 2,
+    ...request, settings: { ...settings }, status: "OPEN", host: { ...host }, participantCount: 2, readyCount: 2, availableSlots: 2,
     durationCategory: "UNCATEGORIZED", participants: [{ ...host }, { ...member }],
-    viewer: { role: "HOST", ...host, canJoin: false, canLeave: false, canStart: true }
+    viewer: { role: "HOST", playerId: host.playerId, username: host.username, canJoin: false, canLeave: false, canStart: true }
   };
 }
 function guest() {
   return { ...opening(), viewer: { role: "NON_PARTICIPANT", playerId: null, username: "Visitor", canJoin: true, canLeave: false, canStart: false } };
 }
 function participant() {
-  return { ...opening(), viewer: { role: "PARTICIPANT", ...member, canJoin: false, canLeave: true, canStart: false } };
+  return { ...opening(), viewer: { role: "PARTICIPANT", playerId: member.playerId, username: member.username, canJoin: false, canLeave: true, canStart: false } };
 }
 function running() {
   return { ...opening(), status: "RUNNING", availableSlots: 0,
     viewer: { ...opening().viewer, canStart: false } };
 }
 function alone() {
-  return { ...opening(), participantCount: 1, availableSlots: 3, participants: [{ ...host }],
+  return { ...opening(), participantCount: 1, readyCount: 0, host: { ...host, ready: false }, availableSlots: 3, participants: [{ ...host, ready: false }],
     viewer: { ...opening().viewer, canStart: false } };
 }
 function summary() {
@@ -105,7 +105,8 @@ describe("strict request and response privacy", () => {
   it.each([
     ["create", CreateLobbyRequestSchema, creation], ["list", ListLobbiesRequestSchema, { schemaVersion: 1 }],
     ["view", ViewLobbyRequestSchema, request], ["join", JoinLobbyRequestSchema, request],
-    ["leave", LeaveLobbyRequestSchema, request], ["start", StartLobbyRequestSchema, request]
+    ["leave", LeaveLobbyRequestSchema, request], ["start", StartLobbyRequestSchema, request],
+    ["ready", SetLobbyReadyRequestSchema, { ...request, ready: true }]
   ])("rejects identity/authority spoofing in %s requests", (_name, schema, input) => {
     expect(schema.safeParse(input).success).toBe(true);
     for (const field of ["playerId", "identityId", "accountId", "host", "hostPlayerId", "username", "viewer", "canStart", "settingsUpdate"]) {
@@ -147,8 +148,8 @@ describe("lifecycle, roster, and coherent viewer projections", () => {
     expect(LobbySummarySchema.safeParse({ ...summary(), ...change }).success).toBe(false);
   });
   it("supports a full 40-player roster and closes every remaining slot on start", () => {
-    const players = [host, ...Array.from({ length: 39 }, (_, index) => ({ playerId: `player-${index}`, username: `Player_${index}` }))];
-    const full = { ...opening(), settings: { ...settings, playerCapacity: 40 }, participants: players, participantCount: 40, availableSlots: 0 };
+    const players = [host, ...Array.from({ length: 39 }, (_, index) => ({ playerId: `player-${index}`, username: `Player_${index}`, ready: true }))];
+    const full = { ...opening(), settings: { ...settings, playerCapacity: 40 }, participants: players, participantCount: 40, readyCount: 40, availableSlots: 0 };
     expect(LobbyDetailSchema.safeParse(full).success).toBe(true);
     expect(LobbyDetailSchema.safeParse(running()).success).toBe(true);
     expect(LobbyDetailSchema.safeParse({ ...running(), availableSlots: 2 }).success).toBe(false);
@@ -221,9 +222,28 @@ describe("context-dependent action contracts (no execution)", () => {
     for (const context of [opening(), participant(), running()]) expect(LeaveLobbyResponseSchema.safeParse(response(context)).success).toBe(false);
   });
   it("requires a RUNNING host view for successful start responses", () => {
-    expect(StartLobbyResponseSchema.safeParse(response(running())).success).toBe(true);
+    for (const outcome of ["STARTED", "ALREADY_STARTED"]) expect(StartLobbyResponseSchema.safeParse({ ...response(running()), outcome }).success).toBe(true);
+    expect(StartLobbyResponseSchema.safeParse(response(running())).success).toBe(false);
     const lockedMember = { ...participant(), status: "RUNNING", availableSlots: 0, viewer: { ...participant().viewer, canLeave: false } };
     for (const context of [opening(), alone(), lockedMember]) expect(StartLobbyResponseSchema.safeParse(response(context)).success).toBe(false);
+  });
+});
+
+describe("lobby readiness contracts", () => {
+  it.each([undefined, null, 1, "true", "false", {}, []])("rejects readiness coercion: %j", (ready) => {
+    expect(SetLobbyReadyRequestSchema.safeParse({ ...request, ready }).success).toBe(false);
+  });
+  it("requires coherent roster readiness and all-ready host permission", () => {
+    const unready = { ...opening(), participants: [host, { ...member, ready: false }], readyCount: 1,
+      viewer: { ...opening().viewer, canStart: false } };
+    expect(LobbyDetailSchema.safeParse(unready).success).toBe(true);
+    expect(lobbyActionRequestSchema("start", unready).safeParse(request).success).toBe(false);
+    expect(LobbyDetailSchema.safeParse({ ...unready, readyCount: 2 }).success).toBe(false);
+    expect(LobbyDetailSchema.safeParse({ ...unready, host: { ...host, ready: false } }).success).toBe(false);
+    expect(LobbyDetailSchema.safeParse({ ...unready, viewer: opening().viewer }).success).toBe(false);
+    expect(LobbySummarySchema.safeParse({ ...summary(), readyCount: 3 }).success).toBe(false);
+    expect(SetLobbyReadyResponseSchema.safeParse(response(unready)).success).toBe(true);
+    for (const lobby of [guest(), running()]) expect(SetLobbyReadyResponseSchema.safeParse(response(lobby)).success).toBe(false);
   });
 });
 

@@ -131,14 +131,26 @@ Account authentication is implemented independently of match authorization. Phas
 
 ## Phase 0B.2E — Local test sign-in (Issue #15)
 
-**Scope:** One opt-in loopback-only fixture sign-in route and server-advertised UI, retaining persisted sessions/CSRF and real lobby authorization. Implemented on `issue/15-local-test-sign-in`, unmerged; delivery items stay unchecked until human merge.
+**Scope:** Opt-in loopback fixture sign-in and server-advertised UI, retaining sessions/CSRF and lobby authorization. Merged in PR #16 as `40c56a3`.
 
-- [ ] Fail closed outside explicit development, exact origin, loopback binding and no-proxy conditions.
-- [ ] Isolate two allowlisted identities from OAuth accounts; rotate normal sessions and reject fixture cookies when disabled.
-- [ ] Preserve normal OAuth/onboarding/link/logout/lobby behavior and pass memory/UI plus disposable-CI PostgreSQL coverage.
-- [ ] Document owner-only sandbox launch, inherited environment precedence and independent two-browser verification without automatic database access/preparation.
+- [x] Fail closed outside explicit development, exact origin, loopback binding and no-proxy conditions.
+- [x] Isolate two allowlisted identities from OAuth accounts; rotate normal sessions and reject fixture cookies when disabled.
+- [x] Preserve normal OAuth/onboarding/link/logout/lobby behavior and pass memory/UI plus disposable-CI PostgreSQL coverage.
+- [x] Document owner-only sandbox launch, inherited environment precedence and independent two-browser verification without automatic database access/preparation.
 
 **Exit criteria:** Reviewed draft PR merged after checks/security review. Existing development/test/sandbox databases remain untouched by Codex/CI; owner manual sandbox and real OAuth verification are separate. No schema, migration, reset, gameplay, Start, merge or deployment automation. See [LOCAL_TEST_LOGIN.md](LOCAL_TEST_LOGIN.md).
+
+## Phase 0B.2F — Lobby readiness and host start (005A / Issue #17)
+
+**Scope:** Per-participant readiness and atomic host-only OPEN→RUNNING transition. Implemented on `issue/17-lobby-readiness-start`; delivery remains unchecked until human merge.
+
+- [ ] Add default-false lobby readiness without changing per-turn Ready or existing migrations.
+- [ ] Validate host, at least two active players and unanimous readiness under the membership lock; repeated host start returns ALREADY_STARTED.
+- [ ] Add strict session/Origin/CSRF-protected ready/start APIs and authoritative lobby UI, preserving authentication and membership rules.
+- [ ] Verify authorization, reset/rejoin/leave, races and retry behavior; preserve duration and state version without world/turn/deadline initialization.
+- [ ] Review offline additive SQL; test only in disposable CI; document separately approved owner-only sandbox acceptance.
+
+**Exit criteria:** Reviewed draft PR merged after all checks. Existing databases remain untouched; sandbox SQL application is a separate owner approval. No map generation, gameplay execution, scheduler, merge or deployment is implemented. See [MATCH_LOBBIES.md](MATCH_LOBBIES.md), [LOBBY_API.md](LOBBY_API.md) and [LOCAL_TEST_LOGIN.md](LOCAL_TEST_LOGIN.md).
 
 ## Phase 1 — Map and game shell
 

@@ -54,13 +54,15 @@ This owner-invoked workflow prepares generated dependencies, performs its normal
 
 ## Manual two-browser verification
 
-1. After owner review of this branch and target verification, launch the sandbox workflow above.
+1. **Owner only:** review `database/prisma/migrations/202611110002_lobby_readiness/migration.sql` and explicitly approve its manual application to the sandbox before applying it. CI approval is limited to disposable CI and does not authorize sandbox migration. Codex must not perform this step or connect to any existing database. After owner-controlled preparation and private target verification, launch the sandbox workflow above. If the column is missing, stop; do not reset, seed or automatically repair it.
 2. Open separate browser **profiles** (or different browsers). Incognito windows in one profile can share cookies; separate tabs/windows alone do not guarantee independent sessions.
-3. In profile A choose Player One under Local test sign-in. Choose a unique valid username when prompted. Create a PUBLIC two-player lobby; confirm host/occupancy.
-4. In profile B choose Player Two, register a different username, refresh the list, inspect the lobby and join. Confirm two distinct usernames, one slot each and duplicate joining consumes no new slot.
-5. Leave as Player Two; refresh as Player One and confirm occupancy decreases. Host leave remains unavailable/rejected. No match Start control exists.
-6. Sign out/reselect the same fixture and confirm the existing username/membership is recovered. Check logout-all invalidates that fixture's other sessions without signing out the other player.
-7. Stop the server, disable the dev flag, configure the usual provider credentials and restart normally. The local control/endpoint disappear; old fixture cookies cannot authorize requests. Recheck Google/Discord login/link/logout through their existing flows when credentials are available.
+3. In profile A select Player One, choose a unique valid username if prompted and create a PUBLIC two-player lobby. Record its turn duration. Confirm NOT READY, 0/1 ready, host-only disabled Start Match and the two-player requirement. Host leave stays unavailable.
+4. In profile B select Player Two, register a different username, refresh/inspect and join. Confirm distinct names, NOT READY and no Start Match control. Refresh A; it shows 0/2 ready. Duplicate joining must not consume another slot.
+5. Mark ready as Player Two and refresh A. Host remains NOT READY and Start disabled. Mark ready as Player One; both show READY after refreshing B, and only A can start. Mark not ready as B and refresh A: Start disables with a waiting reason. A stale enabled start must return safe NOT_ALL_READY and refresh, without retrying.
+6. Leave as B while OPEN and refresh A: B no longer counts, and minimum-count disables Start. Rejoin B: same public player ID, NOT READY. Ready B and refresh A; host can start again. Confirm neither browser can change another player's readiness or bypass host-only start through direct requests (normal Origin/CSRF still required).
+7. Start as A once both are ready. Both browsers show RUNNING after refresh; duration remains unchanged. Joining/leaving/readiness controls close, and host Start disables. Reload both browsers: lifecycle/duration persist. Retrying the normal versioned start POST as host returns ALREADY_STARTED; non-host returns HOST_REQUIRED. No map or turn appears, no simultaneous turn is resolved and no deadline starts.
+8. Sign out/reselect the same fixture and confirm username/membership persist. Check logout-all invalidates that fixture's other sessions without signing out the other player.
+9. Stop the server, disable the dev flag, configure usual provider credentials and restart normally. Local controls/endpoint disappear; old fixture cookies fail. Recheck Google/Discord login/link/logout when credentials are available.
 
 ## Automated evidence and limitations
 
@@ -68,4 +70,4 @@ Local checks explicitly set `RUN_DATABASE_TESTS=0`; unit tests use memory auth, 
 
 The new PostgreSQL integration file is automatically discovered by the existing CI runner and report guard. It uses only CI's newly created disposable PostgreSQL service and tracked current-run fixtures. It refuses pre-existing reserved fixture records before attempting cleanup. Coverage includes two persisted sessions and real lobby create/join/leave, app/client recovery, normal logout-all, OAuth collision refusal and no impersonation/linking. No local DB integration command is run for this issue; hosted CI is the database verification evidence.
 
-No existing database was connected or modified, and neither private environment file was displayed or edited. Manual real-sandbox/provider testing is intentionally left to the owner. There are no new dependencies, schema/migrations, automatic seeds, gameplay changes, merge or deployment actions.
+No existing database was connected or modified, and private environment files were not displayed/edited. Manual sandbox/provider verification remains an owner action. Issue #15 introduced no migration; Issue #17 adds only the reviewed default-false readiness column, tested exclusively in disposable CI. No automatic seeds, gameplay execution, merge or deployment is added.

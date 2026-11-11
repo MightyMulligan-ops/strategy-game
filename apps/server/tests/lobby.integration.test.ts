@@ -3,7 +3,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { AuthRepository, createDatabaseClient, LobbyRepository, testDatabaseUrl } from "@strategy-game/database";
 import {
   CreateLobbyResponseSchema, JoinLobbyResponseSchema, LeaveLobbyResponseSchema,
-  ListLobbiesResponseSchema, ViewLobbyResponseSchema
+  ListLobbiesResponseSchema, SetLobbyReadyResponseSchema, StartLobbyResponseSchema, ViewLobbyResponseSchema
 } from "@strategy-game/shared-types";
 import { lobbyFixture, origin, settings } from "./lobby-fixture.js";
 
@@ -57,6 +57,31 @@ describe.skipIf(process.env.RUN_DATABASE_TESTS !== "1")("authenticated lobby HTT
     const { lobby } = CreateLobbyResponseSchema.parse(response.json());
     return { host, lobby, id: lobby.lobbyId };
   }
+
+  it("authorizes readiness/start with real sessions and atomically starts once without any turn", async () => {
+    const { host, id } = await fresh(); const guest = await f.login(username()); const outsider = await f.login(username());
+    const path = `/api/lobbies/${id}`;
+    expect((await f.request(host, "POST", `${path}/start`, { schemaVersion: 1 })).json().error).toBe("NOT_ENOUGH_PARTICIPANTS");
+    expect((await f.request(outsider, "POST", `${path}/ready`, { schemaVersion: 1, ready: true })).json().error).toBe("NOT_A_PARTICIPANT");
+    const nonhost = await f.request(outsider, "POST", `${path}/start`, { schemaVersion: 1 });
+    expect(nonhost.statusCode).toBe(403); expect(nonhost.json().error).toBe("HOST_REQUIRED");
+    await f.request(guest, "POST", `${path}/join`, { schemaVersion: 1 });
+    const ready = await f.request(guest, "POST", `${path}/ready`, { schemaVersion: 1, ready: true });
+    expect(ready.statusCode).toBe(200); expect(SetLobbyReadyResponseSchema.parse(ready.json()).lobby.readyCount).toBe(1);
+    expect((await f.request(host, "POST", `${path}/start`, { schemaVersion: 1 })).json().error).toBe("NOT_ALL_READY");
+    await f.request(host, "POST", `${path}/ready`, { schemaVersion: 1, ready: true });
+    const started = await f.request(host, "POST", `${path}/start`, { schemaVersion: 1 });
+    expect(started.statusCode).toBe(200); expect(StartLobbyResponseSchema.parse(started.json()).outcome).toBe("STARTED");
+    const repeated = await f.request(host, "POST", `${path}/start`, { schemaVersion: 1 });
+    expect(repeated.statusCode).toBe(200); expect(StartLobbyResponseSchema.parse(repeated.json()).outcome).toBe("ALREADY_STARTED");
+    expect((await f.request(guest, "POST", `${path}/ready`, { schemaVersion: 1, ready: false })).json().error).toBe("LOBBY_NOT_OPEN");
+    expect((await f.request(guest, "POST", `${path}/join`, { schemaVersion: 1 })).json().error).toBe("LOBBY_NOT_OPEN");
+    expect((await f.request(guest, "POST", `${path}/leave`, { schemaVersion: 1 })).json().error).toBe("LOBBY_NOT_OPEN");
+    expect((await f.request(guest, "POST", `${path}/start`, { schemaVersion: 1 })).json().error).toBe("HOST_REQUIRED");
+    expect(ViewLobbyResponseSchema.parse((await f.request(host, "GET", path)).json()).lobby.settings.turnDurationMs).toBe(settings.turnDurationMs);
+    expect(await client.turn.count({ where: { matchId: id } })).toBe(0);
+    expect(await client.gameSnapshotRecord.count({ where: { matchId: id } })).toBe(0);
+  });
 
   it("persists creation and safe list/view responses without world state, Turn 1 or a deadline", async () => {
     const { host, lobby, id } = await fresh();

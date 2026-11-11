@@ -17,6 +17,7 @@ const messages: Record<ErrorCode, string> = {
   INTERNAL_ERROR: 'Lobbies are temporarily unavailable. Please try again later.',
   HOST_REQUIRED: 'Only the host can perform that action.',
   NOT_ENOUGH_PARTICIPANTS: 'This action needs more participants.',
+  NOT_ALL_READY: 'Every active player, including the host, must be ready. The roster has been refreshed.',
 }
 
 export class LobbyRequestError extends Error {

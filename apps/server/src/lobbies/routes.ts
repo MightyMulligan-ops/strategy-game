@@ -1,7 +1,8 @@
 import {
   CreateLobbyRequestSchema, CreateLobbyResponseSchema, JoinLobbyRequestSchema, JoinLobbyResponseSchema,
   LeaveLobbyRequestSchema, LeaveLobbyResponseSchema, ListLobbiesRequestSchema, ListLobbiesResponseSchema,
-  LobbyErrorResponseSchema, UsernameSchema, ViewLobbyRequestSchema, ViewLobbyResponseSchema
+  LobbyErrorResponseSchema, SetLobbyReadyRequestSchema, SetLobbyReadyResponseSchema,
+  StartLobbyRequestSchema, StartLobbyResponseSchema, UsernameSchema, ViewLobbyRequestSchema, ViewLobbyResponseSchema
 } from "@strategy-game/shared-types";
 import type { LobbyErrorResponse } from "@strategy-game/shared-types";
 import { LobbyError } from "@strategy-game/database";
@@ -9,11 +10,13 @@ import type { AuthPersistence, LobbyRepository } from "@strategy-game/database";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { privateResponseHeaders, sameOrigin, sessionPlayer } from "../auth/security.js";
 
-export type LobbyPersistence = Pick<LobbyRepository, "createLobby" | "listLobbies" | "getLobby" | "joinLobby" | "leaveLobby">;
+export type LobbyPersistence = Pick<LobbyRepository, "createLobby" | "listLobbies" | "getLobby" | "joinLobby" | "leaveLobby" | "setReady" | "startLobby">;
 type PublicError = LobbyErrorResponse["error"];
 const versionOnly = ViewLobbyRequestSchema.unwrap().omit({ lobbyId: true });
 const joinBody = JoinLobbyRequestSchema.unwrap().omit({ lobbyId: true });
 const leaveBody = LeaveLobbyRequestSchema.unwrap().omit({ lobbyId: true });
+const readyBody = SetLobbyReadyRequestSchema.unwrap().omit({ lobbyId: true });
+const startBody = StartLobbyRequestSchema.unwrap().omit({ lobbyId: true });
 
 function failure(reply: FastifyReply, status: number, error: PublicError) {
   privateResponseHeaders(reply);
@@ -41,8 +44,10 @@ export async function registerLobbyRoutes(app: FastifyInstance, options: {
         switch (error.code) {
           case "UNAUTHENTICATED": return failure(reply, 401, error.code);
           case "USERNAME_REQUIRED": return failure(reply, 403, error.code);
+          case "HOST_REQUIRED": return failure(reply, 403, error.code);
           case "NOT_FOUND": return failure(reply, 404, error.code);
           case "LOBBY_NOT_OPEN": case "LOBBY_FULL": case "HOST_CANNOT_LEAVE": case "NOT_A_PARTICIPANT":
+          case "NOT_ENOUGH_PARTICIPANTS": case "NOT_ALL_READY":
             return failure(reply, 409, error.code);
           case "INVALID_INPUT": return failure(reply, 400, "INVALID_REQUEST");
           case "INVALID_STORAGE": return failure(reply, 500, "INTERNAL_ERROR");
@@ -90,6 +95,22 @@ export async function registerLobbyRoutes(app: FastifyInstance, options: {
       if (!path.success || !body.success || Object.keys(request.query as object).length) return failure(reply, 400, "INVALID_REQUEST");
       const command = JoinLobbyRequestSchema.parse({ ...body.data, lobbyId: path.data.lobbyId });
       return JoinLobbyResponseSchema.parse({ schemaVersion: 1, ...await lobbies.joinLobby(command.lobbyId, request.session.playerIdentityId!) });
+    });
+    routes.post("/api/lobbies/:lobbyId/ready", mutation, async (request, reply) => {
+      const path = target(request);
+      const body = readyBody.safeParse(request.body);
+      if (!path.success || !body.success || Object.keys(request.query as object).length) return failure(reply, 400, "INVALID_REQUEST");
+      const command = SetLobbyReadyRequestSchema.parse({ ...body.data, lobbyId: path.data.lobbyId });
+      return SetLobbyReadyResponseSchema.parse({ schemaVersion: 1,
+        lobby: await lobbies.setReady(command.lobbyId, request.session.playerIdentityId!, command.ready) });
+    });
+    routes.post("/api/lobbies/:lobbyId/start", mutation, async (request, reply) => {
+      const path = target(request);
+      const body = startBody.safeParse(request.body);
+      if (!path.success || !body.success || Object.keys(request.query as object).length) return failure(reply, 400, "INVALID_REQUEST");
+      const command = StartLobbyRequestSchema.parse({ ...body.data, lobbyId: path.data.lobbyId });
+      return StartLobbyResponseSchema.parse({ schemaVersion: 1,
+        ...await lobbies.startLobby(command.lobbyId, request.session.playerIdentityId!) });
     });
     routes.post("/api/lobbies/:lobbyId/leave", mutation, async (request, reply) => {
       const path = target(request);
