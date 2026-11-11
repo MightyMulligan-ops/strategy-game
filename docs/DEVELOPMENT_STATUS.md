@@ -12,7 +12,7 @@ This is a short, evidence-based handoff, not a replacement for the authoritative
 | Windows startup automation (005) | Merged | Dependency preparation and preflight; shared packages require restart |
 | GitHub Actions CI (006 / Issue #1) | Merged | Application and PostgreSQL checks; owner configures branch protection |
 | Local issue-to-draft-PR workflow (007 / Issue #2) | Merged | [PR #5](https://github.com/MightyMulligan-ops/strategy-game/pull/5), `963869a`; local sessions and metadata-only automation |
-| Lobby contracts and documentation (004B.2A / Issue #7) | In progress, unmerged | `issue/7-lobby-contracts`; schemas/tests/docs only, no working lobbies |
+| Lobby contracts and documentation (004B.2A / Issue #7) | In review, unmerged | [Draft PR #8](https://github.com/MightyMulligan-ops/strategy-game/pull/8), `issue/7-lobby-contracts`; schemas/tests/docs only, no working lobbies |
 | Match authorization, command APIs, scheduler | Planned | Next Phase 0B work; account authentication does not grant match permissions |
 | Map, gameplay, leadership, Military Supplies | Planned | Rules remain in GAME_DESIGN.md; no claim of implemented gameplay |
 
@@ -27,4 +27,4 @@ This is a short, evidence-based handoff, not a replacement for the authoritative
 
 ## Next planned development slice
 
-After this tooling handoff, select a focused Phase 0B issue for match membership authorization and authenticated command handling, then durable acknowledgement/retry behavior and offline scheduling/recovery. Resolve the documented design questions before affected gameplay work. See [DEVELOPMENT_ROADMAP.md](DEVELOPMENT_ROADMAP.md) and [CODEX_WORKFLOW.md](CODEX_WORKFLOW.md).
+After this contract handoff, select a focused Phase 0B issue for persisted lobby/match membership and session-authorized command handling, then durable acknowledgement/retry behavior and offline scheduling/recovery. Implement against [MATCH_LOBBIES.md](MATCH_LOBBIES.md), and resolve the documented open decisions before affected gameplay work. See [DEVELOPMENT_ROADMAP.md](DEVELOPMENT_ROADMAP.md) and [CODEX_WORKFLOW.md](CODEX_WORKFLOW.md).
