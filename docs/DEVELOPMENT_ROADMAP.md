@@ -154,11 +154,12 @@ Account authentication is implemented independently of match authorization. Phas
 
 ## Milestone 005B — Procedural world and read-only map (parent Issue #19)
 
-The owner approved three review phases. 005B.1 merged in PR #21 as `e3e4a22`. **005B.2 / Issue #22** is approved and implemented on its feature branch; delivery stays unchecked until human merge. Parent #19 remains open.
+The owner approved three review phases. 005B.1 merged in PR #21 as `e3e4a22`, and 005B.2 merged in PR #23 as `432f37b`. **005B.3A / Issue #24** is the approved frontend-only legacy-map messaging slice; delivery stays unchecked until human merge. Parent #19 remains open.
 
 - [x] **005B.1:** Versioned authoritative world contracts and pure deterministic generator; seeded integer geometry, adjacency/terrain, separate starting fixtures and measurable local equality; tests for 2/4/10/40 players and all supported sizes. Merged without database/API/UI/start wiring. See [WORLD_GENERATION.md](WORLD_GENERATION.md).
-- [ ] **005B.2:** Immutable JSONB initial archive, guarded atomic initialization on start, participant-only allowlist API and minimal read-only SVG inspector; retry/concurrency/rollback/reload/legacy tests. In review after draft creation; see [INITIAL_WORLD.md](INITIAL_WORLD.md).
-- [ ] **005B.3:** Explicit idempotent legacy initialization and remaining map/acceptance hardening. Never silently initialize existing RUNNING matches on read; separate owner authorization required.
+- [x] **005B.2:** Immutable JSONB initial archive, guarded atomic initialization on start, participant-only allowlist API and minimal read-only SVG inspector; retry/concurrency/rollback/reload/legacy tests. Merged in PR #23; see [INITIAL_WORLD.md](INITIAL_WORLD.md).
+- [ ] **005B.3A:** Accessible world-unavailable explanation for legacy RUNNING matches, preserving UNINITIALIZED and distinct not-started/error/READY handling. Frontend tests/docs only; no database, backend or contract changes.
+- [ ] **005B.3:** Accessibility, world-view error-state, and acceptance-test hardening. Legacy RUNNING matches remain UNINITIALIZED. No automatic or host-triggered world initialization is authorized.
 
 No phase authorizes Codex to access an existing development/test/sandbox database. Any future migration must be reviewed and tested only in fresh disposable CI; manual sandbox application requires separate owner approval. World initialization does not resolve a simultaneous turn or imply gameplay execution.
 

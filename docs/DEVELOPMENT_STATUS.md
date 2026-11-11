@@ -1,6 +1,6 @@
 # Development status
 
-This is a short, evidence-based handoff, not a replacement for the rules or roadmap. Baseline: `main` at `e3e4a22` (PR #21 squash merge). Feature work remains unmerged even when its tests pass.
+This is a short, evidence-based handoff, not a replacement for the rules or roadmap. Baseline: `main` at `432f37b` (PR #23 squash merge). Feature work remains unmerged even when its tests pass.
 
 | Area | State | Evidence / limitations |
 |---|---|---|
@@ -19,7 +19,8 @@ This is a short, evidence-based handoff, not a replacement for the rules or road
 | Loopback local test sign-in (004B.2E / Issue #15) | Merged | [PR #16](https://github.com/MightyMulligan-ops/strategy-game/pull/16), `40c56a3`; explicit loopback/development gates, isolated fixtures and normal sessions/CSRF/lobby authorization |
 | Lobby readiness and host start (005A / Issue #17) | Merged | [PR #18](https://github.com/MightyMulligan-ops/strategy-game/pull/18), `280b7fa`; serialized readiness/host/count checks and lifecycle-only start, Open/Started discovery; no world or turn initialization |
 | Pure territory world foundation (005B.1 / Issue #20) | Merged | [PR #21](https://github.com/MightyMulligan-ops/strategy-game/pull/21), `e3e4a22`; approved generator/contracts and local balance guarantees, 67 generator tests |
-| Persisted initial world and SVG map (005B.2 / Issue #22) | In review / unmerged | [Draft PR #23](https://github.com/MightyMulligan-ops/strategy-game/pull/23), `issue/22-persistent-world-map`; immutable JSONB archive, atomic guarded start, participant-only allowlist projection/API, accessible SVG inspector; 500 local tests passed, 73 DB assertions intentionally skipped locally. Two-context mock-backed Chromium smoke passed. No existing DB access; SQL generated/reviewed offline. PR checks track disposable-CI verification |
+| Persisted initial world and SVG map (005B.2 / Issue #22) | Merged | [PR #23](https://github.com/MightyMulligan-ops/strategy-game/pull/23), `432f37b`; immutable JSONB initial archive, atomic guarded start, participant-only projection/API and SVG inspector; legacy worldless matches remain UNINITIALIZED |
+| Legacy world-unavailable messaging (005B.3A / Issue #24) | In review / unmerged | [Draft PR #25](https://github.com/MightyMulligan-ops/strategy-game/pull/25), `issue/24-legacy-world-unavailable`; frontend status explanation and focused regressions only; 13 focused and 502 workspace unit tests passed, with frozen install/build/typecheck/lint and static-mock Chromium checks. The 73 DB assertions are skipped locally; PR checks track hosted regressions. No API/contract/database changes or existing database access |
 | Match authorization, command APIs, scheduler | Planned | Next Phase 0B work; account authentication does not grant match permissions |
 | Map, gameplay, leadership, Military Supplies | Planned | Rules remain in GAME_DESIGN.md; no claim of implemented gameplay |
 
@@ -34,4 +35,4 @@ This is a short, evidence-based handoff, not a replacement for the rules or road
 
 ## Next planned development slice
 
-Review 005B.2's transaction/SQL, public projection and first SVG inspector in [INITIAL_WORLD.md](INITIAL_WORLD.md). Parent #19 remains open. 005B.3 (explicit legacy initialization and acceptance hardening) needs separate authorization; no existing database access or sandbox migration is permitted here. Turn initialization/deadlines, armies, snapshots/simulation, scheduling and gameplay remain unchanged.
+Review 005B.3A's accessible legacy-map explanation and state regressions. Parent #19 remains open. Any explicit legacy initialization still needs separate authorization; this messaging change never creates a world or changes a match. Existing databases remain untouched. Turn initialization/deadlines, armies, snapshots/simulation, scheduling and gameplay remain unchanged.
