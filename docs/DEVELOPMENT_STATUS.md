@@ -13,7 +13,7 @@ This is a short, evidence-based handoff, not a replacement for the authoritative
 | GitHub Actions CI (006 / Issue #1) | Merged | Application and PostgreSQL checks; owner configures branch protection |
 | Local issue-to-draft-PR workflow (007 / Issue #2) | Merged | [PR #5](https://github.com/MightyMulligan-ops/strategy-game/pull/5), `963869a`; local sessions and metadata-only automation |
 | Lobby contracts and documentation (004B.2A / Issue #7) | Merged | [PR #8](https://github.com/MightyMulligan-ops/strategy-game/pull/8), `b0164b7`; lifecycle, privacy, capacity, deadline-overflow contracts |
-| PostgreSQL lobby persistence (004B.2B / Issue #9) | In progress, unmerged | `issue/9-lobby-persistence`; additive SQL reviewed and tested only in new isolated PostgreSQL 17 databases; safe transactional repository, 21 lobby tests / 38 total live tests; no API/UI or Turn 1 |
+| PostgreSQL lobby persistence (004B.2B / Issue #9) | In review, unmerged | [Draft PR #10](https://github.com/MightyMulligan-ops/strategy-game/pull/10), `issue/9-lobby-persistence`; additive SQL reviewed and tested only in new isolated PostgreSQL 17 databases; safe transactional repository, 21 lobby tests / 38 total live tests; no API/UI or Turn 1 |
 | Match authorization, command APIs, scheduler | Planned | Next Phase 0B work; account authentication does not grant match permissions |
 | Map, gameplay, leadership, Military Supplies | Planned | Rules remain in GAME_DESIGN.md; no claim of implemented gameplay |
 
