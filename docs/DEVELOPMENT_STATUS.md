@@ -1,6 +1,6 @@
 # Development status
 
-This is a short, evidence-based handoff, not a replacement for the authoritative rules or roadmap. The baseline below is checked against `main` at `b0164b7` (PR #8 squash merge). New work in a feature branch remains unmerged even when its tests pass.
+This is a short, evidence-based handoff, not a replacement for the authoritative rules or roadmap. The baseline below is checked against `main` at `df975a2` (PR #10 squash merge). New work in a feature branch remains unmerged even when its tests pass.
 
 | Area | State | Evidence / limitations |
 |---|---|---|
@@ -13,7 +13,8 @@ This is a short, evidence-based handoff, not a replacement for the authoritative
 | GitHub Actions CI (006 / Issue #1) | Merged | Application and PostgreSQL checks; owner configures branch protection |
 | Local issue-to-draft-PR workflow (007 / Issue #2) | Merged | [PR #5](https://github.com/MightyMulligan-ops/strategy-game/pull/5), `963869a`; local sessions and metadata-only automation |
 | Lobby contracts and documentation (004B.2A / Issue #7) | Merged | [PR #8](https://github.com/MightyMulligan-ops/strategy-game/pull/8), `b0164b7`; lifecycle, privacy, capacity, deadline-overflow contracts |
-| PostgreSQL lobby persistence (004B.2B / Issue #9) | In review, unmerged | [Draft PR #10](https://github.com/MightyMulligan-ops/strategy-game/pull/10), `issue/9-lobby-persistence`; additive SQL reviewed and tested only in new isolated PostgreSQL 17 databases; safe transactional repository, 21 lobby tests / 38 total live tests; no API/UI or Turn 1 |
+| PostgreSQL lobby persistence (004B.2B / Issue #9) | Merged | [PR #10](https://github.com/MightyMulligan-ops/strategy-game/pull/10), `df975a2`; migration is not approved for the existing development DB; 21 lobby tests / 38 repository tests |
+| Authenticated lobby REST API (004B.2C / Issue #11) | In progress, unmerged | `issue/11-lobby-rest-api`; five session-bound routes, CSRF/origin guards, strict safe envelopes; 45 live tests / four suites passed on a new isolated PostgreSQL 17 instance; no UI or match start |
 | Match authorization, command APIs, scheduler | Planned | Next Phase 0B work; account authentication does not grant match permissions |
 | Map, gameplay, leadership, Military Supplies | Planned | Rules remain in GAME_DESIGN.md; no claim of implemented gameplay |
 
@@ -28,4 +29,4 @@ This is a short, evidence-based handoff, not a replacement for the authoritative
 
 ## Next planned development slice
 
-Review Issue #9's internal persistence before session-authorized lobby API work. Match start/runtime-pin storage/world initialization need a later approved slice that preserves fixed settings and checks safe deadline arithmetic. Then address command acknowledgements/retries and offline scheduling/recovery. The owner clarified that every RUNNING join retry fails, including duplicate membership acknowledgements; shared schemas remain unchanged. Implement against [MATCH_LOBBIES.md](MATCH_LOBBIES.md) and resolve open decisions before affected gameplay work. See [DEVELOPMENT_ROADMAP.md](DEVELOPMENT_ROADMAP.md) and [CODEX_WORKFLOW.md](CODEX_WORKFLOW.md).
+Review Issue #11's authenticated lobby API before frontend/proxy integration or a separately approved match-start slice. Start/runtime-pin storage/world initialization must preserve fixed settings and check safe deadline arithmetic. Then address command acknowledgements/retries and offline scheduling/recovery. Every RUNNING join retry fails, including duplicate membership acknowledgements. Existing request/success contracts remain unchanged; the error enum adds five HTTP codes. See [LOBBY_API.md](LOBBY_API.md), [MATCH_LOBBIES.md](MATCH_LOBBIES.md), [DEVELOPMENT_ROADMAP.md](DEVELOPMENT_ROADMAP.md) and [CODEX_WORKFLOW.md](CODEX_WORKFLOW.md). Applying PR #10's migration to the existing development database still needs separate owner approval.

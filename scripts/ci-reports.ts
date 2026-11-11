@@ -1,6 +1,7 @@
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { integrationTestFiles } from "./integration-tests.ts";
 
 type TestReport = {
   success?: boolean;
@@ -14,7 +15,7 @@ export function verifyDatabaseReport(report: TestReport, expectedFiles: readonly
   }
   let count = 0;
   for (const file of expectedFiles) {
-    const results = report.testResults.filter((result) => result.name?.replaceAll("\\", "/").endsWith(`/database/tests/${file}`));
+    const results = report.testResults.filter((result) => result.name?.replaceAll("\\", "/").endsWith(`/${file}`));
     const result = results[0];
     if (results.length !== 1 || result?.status !== "passed" || !Array.isArray(result.assertionResults) ||
         result.assertionResults.length === 0 || result.assertionResults.some((test) => test.status !== "passed")) {
@@ -40,7 +41,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   const reports = join(root, ".cache/ci");
   try {
     if (process.argv[2] === "verify") {
-      const expected = readdirSync(join(root, "database/tests")).filter((name) => name.endsWith(".integration.test.ts")).sort();
+      const expected = integrationTestFiles(root);
       const report = JSON.parse(readFileSync(join(reports, "database-results.json"), "utf8")) as TestReport;
       console.log(`Verified ${verifyDatabaseReport(report, expected)} passed integration tests across ${expected.length} files, with no skips.`);
     } else if (process.argv[2] === "sanitize") {

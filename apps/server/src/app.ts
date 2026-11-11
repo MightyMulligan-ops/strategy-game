@@ -2,9 +2,12 @@ import Fastify, { LogController } from "fastify";
 import type { FastifyServerOptions } from "fastify";
 import { registerAuthentication } from "./auth/routes.js";
 import type { Authentication } from "./auth/routes.js";
+import { registerLobbyRoutes } from "./lobbies/routes.js";
+import type { LobbyPersistence } from "./lobbies/routes.js";
 
 export async function buildApp(options: {
-  auth?: Authentication; logger?: FastifyServerOptions["logger"]; trustProxy?: FastifyServerOptions["trustProxy"]
+  auth?: Authentication; lobbies?: LobbyPersistence;
+  logger?: FastifyServerOptions["logger"]; trustProxy?: FastifyServerOptions["trustProxy"]
 } = {}) {
   const app = Fastify({ logger: options.logger ?? false,
     logController: new LogController({ disableRequestLogging: true }), trustProxy: options.trustProxy ?? false });
@@ -15,7 +18,12 @@ export async function buildApp(options: {
     return reply.code(status).send({ error: status === 403 ? "csrf_rejected" : "request_failed" });
   });
   app.get("/health", async () => ({ status: "ok", service: "strategy-game-server" }));
-  if (options.auth) await registerAuthentication(app, options.auth);
+  if (options.auth) {
+    await registerAuthentication(app, options.auth);
+    if (options.lobbies) await registerLobbyRoutes(app, {
+      origin: options.auth.config.origin, accounts: options.auth.persistence, lobbies: options.lobbies
+    });
+  }
   else {
     app.get("/auth/config", async () => ({ enabled: false, providers: [] }));
     app.get("/auth/me", async (_request, reply) => reply.code(401).send({ error: "unauthorized" }));
