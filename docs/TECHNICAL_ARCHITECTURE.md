@@ -313,6 +313,8 @@ The additive `202611100002_authentication` migration preserves the prior game sc
 
 ## 11. Quality gates
 
+Assignment 005 adds root TypeScript development tooling without changing application or simulation boundaries. `pnpm dev` prepares only the apps' internal workspace dependencies using pnpm's graph, generates Prisma Client through the existing database build, and caches source/configuration and output fingerprints locally. Preflight reuses the authentication validator and probes PostgreSQL only when the current backend requires it. Internal package edits require stopping and restarting development; application hot reload remains enabled. Docker startup and committed migrations remain explicit commands. See the root README for Windows setup and commands.
+
 For each meaningful change:
 - TypeScript type-check.
 - Unit tests for domain rules.

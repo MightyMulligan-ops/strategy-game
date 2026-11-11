@@ -54,20 +54,143 @@ Use a **server-authoritative modular monolith** initially. Do not introduce micr
 6. Add tests and update docs with every gameplay-rule change.
 7. Preserve modular boundaries: modules communicate through explicit interfaces and events, not by mutating each other's internals.
 
-## Getting started
+## Getting started (Windows)
 
 Use Node.js 22.13+ on the 22.x line, or Node.js 24+, and the pnpm version pinned in `package.json`.
 
-```sh
+### 1. Required software
+
+Install Git for Windows, Node.js with the version requirements above, and **pnpm 12.18.0**, matching `package.json`. Use PowerShell from the repository root. Restart your terminal after installation so PATH updates take effect.
+
+```powershell
+node --version
+npm install --global pnpm@12.18.0
+pnpm --version
+git --version
+```
+
+Install Docker Desktop with Docker Compose and start its engine if using the supplied PostgreSQL services. An independently managed local PostgreSQL 17 instance is also supported. Docker/PostgreSQL are optional when using the auth-disabled account shell or running unit tests.
+
+### 2. Clone the repository
+
+Use the URL from this project's GitHub **Code** button:
+
+```powershell
+git clone <your-repository-clone-url> strategy-game-1
+cd strategy-game-1
+```
+
+### 3. Install dependencies
+
+```powershell
 pnpm install --frozen-lockfile
-pnpm typecheck
-pnpm test
-pnpm lint
-pnpm build
+```
+
+Keep the committed lockfile and `pnpm-workspace.yaml`. Required Prisma/esbuild dependency build approvals are already configured; do not replace them with blanket approvals. The first Prisma command may download its schema engine.
+
+### 4. Configure `.env`
+
+On a new clone, copy the template once:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Preserve any existing `.env`; copy only missing template keys into it. Replace `replace_me` consistently in `POSTGRES_PASSWORD`, `DATABASE_URL`, and `TEST_DATABASE_URL`, URL-encoding special characters in connection URLs. `.env` stays local and ignored by Git. Never put database or provider secrets in `VITE_` variables.
+
+Authentication defaults to disabled. To enable sign-in, follow [AUTHENTICATION.md](docs/AUTHENTICATION.md): configure `AUTH_ENABLED`, `AUTH_ORIGIN`, a random `SESSION_SECRET`, and at least one complete provider credential pair. Auth-enabled startup also needs `DATABASE_URL` and reachable PostgreSQL. The backend's existing validator checks these authentication settings.
+
+### 5. Start PostgreSQL
+
+With Docker Desktop running:
+
+```powershell
+pnpm docker:up
+```
+
+This starts only development PostgreSQL and waits for its health check. The separate integration-test database starts with:
+
+```powershell
+pnpm docker:up:test
+```
+
+Development uses `127.0.0.1:5433`; tests use `127.0.0.1:5434`. Both have persistent named volumes. `pnpm docker:stop` stops both services and preserves data. If using your own PostgreSQL instance, manage it yourself and configure the URLs accordingly.
+
+### 6. Apply committed migrations
+
+```powershell
+pnpm db:migrate
+pnpm db:status
+pnpm db:migrate:test
+```
+
+Run the test migration command only with the test database running. Apply pending migrations after pulling schema changes. These commands use committed migrations, including the additive authentication migration. Never use schema push/reset: migrations contain custom constraints and triggers. Development startup does not automatically start Docker, migrate, or reset either database.
+
+### 7. Start the development servers
+
+```powershell
 pnpm dev
 ```
 
-`pnpm dev` starts the Vite account page at `http://127.0.0.1:5173` and Fastify (`http://127.0.0.1:3001/health`; optional `PORT` override). Vite proxies `/auth` to port 3001; update the proxy target if overriding that port. The server loads the root `.env`. Authentication is optional during setup; game command APIs and database jobs remain unimplemented. `pnpm lint` runs the existing frontend ESLint checks. Type checks include application source and package tests; builds cover all implemented packages. Test/type-check preparation builds the database dependency graph and generates Prisma Client, without connecting to PostgreSQL. The first Prisma command may need to download its schema engine.
+Startup builds only the internal packages required by the apps, in pnpm dependency order, including Prisma Client generation. A local content cache checks source/configuration/lockfile changes and generated/build outputs; unchanged repeated starts skip preparation. Deleted or changed output invalidates the cache. The ignored cache contains fingerprints, never `.env` or credentials. Web/server production builds are not part of this preparation.
+
+Preflight checks Node/pnpm compatibility, required generated files, backend environment configuration, and an actual PostgreSQL query when authentication is enabled. It prints no connection URLs or secrets. The probe confirms connectivity, not migration status; use `pnpm db:status` for that. With auth disabled, PostgreSQL is not required by the current backend.
+
+React/Vite hot reload and backend `tsx watch` reload remain enabled. **After editing an internal package (`packages/*` or `database/*`), stop with Ctrl+C and rerun `pnpm dev`.** Preparation rebuilds dependencies before both apps start. There is no shared-package watcher. Restart after `.env` changes too. Ctrl+C stops the foreground development servers; Docker remains running until explicitly stopped.
+
+Open **http://127.0.0.1:5173** consistently rather than alternating with `localhost`. Fastify serves `http://127.0.0.1:3001/health` (optional `PORT` override). Vite proxies `/auth` to port 3001; update its target if overriding that port. Changing the frontend port also requires updating `AUTH_ORIGIN` and registered provider callbacks. If Vite selects another port because 5173 is occupied, stop the conflicting process before using sign-in. The server loads the root `.env`. Game command APIs and database jobs remain unimplemented.
+
+### Daily commands
+
+| Command | Purpose |
+|---|---|
+| `pnpm dev` | Prepare dependencies, run preflight, start both apps |
+| `pnpm dev:prepare` | Prepare internal packages and Prisma without PostgreSQL or OAuth |
+| `pnpm dev:prepare --force` | Force preparation, ignoring the cache |
+| `pnpm dev:check` | Check prepared files and backend environment/database without starting apps |
+| `pnpm dev:web` / `pnpm dev:server` | Prepare and start one app; server also runs preflight |
+| `pnpm test` | Unit, deterministic simulation, and mocked authentication tests |
+| `pnpm test:db` | Live PostgreSQL integration tests against the separate migrated test database |
+| `pnpm typecheck` | Type-check apps, packages, tests, and development scripts |
+| `pnpm lint` | Existing frontend ESLint checks |
+| `pnpm build` | Build all implemented packages and both applications |
+| `pnpm docker:up` / `pnpm docker:up:test` | Start and wait for development/test PostgreSQL |
+| `pnpm docker:stop` | Stop local Compose services, preserving volumes |
+
+Existing build/test/typecheck preparation remains independent of the development cache. Typecheck and tests build the database dependency graph and generate Prisma Client without connecting to PostgreSQL.
+
+### 8. Synchronize two computers
+
+Before switching PCs, stop development, inspect `git status`, and commit the intended source/documentation changes on your feature branch. Push the branch once approved for sharing. On the other PC, fetch, switch to that branch, and run `git pull --ff-only` after confirming its working tree is clean. Resolve local changes deliberately rather than resetting them.
+
+After pulling:
+
+```powershell
+pnpm install --frozen-lockfile
+pnpm docker:up
+pnpm db:migrate
+pnpm dev
+```
+
+Start/migrate the test database separately when needed. Each PC has its own `.env`, dependencies, generated files, cache, and Docker volumes. Git synchronizes code and migrations, not database contents, sessions, accounts, or credentials. Configure secrets privately on each PC and review new `.env.example` keys and toolchain requirements after pulling.
+
+### 9. Troubleshooting
+
+| Symptom | Action |
+|---|---|
+| Software command not recognized | Install the required tool, reopen PowerShell, and verify PATH/version |
+| PowerShell blocks `pnpm.ps1` | Use `pnpm.cmd` for the same commands or follow your machine's approved PowerShell policy |
+| Unsupported Node/pnpm | Install the versions listed above; pnpm may reject incompatible Node before preflight runs |
+| Missing workspace module or Prisma Client | Run `pnpm install --frozen-lockfile`, then `pnpm dev:prepare --force` |
+| Prisma engine download fails | Check internet/proxy access and retry preparation; no database reset is needed |
+| Docker daemon unavailable | Start Docker Desktop, wait for its engine, then rerun `pnpm docker:up` |
+| PostgreSQL preflight fails | Check service health and `.env` host/port/credentials privately; check migrations after connectivity is restored |
+| Changed `.env` password fails with an existing volume | PostgreSQL retains the original volume password; restore the correct setting or deliberately change the database password. Editing `.env` does not reinitialize the volume |
+| Missing tables after pulling | Run the appropriate `pnpm db:migrate` or `pnpm db:migrate:test` command |
+| Sign-in buttons disabled | Auth is disabled or the provider is unconfigured; follow the auth guide and restart |
+| OAuth callback/Origin failure | Match `127.0.0.1:5173`, provider redirects, `AUTH_ORIGIN`, and proxy ports |
+| Port already in use | Stop the conflicting process; intentional port changes need matching proxy/origin/callback settings |
+| Shared-package edit has no effect | Stop and rerun `pnpm dev` to rebuild dependency output |
 
 Zod validates contracts. Assignment 004A adds pinned Prisma 7 CLI/client and its PostgreSQL driver adapter; the adapter supplies the PostgreSQL driver. No extra web framework, environment loader, or database test double is introduced. Prisma's ESM client/adapter setup follows its [PostgreSQL guide](https://www.prisma.io/docs/v7/prisma-orm/quickstart/postgresql).
 

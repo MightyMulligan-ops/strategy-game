@@ -16,6 +16,7 @@ The first playable prototype should demonstrate the strategy-game loop and inclu
 - [x] Add frontend linting, workspace type-checking/builds, and runnable Vitest tests.
 - [ ] Establish a workspace-wide formatting/lint policy beyond the existing frontend checks.
 - [x] Create initial web and server applications.
+- [x] Automate local dependency preparation and development preflight; document Windows and two-PC setup (Assignment 005).
 - [x] Establish shared turn/order contracts and server-only lifecycle package boundaries.
 - [x] Add database environment configuration and `.env.example` (Assignment 004A).
 - [x] Add PostgreSQL/Prisma schema, initial migration, and repository foundation (Assignment 004A; follow-up live database suite passed).
