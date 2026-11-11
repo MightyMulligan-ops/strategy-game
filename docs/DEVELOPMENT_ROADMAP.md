@@ -25,6 +25,8 @@ The first playable prototype should demonstrate the strategy-game loop and inclu
 - [ ] Record open decisions rather than inventing formulas.
 - [ ] Establish GitHub Issues/PR workflow and branch conventions.
 
+Assignment 007 / Issue #2 proposes issue templates, status labels, a human-started local VS Code Codex workflow, and metadata-only synchronization. Its delivery state is tracked in `DEVELOPMENT_STATUS.md`; keep this item unchecked until the implementation is merged. No unattended agent execution is planned.
+
 **Exit criteria:** A clean install, type-check, and test command work; web and server can start locally; core design docs are discoverable.
 
 ## Phase 0A — Turn contracts and lifecycle (Assignment 002)

@@ -1,0 +1,181 @@
+name: Issue status
+
+on:
+  issues:
+    types: [labeled, unlabeled, closed, reopened]
+  # Metadata only: the script is from the trusted base workflow. Never add
+  # checkout, package installation, shell commands, or PR-code execution here.
+  pull_request_target:
+    branches: [main]
+    types: [opened, edited, reopened, closed, ready_for_review, converted_to_draft]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Optional issue number to reconcile; leave blank to provision labels only
+        required: false
+        type: string
+
+permissions: {}
+
+# Serialize metadata writes. This is not a lock for local Codex sessions.
+concurrency:
+  group: issue-status-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  synchronize:
+    if: github.repository == 'MightyMulligan-ops/strategy-game' && github.ref == 'refs/heads/main'
+    name: Synchronize issue metadata
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      issues: write
+      pull-requests: read
+    steps:
+      - name: Validate relationships and synchronize labels
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const repository = 'MightyMulligan-ops/strategy-game';
+            if (`${context.repo.owner}/${context.repo.repo}` !== repository) return;
+            if (context.ref !== 'refs/heads/main') return;
+            const scope = { owner: context.repo.owner, repo: context.repo.repo };
+            const definitions = [
+              { name: 'agent-ready', color: '0e8a16', description: 'Maintainer-approved scope; start only in a human-initiated local Codex session' },
+              { name: 'in-progress', color: 'fbca04', description: 'Claimed by one active local development session' },
+              { name: 'review-needed', color: '5319e7', description: 'Implementation has a linked PR awaiting human review; not merged' },
+              { name: 'blocked', color: 'b60205', description: 'Work needs a recorded decision or external change before continuing' }
+            ];
+            const managed = definitions.map(label => label.name);
+            const names = issue => (issue.labels ?? []).map(label => typeof label === 'string' ? label : label.name);
+            const positiveInteger = value => /^[1-9]\d*$/.test(String(value)) && Number.isSafeInteger(Number(value)) ? Number(value) : null;
+            async function maintainer(username) {
+              if (!username) return false;
+              try {
+                const { data } = await github.rest.repos.getCollaboratorPermissionLevel({ ...scope, username });
+                return ['admin', 'maintain', 'write'].includes(data.permission);
+              } catch { return false; }
+            }
+            // author_association and issue text are never authorization.
+            if (!await maintainer(context.actor)) {
+              core.info('Ignoring metadata event from an actor without repository write/maintain/admin permission.');
+              return;
+            }
+            async function provisionLabels() {
+              for (const definition of definitions) {
+                try {
+                  const { data } = await github.rest.issues.getLabel({ ...scope, name: definition.name });
+                  if (data.color !== definition.color || data.description !== definition.description) {
+                    await github.rest.issues.updateLabel({ ...scope, ...definition });
+                  }
+                } catch (error) {
+                  if (error.status !== 404) throw error;
+                  await github.rest.issues.createLabel({ ...scope, ...definition });
+                }
+              }
+            }
+            function branchIssue(ref) {
+              const match = /^issue\/([1-9]\d*)-[a-z0-9]+(?:-[a-z0-9]+)*$/.exec(ref ?? '');
+              return match ? positiveInteger(match[1]) : null;
+            }
+            function bodyIssue(body) {
+              // Ignore HTML comments and fenced examples; accept one unambiguous
+              // standalone "Closes #N" line, never cross-repository references.
+              let fence = null;
+              const lines = String(body ?? '').replace(/<!--[\s\S]*?-->/g, '').split(/\r?\n/).filter(line => {
+                const marker = /^\s*(`{3,}|~{3,})/.exec(line)?.[1];
+                if (marker) {
+                  if (!fence) fence = marker;
+                  else if (marker[0] === fence[0] && marker.length >= fence.length) fence = null;
+                  return false;
+                }
+                return !fence;
+              });
+              const clean = lines.join('\n');
+              const references = [...clean.matchAll(/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+(?:#\d+|[a-z0-9_.-]+\/[a-z0-9_.-]+#\d+|https:\/\/github\.com\/\S+)/gi)];
+              const canonical = lines.filter(line => /^Closes #[1-9]\d*$/i.test(line.trim()));
+              if (references.length !== 1 || canonical.length !== 1) return null;
+              return positiveInteger(canonical[0].trim().slice(8));
+            }
+            function localPR(pr) {
+              return pr.base?.repo?.full_name === repository && pr.head?.repo?.full_name === repository && pr.base.ref === 'main';
+            }
+            function validPR(pr, number) {
+              return localPR(pr) && branchIssue(pr.head.ref) === number && bodyIssue(pr.body) === number;
+            }
+            async function trustedStatus(issue) {
+              const active = names(issue).filter(name => managed.includes(name));
+              if (!active.length) return false;
+              const events = await github.paginate(github.rest.issues.listEvents, { ...scope, issue_number: issue.number, per_page: 100 });
+              for (const status of active) {
+                const latest = events.filter(event => event.event === 'labeled' && event.label?.name === status).at(-1);
+                if (!latest) continue;
+                // Only this repository's trusted Actions metadata can carry an
+                // existing claim forward. Bots never grant agent-ready approval.
+                if (status !== 'agent-ready' && latest.actor?.login === 'github-actions[bot]') return true;
+                if (await maintainer(latest.actor?.login)) return true;
+              }
+              return false;
+            }
+            async function setStatus(number, desired, preserveBlocked = true) {
+              // Re-read before writes to avoid using the event's stale labels/state.
+              const { data: current } = await github.rest.issues.get({ ...scope, issue_number: number });
+              if (current.pull_request) return;
+              if (current.state === 'closed') desired = null;
+              else if (preserveBlocked && names(current).includes('blocked')) return;
+              const existing = names(current);
+              if (desired && !existing.includes(desired)) {
+                await github.rest.issues.addLabels({ ...scope, issue_number: number, labels: [desired] });
+              }
+              for (const name of existing.filter(name => managed.includes(name) && name !== desired)) {
+                try { await github.rest.issues.removeLabel({ ...scope, issue_number: number, name }); }
+                catch (error) { if (error.status !== 404) throw error; }
+              }
+            }
+            async function reconcile(number) {
+              const { data: issue } = await github.rest.issues.get({ ...scope, issue_number: number });
+              if (issue.pull_request) { core.warning('Reference is a PR, not an issue; no status change.'); return; }
+              if (issue.state === 'closed') { await setStatus(number, null); return; }
+              if (names(issue).includes('blocked') || !await trustedStatus(issue)) return;
+              const prs = await github.paginate(github.rest.pulls.list, { ...scope, state: 'open', base: 'main', per_page: 100 });
+              const linked = prs.filter(pr => validPR(pr, number));
+              if (linked.length > 1) { core.warning('Multiple valid open PRs reference this issue; resolve the duplicate manually.'); return; }
+              if (linked.length === 1) await setStatus(number, 'review-needed');
+              else if (names(issue).includes('review-needed')) await setStatus(number, 'in-progress');
+            }
+            if (context.eventName === 'workflow_dispatch') {
+              const input = context.payload.inputs?.issue_number ?? '';
+              const number = input === '' ? null : positiveInteger(input);
+              if (input !== '' && !number) { core.setFailed('Issue number must be a positive safe integer.'); return; }
+              await provisionLabels();
+              if (number) await reconcile(number);
+            } else if (context.eventName === 'issues') {
+              const number = positiveInteger(context.payload.issue?.number);
+              if (!number || context.payload.issue?.pull_request) return;
+              const { data: issue } = await github.rest.issues.get({ ...scope, issue_number: number });
+              if (issue.pull_request) return;
+              await provisionLabels();
+              if (issue.state === 'closed') { await setStatus(number, null); return; }
+              const label = context.payload.label?.name;
+              if (context.payload.action === 'labeled' && managed.includes(label) && names(issue).includes(label)) {
+                // A maintainer intentionally applying another status can clear
+                // blocked. PR events cannot clear it. Reject stale label events.
+                const events = await github.paginate(github.rest.issues.listEvents, { ...scope, issue_number: number, per_page: 100 });
+                const latest = events.filter(event => event.event === 'labeled' && managed.includes(event.label?.name) && names(issue).includes(event.label.name)).at(-1);
+                if (latest?.label?.name === label && latest.actor?.login === context.actor) await setStatus(number, label, false);
+              }
+              await reconcile(number);
+            } else if (context.eventName === 'pull_request_target') {
+              const number = positiveInteger(context.payload.pull_request?.number);
+              if (!number) return;
+              const { data: pr } = await github.rest.pulls.get({ ...scope, pull_number: number });
+              const issueNumber = branchIssue(pr.head?.ref);
+              if (!localPR(pr) || !issueNumber) { core.info('Ignoring fork, unrelated branch, or non-main PR.'); return; }
+              const wasLinked = context.payload.action === 'edited' && bodyIssue(context.payload.changes?.body?.from) === issueNumber;
+              if (!validPR(pr, issueNumber) && !wasLinked) {
+                core.warning('Use one standalone Closes #N line matching issue/N-slug; no status change.');
+                return;
+              }
+              await provisionLabels();
+              await reconcile(issueNumber);
+            }

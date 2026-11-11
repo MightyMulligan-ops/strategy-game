@@ -1,0 +1,36 @@
+name: Gameplay feature
+description: Propose a small gameplay vertical slice with explicit rule decisions
+title: 'Gameplay: '
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: 'Submission does not start Codex. A maintainer approves scope with agent-ready, then starts a local VS Code session. Never include credentials or private game state.'
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Player outcome
+      description: What should a player be able to do? Include one concrete example.
+    validations:
+      required: true
+  - type: textarea
+    id: rules
+    attributes:
+      label: Approved rules and open decisions
+      description: Link GAME_DESIGN.md sections. Separate approved rules from examples and questions; identify owner decisions needed before implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope and exclusions
+      description: Identify the smallest coherent slice, affected boundaries, dependencies, and what is outside this task.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria and verification
+      description: Use checkboxes for observable behavior, rejected illegal commands, hidden-data protection, deterministic tests, and documentation updates.
+    validations:
+      required: true
