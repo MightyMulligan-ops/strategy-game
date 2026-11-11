@@ -11,7 +11,7 @@ This is a short, evidence-based handoff, not a replacement for the authoritative
 | Accounts and sessions (004B.1) | Merged | Discord/Google adapters, sessions, account UI; real consent/deployment verification remains separate |
 | Windows startup automation (005) | Merged | Dependency preparation and preflight; shared packages require restart |
 | GitHub Actions CI (006 / Issue #1) | Merged | Application and PostgreSQL checks; owner configures branch protection |
-| Local issue-to-draft-PR workflow (007 / Issue #2) | In progress, unmerged | `issue/2-codex-workflow`; metadata automation becomes live only after owner merge |
+| Local issue-to-draft-PR workflow (007 / Issue #2) | In review, unmerged | [Draft PR #5](https://github.com/MightyMulligan-ops/strategy-game/pull/5), `issue/2-codex-workflow`; metadata automation becomes live only after owner merge |
 | Match authorization, command APIs, scheduler | Planned | Next Phase 0B work; account authentication does not grant match permissions |
 | Map, gameplay, leadership, Military Supplies | Planned | Rules remain in GAME_DESIGN.md; no claim of implemented gameplay |
 
