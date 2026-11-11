@@ -40,6 +40,10 @@ See `docs/GAME_DESIGN.md` for the full current rule baseline and explicit open q
 
 ## Implementation workflow
 
+- For owner-approved issue work in the local VS Code Codex session, follow `.github/CODEX_ISSUE_PROMPT.md` and `docs/CODEX_WORKFLOW.md`. Existing explicit owner authorization in the session takes precedence over label conventions; do not ask for it again.
+- Update `docs/DEVELOPMENT_STATUS.md` with evidence and the actual issue/PR state. Unmerged work is in review, not a completed milestone.
+- GitHub metadata workflows must never invoke Codex, require an OpenAI API key, execute PR code with write permissions, merge, or deploy.
+
 - Work in focused issues or tasks; avoid giant all-at-once implementation prompts.
 - Prefer a vertical slice that crosses UI, API, game logic, persistence, and tests over disconnected placeholder systems.
 - Add or update unit, integration, and deterministic simulation tests as appropriate.

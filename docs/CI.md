@@ -61,4 +61,6 @@ Under **Settings → Actions → General**, allow the pinned GitHub-owned action
 
 No repository settings are changed by this assignment. A repository owner must enable Actions/approve a held run if required by GitHub policy, select the required checks after they appear, and enable branch protections. Feature-branch pushes without a PR are intentionally not triggers; opening/updating the draft PR starts its checks.
 
+Assignment 007 adds a separate, metadata-only **Issue status** workflow, documented in [CODEX_WORKFLOW.md](CODEX_WORKFLOW.md). Keep the two CI check names above as the required code checks. The metadata job uses only issue-write and PR-read permissions, never checks out PR code or invokes Codex, and requires allowing the pinned `actions/github-script` action. Keep Actions PR creation/approval disabled; draft PRs are created by the authenticated local user.
+
 References: [GitHub protected branches](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches), [setup-node caching](https://github.com/actions/setup-node), [pnpm setup](https://github.com/pnpm/action-setup).

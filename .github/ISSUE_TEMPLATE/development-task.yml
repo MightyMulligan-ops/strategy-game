@@ -1,0 +1,34 @@
+name: Development task
+description: Request tooling, documentation, CI, or architecture maintenance
+title: 'Development: '
+body:
+  - type: markdown
+    attributes:
+      value: 'Define a focused task. Maintainer approval and a human-started local Codex session are required; no API key or remote agent is involved.'
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective and reason
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope, constraints, and dependencies
+      description: Include relevant docs and preserve game/auth/schema boundaries unless explicitly approved changes require them.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria and verification
+      description: List expected artifacts, commands/checks, and security-sensitive conditions to verify.
+    validations:
+      required: true
+  - type: textarea
+    id: decisions
+    attributes:
+      label: Owner decisions or manual GitHub setup
+      description: Record unresolved choices or say None.
+    validations:
+      required: true

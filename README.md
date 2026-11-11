@@ -39,6 +39,8 @@ Use a **server-authoritative modular monolith** initially. Do not introduce micr
 - `docs/ATWAR_REFERENCE.md` — reference observations, sources, and unresolved verification items.
 - `docs/AUTHENTICATION.md` — OAuth/session behavior, endpoints, provider setup, and security limitations.
 - `docs/CI.md` — GitHub Actions jobs, failure diagnostics, and recommended required checks for `main`.
+- `docs/CODEX_WORKFLOW.md` — human-started Windows VS Code issue-to-draft-PR workflow and metadata labels.
+- `docs/DEVELOPMENT_STATUS.md` — evidence-based progress handoff and update policy.
 - `AGENTS.md` — instructions for AI coding agents and contributors.
 - `packages/shared-types/` — strict, versioned runtime schemas and transport types.
 - `packages/game-engine/` — server-only lifecycle, empty-turn resolver, and movement-queue planning; no gameplay execution yet.
@@ -215,5 +217,7 @@ The default `pnpm test` runs unit tests and explicitly skips live database tests
 [CI](.github/workflows/ci.yml) runs on pull requests targeting `main` (including drafts) and pushes to `main`. Its two checks are **Application checks** and **PostgreSQL integration tests**. It uses Node.js 24, the pnpm version in `package.json`, a cached pnpm store, and a disposable PostgreSQL 17 test database. No local `.env`, OAuth credentials, or production secrets are needed. Database report validation fails if any integration test is skipped or missing. See [CI setup and branch protection](docs/CI.md) for the GitHub settings to enable after the first run.
 
 ## Current next step
+
+For focused issue work, use the [local Codex workflow](docs/CODEX_WORKFLOW.md) and [reusable issue prompt](.github/CODEX_ISSUE_PROMPT.md). A person starts Codex in VS Code with ChatGPT sign-in; GitHub metadata automation never invokes it and requires no OpenAI API key. Review current progress in [DEVELOPMENT_STATUS.md](docs/DEVELOPMENT_STATUS.md).
 
 Configure provider credentials and manually verify consent/callbacks before deploying sign-in. Next add match membership authorization and authenticated command APIs, followed by scheduling/restart orchestration. Authentication alone does not authorize access to another player's game data. Repository calls return after their transaction commits, but there is no player-facing order acknowledgement API or scheduler yet. See `docs/DEVELOPMENT_ROADMAP.md`.

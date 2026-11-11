@@ -1,0 +1,36 @@
+name: Bug report
+description: Report reproducible behavior with safe diagnostics
+title: 'Bug: '
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: 'Do not paste .env, tokens, connection URLs, OAuth callbacks, or hidden player information. Creating an issue never runs Codex.'
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Include a minimal scenario and relevant commit/branch.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+      description: Link the documented rule or interface that establishes the expected behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment and sanitized evidence
+      description: Windows/browser, Node/pnpm versions, test output, or safe logs. Include frequency and impact.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Fix acceptance criteria
+      description: Describe the corrected behavior and the regression test needed.
+    validations:
+      required: true
