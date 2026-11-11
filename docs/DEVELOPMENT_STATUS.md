@@ -14,7 +14,7 @@ This is a short, evidence-based handoff, not a replacement for the authoritative
 | Local issue-to-draft-PR workflow (007 / Issue #2) | Merged | [PR #5](https://github.com/MightyMulligan-ops/strategy-game/pull/5), `963869a`; local sessions and metadata-only automation |
 | Lobby contracts and documentation (004B.2A / Issue #7) | Merged | [PR #8](https://github.com/MightyMulligan-ops/strategy-game/pull/8), `b0164b7`; lifecycle, privacy, capacity, deadline-overflow contracts |
 | PostgreSQL lobby persistence (004B.2B / Issue #9) | Merged | [PR #10](https://github.com/MightyMulligan-ops/strategy-game/pull/10), `df975a2`; migration is not approved for the existing development DB; 21 lobby tests / 38 repository tests |
-| Authenticated lobby REST API (004B.2C / Issue #11) | In progress, unmerged | `issue/11-lobby-rest-api`; five session-bound routes, CSRF/origin guards, strict safe envelopes; 45 live tests / four suites passed on a new isolated PostgreSQL 17 instance; no UI or match start |
+| Authenticated lobby REST API (004B.2C / Issue #11) | In review, unmerged | [Draft PR #12](https://github.com/MightyMulligan-ops/strategy-game/pull/12), `issue/11-lobby-rest-api`; five session-bound routes, CSRF/origin guards, strict safe envelopes; 45 live tests / four suites passed on a new isolated PostgreSQL 17 instance; no UI or match start |
 | Match authorization, command APIs, scheduler | Planned | Next Phase 0B work; account authentication does not grant match permissions |
 | Map, gameplay, leadership, Military Supplies | Planned | Rules remain in GAME_DESIGN.md; no claim of implemented gameplay |
 
