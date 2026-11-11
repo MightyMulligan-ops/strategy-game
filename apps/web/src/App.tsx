@@ -8,6 +8,8 @@ import LobbyBrowser from './LobbyBrowser'
 function App() {
   const [user, setUser] = useState<AuthenticatedPlayer | null>(null)
   const [providers, setProviders] = useState<OAuthProvider[]>([])
+  const [devLoginEnabled, setDevLoginEnabled] = useState(false)
+  const [fixture, setFixture] = useState('player-one')
   const [csrf, setCsrf] = useState('')
   const [username, setUsername] = useState('')
   const [loading, setLoading] = useState(true)
@@ -49,9 +51,10 @@ function App() {
         }
         const available = await fetch('/auth/config', { signal: controller.signal, credentials: 'same-origin' })
         if (!available.ok) throw new Error('unavailable')
-        const settings = await available.json() as { enabled: boolean; providers: OAuthProvider[] }
+        const settings = await available.json() as { enabled: boolean; providers: OAuthProvider[]; devLoginEnabled?: boolean }
         if (controller.signal.aborted) return
         setProviders(settings.providers.filter((provider) => provider === 'google' || provider === 'discord'))
+        setDevLoginEnabled(settings.enabled && settings.devLoginEnabled === true)
         if (!settings.enabled) { setMessage('Sign-in is temporarily unavailable.'); return }
         // Sequence first visits so CSRF and identity share one browser cookie.
         const response = await fetch('/auth/csrf', { signal: controller.signal, credentials: 'same-origin' })
@@ -101,6 +104,20 @@ function App() {
     } catch { setMessage('Unable to save your username. Refresh and try again.') }
     finally { actionLock.current = false; setBusy(false) }
   }
+  async function localTestSignIn() {
+    if (actionLock.current || !devLoginEnabled) return
+    actionLock.current = true; setBusy(true); setMessage('')
+    try {
+      const response = await mutate('/auth/dev-login', { fixture })
+      if (!response.ok) throw new Error('failed')
+      // Same full bootstrap as OAuth navigation: the server rotated the session,
+      // so obtain its new CSRF token before onboarding or lobby mutations.
+      window.location.replace('/')
+    } catch {
+      actionLock.current = false; setBusy(false)
+      setMessage('Local test sign-in could not be completed. Check the local development settings and try again.')
+    }
+  }
   async function logout(all: boolean) {
     if (actionLock.current) return
     actionLock.current = true
@@ -129,13 +146,21 @@ function App() {
       {loading ? <p role="status">Loading your account…</p> : !user ? <>
         <p className="eyebrow">Welcome, commander</p>
         <h2>Sign in to continue</h2>
-        <p className="muted">Choose a provider. Your in-game identity stays yours.</p>
+        <p className="muted">{devLoginEnabled && providers.length === 0 ? 'Use a local fixture to test the sandbox lobby.' : 'Choose a provider. Your in-game identity stays yours.'}</p>
         <div className="provider-buttons">{(['discord', 'google'] as const).map((provider) =>
           <button type="button" className={`provider ${provider}`} key={provider}
             disabled={busy || !csrf || !providers.includes(provider)} onClick={() => void connect(provider, false)}>
             Continue with {provider === 'discord' ? 'Discord' : 'Google'}<span aria-hidden="true">↗</span>
           </button>)}</div>
         <p className="small muted">You can choose your game username after signing in.</p>
+        {devLoginEnabled && <section className="local-test-login" aria-label="Local test sign-in">
+          <h3>Local test sign-in</h3><p className="small muted">Development fixtures only. Use a separate browser profile for each player.</p>
+          <label htmlFor="local-test-player">Fixture player</label>
+          <select id="local-test-player" disabled={busy} value={fixture} onChange={(event) => setFixture(event.target.value)}>
+            <option value="player-one">Player One</option><option value="player-two">Player Two</option>
+          </select>
+          <button type="button" disabled={busy || !csrf} onClick={() => void localTestSignIn()}>Local test sign-in</button>
+        </section>}
       </> : <>
         <p className="eyebrow">Your player profile</p>
         <h2>{user.username ? `Welcome, ${user.username}` : 'Choose your call sign'}</h2>
@@ -149,10 +174,11 @@ function App() {
             <button type="submit" className="primary" disabled={busy || !csrf}>Save username</button>
           </form>}
         <div className="linked-accounts"><h3>Connected accounts</h3>
+          {devLoginEnabled && user.linkedProviders.length === 0 && <p className="small muted">Local test account. Provider linking is disabled.</p>}
           {(['discord', 'google'] as const).map((provider) => <div className="provider-row" key={provider}>
             <span>{provider === 'discord' ? 'Discord' : 'Google'}</span>
             {user.linkedProviders.includes(provider) ? <span className="connected">Connected</span> :
-              <button type="button" disabled={busy || !providers.includes(provider)} onClick={() => void connect(provider, true)}>Link account</button>}
+              <button type="button" disabled={busy || !providers.includes(provider) || (devLoginEnabled && user.linkedProviders.length === 0)} onClick={() => void connect(provider, true)}>Link account</button>}
           </div>)}
         </div>
         <div className="sign-out"><button type="button" disabled={busy} onClick={() => void logout(false)}>Sign out</button>

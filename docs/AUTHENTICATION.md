@@ -2,6 +2,8 @@
 
 ## Implemented boundary
 
+Issue #15 adds an explicitly gated [local fixture sign-in](LOCAL_TEST_LOGIN.md) for development only. Default OAuth requirements and real account behavior remain unchanged. The local route uses the same session/CSRF machinery, reserved non-OAuth identities and normal lobby authorization; disabling it also rejects old fixture cookies. It is not a production authentication provider.
+
 Discord and Google sign-in create or recover a persistent internal player identity. Registered users can use the authenticated [lobby REST API](LOBBY_API.md) to create/list/view/join/leave public lobbies. There is no email/password login, email-based account discovery, automatic account merging, match start, order API, scheduler, or WebSocket implementation. Authentication alone grants no game-state or other-player draft access.
 
 The public, versioned `AuthenticatedPlayer` contract contains only `id`, nullable `username`, and linked provider names. Provider subjects, tokens, OAuth attempt data, session data, match drafts, and authoritative snapshots stay on the server. The username rules approved by the owner are 3–24 ASCII letters/digits/underscores, beginning with a letter, with case-insensitive uniqueness. Initial selection is supported once. Renaming needs a separate decision.

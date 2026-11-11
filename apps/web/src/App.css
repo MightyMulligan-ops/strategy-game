@@ -25,6 +25,9 @@
 .sign-out { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 26px; }
 .sign-out button { font-size: 12px; }
 .account-panel .notice { min-height: 20px; margin-top: 24px; }
+.local-test-login { margin-top: 24px; border: 1px solid var(--border); padding: 20px; }
+.local-test-login h3 { color: var(--gold); font-size: 16px; margin-top: 0; }
+.local-test-login button { margin-top: 14px; }
 .registered-layout { max-width: 1680px; margin: auto; display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 28px; padding: 40px clamp(20px, 3vw, 50px); }
 .registered-layout .account-panel { justify-content: flex-start; padding: 22px 0 0 24px; border-left: 1px solid var(--border); }
 .registered-layout .account-panel h2 { font-family: inherit; font-size: 20px; letter-spacing: 0; line-height: 1.4; }

@@ -4,6 +4,7 @@ import { registerAuthentication } from "./auth/routes.js";
 import type { Authentication } from "./auth/routes.js";
 import { registerLobbyRoutes } from "./lobbies/routes.js";
 import type { LobbyPersistence } from "./lobbies/routes.js";
+import { restrictLocalTestServer } from "./auth/local-test.js";
 
 export async function buildApp(options: {
   auth?: Authentication; lobbies?: LobbyPersistence;
@@ -19,13 +20,19 @@ export async function buildApp(options: {
   });
   app.get("/health", async () => ({ status: "ok", service: "strategy-game-server" }));
   if (options.auth) {
+    if (options.auth.config.devLoginEnabled) {
+      if (options.auth.config.origin !== "http://127.0.0.1:5173" || options.auth.config.secureCookies || !options.auth.localTestLogin) {
+        throw new Error("Invalid local test login configuration");
+      }
+      restrictLocalTestServer(app, options.trustProxy);
+    }
     await registerAuthentication(app, options.auth);
     if (options.lobbies) await registerLobbyRoutes(app, {
       origin: options.auth.config.origin, accounts: options.auth.persistence, lobbies: options.lobbies
     });
   }
   else {
-    app.get("/auth/config", async () => ({ enabled: false, providers: [] }));
+    app.get("/auth/config", async () => ({ enabled: false, providers: [], devLoginEnabled: false }));
     app.get("/auth/me", async (_request, reply) => reply.code(401).send({ error: "unauthorized" }));
   }
   return app;

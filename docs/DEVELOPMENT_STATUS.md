@@ -1,6 +1,6 @@
 # Development status
 
-This is a short, evidence-based handoff, not a replacement for the authoritative rules or roadmap. The baseline below is checked against `main` at `5cbd901` (PR #12 squash merge). New work in a feature branch remains unmerged even when its tests pass.
+This is a short, evidence-based handoff, not a replacement for the authoritative rules or roadmap. The baseline below is checked against `main` at `9a45f27` (PR #14 squash merge). New work in a feature branch remains unmerged even when its tests pass.
 
 | Area | State | Evidence / limitations |
 |---|---|---|
@@ -15,7 +15,8 @@ This is a short, evidence-based handoff, not a replacement for the authoritative
 | Lobby contracts and documentation (004B.2A / Issue #7) | Merged | [PR #8](https://github.com/MightyMulligan-ops/strategy-game/pull/8), `b0164b7`; lifecycle, privacy, capacity, deadline-overflow contracts |
 | PostgreSQL lobby persistence (004B.2B / Issue #9) | Merged | [PR #10](https://github.com/MightyMulligan-ops/strategy-game/pull/10), `df975a2`; migration is not approved for the existing development DB; 21 lobby tests / 38 repository tests |
 | Authenticated lobby REST API (004B.2C / Issue #11) | Merged | [PR #12](https://github.com/MightyMulligan-ops/strategy-game/pull/12), `5cbd901`; five session-bound operations, safe envelopes and 45 live tests; existing development migration remains unapproved |
-| Sovereign account/lobby UI and proxy (004B.2D / Issue #13) | In review, unmerged | [Draft PR #14](https://github.com/MightyMulligan-ops/strategy-game/pull/14), `issue/13-sovereign-lobby-ui`; branded login/onboarding/profile and API-backed lobby flows, 15 byte-identical asset moves, 32 frontend DOM tests; Chromium mock/proxy/asset/layout checks; no existing database access or match start |
+| Sovereign account/lobby UI and proxy (004B.2D / Issue #13) | Merged | [PR #14](https://github.com/MightyMulligan-ops/strategy-game/pull/14), `9a45f27`; branded account/lobby UI, original assets and same-origin proxy |
+| Loopback local test sign-in (004B.2E / Issue #15) | In review, unmerged | [Draft PR #16](https://github.com/MightyMulligan-ops/strategy-game/pull/16), `issue/15-local-test-sign-in`; explicit development/loopback gates, isolated fixture identities, normal sessions/CSRF/lobby authorization; 380 unit tests passed; existing dev/test/sandbox databases never connected |
 | Match authorization, command APIs, scheduler | Planned | Next Phase 0B work; account authentication does not grant match permissions |
 | Map, gameplay, leadership, Military Supplies | Planned | Rules remain in GAME_DESIGN.md; no claim of implemented gameplay |
 
@@ -30,4 +31,4 @@ This is a short, evidence-based handoff, not a replacement for the authoritative
 
 ## Next planned development slice
 
-Review Issue #13's branded lobby/account UI. Real OAuth consent and live UI-to-database verification remain pending separately approved environment preparation; do not apply the lobby migration to existing databases during this task. The next gameplay slice needs an approved start/runtime-pin/world design that preserves immutable settings and safe deadline arithmetic. Request receipts, scheduling, maps and gameplay remain future work. See [LOBBY_UI.md](LOBBY_UI.md), [LOBBY_API.md](LOBBY_API.md), [DEVELOPMENT_ROADMAP.md](DEVELOPMENT_ROADMAP.md) and [CODEX_WORKFLOW.md](CODEX_WORKFLOW.md).
+Review Issue #15's local-only sign-in/security boundary, then follow the owner-only two-browser instructions in [LOCAL_TEST_LOGIN.md](LOCAL_TEST_LOGIN.md) after privately verifying the existing sandbox target. Codex/CI must never connect to existing development/test/sandbox databases. Real OAuth consent and manual sandbox verification remain owner actions. The next gameplay slice needs approved start/runtime-pin/world design, immutable settings and safe deadline arithmetic; request receipts, scheduling, maps and gameplay remain future work.

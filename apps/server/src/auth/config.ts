@@ -4,9 +4,19 @@ export type ProviderCredentials = Readonly<{ clientId: string; clientSecret: str
 export type AuthConfig = Readonly<{
   origin: string; sessionSecret: string; sessionTtlMs: number; secureCookies: boolean;
   providers: Partial<Record<OAuthProvider, ProviderCredentials>>;
+  devLoginEnabled: boolean;
 }>;
 
 export function readAuthConfig(environment: NodeJS.ProcessEnv): AuthConfig | undefined {
+  if (environment.AUTH_DEV_LOGIN_ENABLED !== undefined && !["true", "false"].includes(environment.AUTH_DEV_LOGIN_ENABLED)) {
+    throw new Error("AUTH_DEV_LOGIN_ENABLED must be true or false");
+  }
+  const devLoginEnabled = environment.AUTH_DEV_LOGIN_ENABLED === "true";
+  if (devLoginEnabled && (environment.AUTH_ENABLED !== "true" || environment.NODE_ENV !== "development" ||
+      environment.AUTH_ORIGIN !== "http://127.0.0.1:5173" ||
+      (environment.HOST !== undefined && environment.HOST !== "127.0.0.1") || Boolean(environment.AUTH_TRUST_PROXY))) {
+    throw new Error("Local test login requires AUTH_ENABLED=true, NODE_ENV=development, AUTH_ORIGIN=http://127.0.0.1:5173, loopback HOST and no AUTH_TRUST_PROXY");
+  }
   if (environment.AUTH_ENABLED !== undefined && !["true", "false"].includes(environment.AUTH_ENABLED)) {
     throw new Error("AUTH_ENABLED must be true or false");
   }
@@ -30,6 +40,6 @@ export function readAuthConfig(environment: NodeJS.ProcessEnv): AuthConfig | und
     if (Boolean(clientId) !== Boolean(clientSecret)) throw new Error(`Configure both ${prefix} client credentials`);
     if (clientId && clientSecret) providers[provider] = { clientId, clientSecret };
   }
-  if (Object.keys(providers).length === 0) throw new Error("Configure at least one OAuth provider");
-  return { origin: origin.origin, sessionSecret: secret, sessionTtlMs: ttl * 1_000, secureCookies: origin.protocol === "https:", providers };
+  if (Object.keys(providers).length === 0 && !devLoginEnabled) throw new Error("Configure at least one OAuth provider");
+  return { origin: origin.origin, sessionSecret: secret, sessionTtlMs: ttl * 1_000, secureCookies: origin.protocol === "https:", providers, devLoginEnabled };
 }

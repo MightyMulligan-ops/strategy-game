@@ -104,6 +104,34 @@ describe('Sovereign account and lobby UI', () => {
     await value('username', 'Commander'); await submit('#username')
     expect(posts()[0]?.[0]).toBe('/auth/username'); expect(text()).toContain('The assembly')
   })
+  it.each([false, undefined, 'true', 'false'])('hides local test login unless advertised with boolean true (%s)', async (enabled) => {
+    user = null; intercept = (path) => path === '/auth/config' ? json({ enabled: true, providers: ['google'], devLoginEnabled: enabled }) : undefined
+    await mount(); expect(host.querySelector('#local-test-player')).toBeNull()
+  })
+  it('uses the advertised local fixture control and reloads after server session rotation', async () => {
+    user = null
+    intercept = (path) => path === '/auth/config' ? json({ enabled: true, providers: [], devLoginEnabled: true })
+      : path === '/auth/dev-login' ? json({ user: { ...profile, username: null, linkedProviders: [] } }) : undefined
+    await mount(); await value('local-test-player', 'player-two'); await click('Local test sign-in')
+    expect(posts()).toHaveLength(1); expect(posts()[0]?.[0]).toBe('/auth/dev-login')
+    expect(JSON.parse(posts()[0]?.[1]?.body as string)).toEqual({ fixture: 'player-two' })
+    expect(posts()[0]?.[1]?.headers).toMatchObject({ 'x-csrf-token': 'current-token-1' })
+    expect(posts()[0]?.[1]?.credentials).toBe('same-origin'); expect(redirect.replace).toHaveBeenCalledWith('/')
+  })
+  it('keeps local fixture failures safe and does not offer local sign-in to an authenticated account', async () => {
+    user = null
+    intercept = (path) => path === '/auth/config' ? json({ enabled: true, providers: [], devLoginEnabled: true })
+      : path === '/auth/dev-login' ? json({ privateError: 'do-not-display' }, 500) : undefined
+    await mount(); await click('Local test sign-in')
+    expect(text()).toContain('Local test sign-in could not be completed.'); expect(text()).not.toContain('do-not-display')
+  })
+  it('explains fixture account isolation and disables linking without affecting normal OAuth UI', async () => {
+    user = { ...profile, linkedProviders: [] }
+    intercept = (path) => path === '/auth/config' ? json({ enabled: true, providers: ['google', 'discord'], devLoginEnabled: true }) : undefined
+    await mount(); expect(host.querySelector('#local-test-player')).toBeNull()
+    expect(text()).toContain('Provider linking is disabled.')
+    expect([...host.querySelectorAll('button')].filter((b) => b.textContent === 'Link account').every((b) => b.disabled)).toBe(true)
+  })
   it('honors per-provider availability when authentication is enabled', async () => {
     user = null; intercept = (path) => path === '/auth/config' ? json({ enabled: true, providers: ['google'] }) : undefined
     await mount(); expect(button('Continue with Google').disabled).toBe(false); expect(button('Continue with Discord').disabled).toBe(true)

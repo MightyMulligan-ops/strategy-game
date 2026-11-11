@@ -2,6 +2,8 @@
 
 This React/Vite application provides Sovereign-branded Discord/Google login, username onboarding, profile/link/logout controls and a public lobby browser. Registered users can inspect, create, join and leave lobbies through the existing authenticated APIs. PixiJS is installed for future map rendering; no map or match-start action is implemented.
 
+An optional **Local test sign-in** control appears only when explicitly advertised by the server's strict development-only mode. It has two fixed fixture players and uses normal persisted sessions, CSRF and onboarding; it never accepts arbitrary accounts. [Local test login](../../docs/LOCAL_TEST_LOGIN.md) documents owner-only sandbox launch and two-browser verification. No existing database is connected or prepared by implementation/tests.
+
 Follow the [root Windows setup guide](../../README.md#getting-started-windows) to install dependencies and configure local services. Run commands from the repository root:
 
 ```powershell
