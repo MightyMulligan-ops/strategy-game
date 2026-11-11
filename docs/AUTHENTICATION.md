@@ -13,7 +13,7 @@ The server uses [openid-client](https://github.com/panva/openid-client) for main
 - `apps/server/src/auth`: configuration, provider adapters, routes, persistent session-store adapter.
 - `database/src/auth-repository.ts`: transactional identity linking, username claims, one-use OAuth attempts, persistent session generation/expiry/revocation.
 - `packages/shared-types/src/auth.ts`: strict public account/username schemas; no private storage types.
-- `apps/web`: same-origin login/profile page. It receives no OAuth credentials or provider tokens.
+- `apps/web`: Sovereign-branded same-origin login/onboarding/profile and lobby shell. It receives no OAuth credentials or provider tokens; [LOBBY_UI.md](LOBBY_UI.md) records preserved account flows and frontend tests.
 - `packages/game-engine`: unchanged; no authentication, database, clock, or random source is added to simulation.
 
 ## Local setup
@@ -24,7 +24,7 @@ The server uses [openid-client](https://github.com/panva/openid-client) for main
 4. Register provider applications and configure at least one complete client ID/secret pair. Set `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` and/or `DISCORD_CLIENT_ID`/`DISCORD_CLIENT_SECRET`. The UI enables only configured providers. Set exact registered redirect URLs to:
    - Google: `http://127.0.0.1:5173/auth/callback/google`
    - Discord: `http://127.0.0.1:5173/auth/callback/discord`
-5. Run `pnpm dev` and open **http://127.0.0.1:5173** consistently; do not alternate it with `localhost`. Vite proxies `/auth` to Fastify on port 3001, keeping cookies, Origin checks, and callbacks on one browser origin. If changing ports, update both `AUTH_ORIGIN`/provider redirects and the proxy target as appropriate.
+5. Run `pnpm dev` and open **http://127.0.0.1:5173** consistently; do not alternate it with `localhost`. Vite proxies `/auth` and `/api` to Fastify on port 3001, keeping cookies, Origin checks and callbacks on one browser origin. If changing ports, update both `AUTH_ORIGIN`/provider redirects and the proxy target as appropriate. The UI migration prerequisite does not authorize applying it to existing databases.
 
 `AUTH_ENABLED` defaults to false. Enabling authentication without a strong session secret, a valid origin, or any complete provider configuration fails startup. The server loads the root `.env`, including on compiled startup; deployed environment variables can supply the same settings. No production database credentials are required for development or tests.
 

@@ -1,6 +1,6 @@
 # Authenticated public lobby REST API (004B.2C / Issue #11)
 
-The Fastify server exposes five operations backed by the existing PostgreSQL `LobbyRepository`. They use persistent account sessions and registered usernames. No frontend lobby screens, match start, world initialization, Turn 1, deadlines, scheduler, or new migration is included.
+The Fastify server exposes five operations backed by the existing PostgreSQL `LobbyRepository`. They use persistent account sessions and registered usernames. The [Sovereign frontend](LOBBY_UI.md) now integrates these operations. Match start, world initialization, Turn 1, deadlines and scheduling remain future work; Issue #13 changes no backend behavior/schema/migrations.
 
 ## Prerequisites and database safety
 
@@ -10,7 +10,7 @@ The target database must already have the three committed migrations, including 
 
 For live verification, create a new PostgreSQL 17 instance with fresh storage, loopback-only access and a new `_test` database. Verify its provenance, role/database identity, and zero existing user tables before setting process-local `TEST_DATABASE_URL` and `DATABASE_URL` to that instance. Review committed SQL first, then run `pnpm db:migrate:test`, `pnpm test:db --reporter=default --reporter=json --outputFile=.cache/ci/database-results.json`, and `node --experimental-strip-types scripts/ci-reports.ts verify`. Never infer isolation merely from a `_test` suffix. This task used a new container with tmpfs storage and no existing volumes/binds; both pre-existing Compose databases were untouched.
 
-Fastify serves the API on loopback port 3001 in local development. REST clients must retain the existing auth cookies and send the configured Origin for mutations. The current Vite development proxy forwards `/auth` only; forwarding `/api` through the same browser origin belongs to the later frontend integration. No CORS exemption or cross-origin credential fallback is added. Deployment must eventually forward both `/auth` and `/api` through the configured HTTPS origin; this assignment performs no deployment.
+Fastify serves the API on loopback port 3001 in local development. Vite now forwards both `/auth` and `/api` through the same browser origin. REST clients retain auth cookies and the configured mutation Origin; the frontend obtains a current CSRF token before each explicit lobby POST. No CORS exemption or cross-origin credential fallback is added. Deployment must forward both paths through the configured HTTPS origin; this assignment performs no deployment. Existing development/test databases remain untouched, with the lobby migration still unapproved there.
 
 ## Requests and responses
 
@@ -59,4 +59,4 @@ Unsupported routes/methods retain Fastify's ordinary 404 response; no start/edit
 
 Unit HTTP tests use real cookie/session/CSRF plugins and a memory auth fixture with mocked repository responses. Live HTTP tests use the actual auth and lobby repositories and PostgreSQL, mocking only the external OAuth provider. They cover safe creation/list/view, duplicate and concurrent membership, host/RUNNING rejection, persisted-session security and app-replacement recovery. Cleanup touches only tracked records created by the current test, in dependency order; no prefix sweep or reset is performed. The shared runner/CI report guard discovers both `database/tests` and `apps/server/tests` integration files and requires every suite to execute without skips.
 
-Frontend/proxy integration, real OAuth consent verification, match start and runtime-pin/world orchestration, game-command authorization, acknowledgements/retries, pagination, scheduling, private/invite access, host transfer/cancellation, spectators, teams, chat and gameplay remain separate work. There is no capacity/performance claim from these functional concurrency tests.
+The [frontend/proxy integration](LOBBY_UI.md) is implemented in Issue #13 with mock HTTP/browser verification and no existing-database access. Real OAuth consent and live UI/database verification, match start and runtime-pin/world orchestration, game-command authorization, acknowledgements/retries, pagination, scheduling, private/invite access, host transfer/cancellation, spectators, teams, chat and gameplay remain separate work. There is no capacity/performance claim from these functional concurrency tests.

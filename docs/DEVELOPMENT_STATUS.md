@@ -1,6 +1,6 @@
 # Development status
 
-This is a short, evidence-based handoff, not a replacement for the authoritative rules or roadmap. The baseline below is checked against `main` at `df975a2` (PR #10 squash merge). New work in a feature branch remains unmerged even when its tests pass.
+This is a short, evidence-based handoff, not a replacement for the authoritative rules or roadmap. The baseline below is checked against `main` at `5cbd901` (PR #12 squash merge). New work in a feature branch remains unmerged even when its tests pass.
 
 | Area | State | Evidence / limitations |
 |---|---|---|
@@ -14,7 +14,8 @@ This is a short, evidence-based handoff, not a replacement for the authoritative
 | Local issue-to-draft-PR workflow (007 / Issue #2) | Merged | [PR #5](https://github.com/MightyMulligan-ops/strategy-game/pull/5), `963869a`; local sessions and metadata-only automation |
 | Lobby contracts and documentation (004B.2A / Issue #7) | Merged | [PR #8](https://github.com/MightyMulligan-ops/strategy-game/pull/8), `b0164b7`; lifecycle, privacy, capacity, deadline-overflow contracts |
 | PostgreSQL lobby persistence (004B.2B / Issue #9) | Merged | [PR #10](https://github.com/MightyMulligan-ops/strategy-game/pull/10), `df975a2`; migration is not approved for the existing development DB; 21 lobby tests / 38 repository tests |
-| Authenticated lobby REST API (004B.2C / Issue #11) | In review, unmerged | [Draft PR #12](https://github.com/MightyMulligan-ops/strategy-game/pull/12), `issue/11-lobby-rest-api`; five session-bound routes, CSRF/origin guards, strict safe envelopes; 45 live tests / four suites passed on a new isolated PostgreSQL 17 instance; no UI or match start |
+| Authenticated lobby REST API (004B.2C / Issue #11) | Merged | [PR #12](https://github.com/MightyMulligan-ops/strategy-game/pull/12), `5cbd901`; five session-bound operations, safe envelopes and 45 live tests; existing development migration remains unapproved |
+| Sovereign account/lobby UI and proxy (004B.2D / Issue #13) | In progress, unmerged | `issue/13-sovereign-lobby-ui`; branded login/onboarding/profile and API-backed lobby flows, 15 byte-identical asset moves, 32 frontend DOM tests; Chromium mock/proxy/asset/layout checks; no existing database access or match start |
 | Match authorization, command APIs, scheduler | Planned | Next Phase 0B work; account authentication does not grant match permissions |
 | Map, gameplay, leadership, Military Supplies | Planned | Rules remain in GAME_DESIGN.md; no claim of implemented gameplay |
 
@@ -29,4 +30,4 @@ This is a short, evidence-based handoff, not a replacement for the authoritative
 
 ## Next planned development slice
 
-Review Issue #11's authenticated lobby API before frontend/proxy integration or a separately approved match-start slice. Start/runtime-pin storage/world initialization must preserve fixed settings and check safe deadline arithmetic. Then address command acknowledgements/retries and offline scheduling/recovery. Every RUNNING join retry fails, including duplicate membership acknowledgements. Existing request/success contracts remain unchanged; the error enum adds five HTTP codes. See [LOBBY_API.md](LOBBY_API.md), [MATCH_LOBBIES.md](MATCH_LOBBIES.md), [DEVELOPMENT_ROADMAP.md](DEVELOPMENT_ROADMAP.md) and [CODEX_WORKFLOW.md](CODEX_WORKFLOW.md). Applying PR #10's migration to the existing development database still needs separate owner approval.
+Review Issue #13's branded lobby/account UI. Real OAuth consent and live UI-to-database verification remain pending separately approved environment preparation; do not apply the lobby migration to existing databases during this task. The next gameplay slice needs an approved start/runtime-pin/world design that preserves immutable settings and safe deadline arithmetic. Request receipts, scheduling, maps and gameplay remain future work. See [LOBBY_UI.md](LOBBY_UI.md), [LOBBY_API.md](LOBBY_API.md), [DEVELOPMENT_ROADMAP.md](DEVELOPMENT_ROADMAP.md) and [CODEX_WORKFLOW.md](CODEX_WORKFLOW.md).

@@ -109,14 +109,25 @@ Account authentication is implemented independently of match authorization. Phas
 
 ## Phase 0B.2C — Authenticated lobby REST APIs (Issue #11)
 
-**Scope:** Five HTTP operations using existing PostgreSQL storage, persistent sessions, registered usernames and CSRF/origin enforcement. Implemented on `issue/11-lobby-rest-api`, unmerged; delivery items remain unchecked until human merge.
+**Scope:** Five HTTP operations using existing PostgreSQL storage, persistent sessions, registered usernames and CSRF/origin enforcement. Merged in PR #12 as `5cbd901`; its implementation did not migrate existing databases.
 
-- [ ] Expose create/list/view/join/leave with session-derived identity, strict public contracts and safe HTTP error mapping.
-- [ ] Retain repository transactions for capacity, idempotent OPEN joining, leave/rejoin and host/RUNNING rejection.
-- [ ] Pass auth/CSRF/forged-input/privacy/disabled-auth HTTP tests and actual session/PostgreSQL concurrency/recovery tests.
-- [ ] Document API paths, migration prerequisites and shared live-suite discovery/CI report validation.
+- [x] Expose create/list/view/join/leave with session-derived identity, strict public contracts and safe HTTP error mapping.
+- [x] Retain repository transactions for capacity, idempotent OPEN joining, leave/rejoin and host/RUNNING rejection.
+- [x] Pass auth/CSRF/forged-input/privacy/disabled-auth HTTP tests and actual session/PostgreSQL concurrency/recovery tests.
+- [x] Document API paths, migration prerequisites and shared live-suite discovery/CI report validation.
 
 **Exit criteria:** Reviewed PR merged with all checks passing, no migration to the existing development database, and no new schema, frontend, start, world or scheduler work. See [LOBBY_API.md](LOBBY_API.md). Next slice: approved frontend/same-origin proxy integration or match-start design; no empty-world public shortcut.
+
+## Phase 0B.2D — Sovereign lobby/account UI (Issue #13)
+
+**Scope:** Branded login/onboarding/profile and public lobby browser using the five existing APIs, with same-origin Vite proxy and original asset relocation. Implemented on `issue/13-sovereign-lobby-ui`, unmerged; delivery items remain unchecked until human merge.
+
+- [ ] Browse/refresh/inspect/create/join/leave using strict public schemas, current CSRF and authoritative server recovery.
+- [ ] Preserve provider availability, username validation, linking/logout and callback/session behavior across Sovereign screens.
+- [ ] Move all original branding files unchanged to `apps/web/public/assets/branding/`; render verified emblem/wordmark with approved palette.
+- [ ] Pass frontend behavior tests, browser asset/layout checks and existing workspace gates; document the unapplied development migration.
+
+**Exit criteria:** Reviewed PR merged; no backend/auth behavior/schema/migrations, existing database writes, Start action, world/Turn 1, map or deployment. Local browser verification uses mock HTTP fixtures; real-provider/live-database testing still needs separately approved preparation. See [LOBBY_UI.md](LOBBY_UI.md).
 
 ## Phase 1 — Map and game shell
 

@@ -1,0 +1,46 @@
+# Sovereign lobby and account shell (004B.2D / Issue #13)
+
+The React client now provides public lobby browsing, detail, creation, joining and leaving alongside the existing account flows. It uses the Sovereign Global Crown identity across signed-out login, username onboarding, profile/link/logout and lobby screens. This is a lobby foundation: there is no match Start action, world, Turn 1, map, scheduler, presence or private/invite feature.
+
+## Account and API boundaries
+
+`apps/web/src/App.tsx` retains configured-provider sign-in, callback error handling, username validation/conflicts, linking, current-session logout and account-wide logout. Initial configuration → CSRF → own-profile requests remain sequenced so the first visit shares one cookie. Callback navigation reloads the app and fetches a new session token. Unauthenticated users see login; accounts with a null username see onboarding; only registered users mount `LobbyBrowser`.
+
+`LobbyBrowser.tsx` requests the existing [five version-1 APIs](LOBBY_API.md). The default list requests OPEN lobbies; list/detail refreshes are explicit. The create form validates with `CreateLobbyRequestSchema`: trimmed nonempty name, 2–40 capacity including host, documented duration presets, PUBLIC only. All success/error responses are validated with shared schemas. Account IDs are never request authority, placed in mutation bodies, stored in localStorage or rendered in lobby metadata.
+
+`lobby-api.ts` sends credentials `same-origin` and `cache: no-store`. Every explicit lobby POST first fetches a fresh `/auth/csrf` token and sends it in `x-csrf-token`; no token is persisted or shared across navigation. The browser supplies Origin. A shared synchronous action guard blocks repeated submissions and conflicting account/lobby actions while pending. There are no automatic mutation retries or polling loops.
+
+Create/join/leave success reloads list and selected detail from the server. Full/closed/nonmember/host-leave/not-found failures are explained and followed by authoritative reads. Join/Leave controls follow the current server viewer flags; repository authorization remains authoritative. No host Start control is rendered even when the future start permission is true. Session/username failures recheck the account, clear stale lobby data and return to the appropriate account screen. Unknown/private/malformed responses produce safe messages without raw details.
+
+AbortControllers cancel superseded reads and unmounted effects. Aborted responses are checked before state updates, including after asynchronous account recovery. Bootstrap work is cancellable in React StrictMode. Loading, empty, unavailable, validation, permission and pending states are visible; nothing fabricates successful multiplayer state.
+
+## Same-origin development
+
+Vite forwards both `/auth` and `/api` to `http://127.0.0.1:3001`, keeping the backend on loopback and retaining the browser's configured Origin. No CORS exemption, public backend listener or custom publicDir is introduced. Use the normal `http://127.0.0.1:5173` address and existing provider callbacks. Vite preview remains a static build preview; it does not provide the backend/proxy for production.
+
+**The existing development database still lacks the lobby migration, and this issue does not approve applying it.** Missing schema/services display a safe unavailable message. Do not run migration/reset/push commands against existing development/test databases to exercise this UI. Full real-provider/real-database manual testing awaits separately approved setup. This task's browser checks used an isolated mock HTTP backend, never the existing database or backend service. Hosted CI continues its existing disposable PostgreSQL tests.
+
+## Verified original branding
+
+The entire former repository-root `public/assets/branding/` directory is moved with Git to **`apps/web/public/assets/branding/`**. All 15 tracked files, including the original README.md/README.txt and palette, are preserved byte for byte; SHA-256 hashes were compared before/after. There is no duplicate root copy or artwork rewrite.
+
+| Actual files | Use / audit result |
+|---|---|
+| `emblem.svg`, `wordmark.svg` | Original crowned globe and silver lettering; used directly as separate images at `/assets/branding/…` |
+| `favicon.svg`, `favicon.png` | Verified present; original SVG used as the page favicon |
+| `primary_logo.svg/.png`, `horizontal_logo.svg/.png`, `app_icon.svg/.png` | Verified original underscore-named exports, relocated intact |
+| `emblem.png`, `wordmark.png`, `brand_palette.txt`, `README.md`, `README.txt` | Relocated intact |
+
+The older asset README is intentionally preserved and still lists hyphen-named `primary-logo.svg`, `horizontal-logo.svg` and `app-icon.png`; those exact names are absent. Its earlier statement that artwork is not included is historical. The inventory above reflects actual files. No missing-export placeholder, generated logo, alias or external substitute is used; the required original emblem and wordmark are sufficient for these layouts. Chromium verified both SVG URLs return 200 with identical file bytes and nonzero rendered image dimensions.
+
+Reusable CSS tokens use the approved palette: Imperial Gold `#D4AF37`, Steel Silver `#C9CDD6`, Slate Navy `#0E1A26`, Charcoal `#0A0F16`, Off White `#E8EAEF`. Secondary borders/surfaces are derived accents. Original SVG colors/contents remain unchanged. No new font, component library, router, image-generation or external asset dependency is added.
+
+## Accessibility and verification
+
+Inputs have visible labels/help, native constraints and shared-schema validation. Keyboard focus uses a 3px gold outline; controls target at least 44px height. Status/alerts use live regions, data panels expose busy states, text/rosters wrap, layouts stack on small screens, and reduced-motion preferences disable transitions. Account controls remain available in the registered layout and below the workspace on mobile.
+
+Frontend tests in `apps/web/src/App.test.tsx` use React DOM/act and **jsdom 26.1.0**, the only new test dependency. Its Node >=18 requirement preserves the repository's existing supported Node range; it is pinned for reproducibility. No testing/component library is needed. Tests cover login/provider availability, onboarding/conflicts, profile linking and both logout modes, list/detail/create/join/leave, fresh CSRF per action, strict response validation, empty/loading/error states, server authorization outcomes, duplicate prevention and StrictMode cleanup.
+
+Local Chromium smoke checks rendered the real Vite app against an isolated mock HTTP server. They verified login navigation, onboarding, join/leave, preserved proxy Origin, changing CSRF tokens, original SVG rendering/bytes, visible keyboard focus, zero page errors and no horizontal overflow at 320/390/768/1440px. Desktop/mobile screenshots were reviewed locally; they show test fixtures, not a claim of live multiplayer data. Temporary browser tools/screenshots stay under ignored `.cache/issue-13/` and are not runtime dependencies or committed assets.
+
+Required checks: `pnpm install --frozen-lockfile`, `pnpm build`, `pnpm typecheck`, `pnpm test`, `pnpm lint`, `git diff --check`. Ordinary tests intentionally skip live PostgreSQL suites; no local DB-backed verification or existing-database writes are performed for this frontend change. Real OAuth consent, HTTPS deployment behavior and live UI-to-database testing remain separate verification after owner-approved environment preparation.
