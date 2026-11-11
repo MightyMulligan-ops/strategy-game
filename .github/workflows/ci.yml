@@ -1,0 +1,136 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  AUTH_ENABLED: 'false'
+
+jobs:
+  quality:
+    name: Application checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      RUN_DATABASE_TESTS: '0'
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set up pnpm from package.json
+        uses: pnpm/action-setup@f53f5227a9e83886ab598c617f3c170fab62f0d3 # v6
+        with:
+          run_install: false
+      - name: Set up Node.js and pnpm cache
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install dependencies
+        run: |
+          mkdir -p .cache/ci
+          pnpm install --frozen-lockfile 2>&1 | tee .cache/ci/install.log
+      - name: Build
+        run: pnpm build 2>&1 | tee .cache/ci/build.log
+      - name: TypeScript checks
+        run: pnpm typecheck 2>&1 | tee .cache/ci/typecheck.log
+      - name: Unit and simulation tests
+        run: pnpm test 2>&1 | tee .cache/ci/unit-tests.log
+      - name: Lint
+        run: pnpm lint 2>&1 | tee .cache/ci/lint.log
+      - name: Sanitize failure logs
+        if: ${{ failure() }}
+        run: node --experimental-strip-types scripts/ci-reports.ts sanitize
+      - name: Upload failure logs
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: application-failure-logs
+          path: .cache/ci/sanitized/*.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  database:
+    name: PostgreSQL integration tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # Disposable CI-only credentials; never use repository/production secrets.
+    env:
+      POSTGRES_PASSWORD: ci_only_not_for_deployment
+      TEST_DATABASE_URL: postgresql://strategy_game_ci:ci_only_not_for_deployment@127.0.0.1:5432/strategy_game_ci_test?schema=public
+      RUN_DATABASE_TESTS: '1'
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: strategy_game_ci
+          POSTGRES_PASSWORD: ci_only_not_for_deployment
+          POSTGRES_DB: strategy_game_ci_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U strategy_game_ci -d strategy_game_ci_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Mask CI database connection
+        run: |
+          echo "::add-mask::$POSTGRES_PASSWORD"
+          echo "::add-mask::$TEST_DATABASE_URL"
+      - name: Set up pnpm from package.json
+        uses: pnpm/action-setup@f53f5227a9e83886ab598c617f3c170fab62f0d3 # v6
+        with:
+          run_install: false
+      - name: Set up Node.js and pnpm cache
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install dependencies
+        run: |
+          mkdir -p .cache/ci
+          pnpm install --frozen-lockfile 2>&1 | tee .cache/ci/install.log
+      - name: Apply committed test migrations
+        run: pnpm db:migrate:test 2>&1 | tee .cache/ci/migrations.log
+      - name: Run database integration tests
+        id: integration
+        run: >-
+          pnpm test:db --reporter=default --reporter=json
+          --outputFile=.cache/ci/database-results.json
+          2>&1 | tee .cache/ci/database-tests.log
+      - name: Require executed integration tests with no skips
+        if: ${{ !cancelled() && steps.integration.outcome != 'skipped' }}
+        run: node --experimental-strip-types scripts/ci-reports.ts verify
+      - name: Sanitize failure logs
+        if: ${{ failure() }}
+        run: node --experimental-strip-types scripts/ci-reports.ts sanitize
+      - name: Upload failure logs
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: database-failure-logs
+          path: .cache/ci/sanitized/*.log
+          if-no-files-found: ignore
+          retention-days: 7
