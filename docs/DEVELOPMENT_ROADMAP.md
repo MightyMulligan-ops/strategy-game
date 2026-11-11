@@ -98,14 +98,25 @@ Account authentication is implemented independently of match authorization. Phas
 
 ## Phase 0B.2B — PostgreSQL lobby persistence (Issue #9)
 
-**Scope:** Internal create/join/leave/detail/list storage only. Implemented on `issue/9-lobby-persistence`, unmerged; retain unchecked delivery items until human merge.
+**Scope:** Internal create/join/leave/detail/list storage only. Merged in PR #10 as `df975a2`; application of its migration to the existing development database remains unapproved.
 
-- [ ] Extend existing models with OPEN/RUNNING, nullable legacy host/metadata, immutable lobby settings, and unique account membership.
-- [ ] Review one additive SQL migration, preflight duplicate legacy memberships, and verify preservation on isolated PostgreSQL 17 databases.
-- [ ] Serialize membership/capacity/lifecycle checks on the parent Match row, support leave/rejoin, and expose only safe public projections.
-- [ ] Pass lobby integration tests and all existing checks, preserving account and deterministic turn behavior.
+- [x] Extend existing models with OPEN/RUNNING, nullable legacy host/metadata, immutable lobby settings, and unique account membership.
+- [x] Review one additive SQL migration, preflight duplicate legacy memberships, and verify preservation on isolated PostgreSQL 17 databases.
+- [x] Serialize membership/capacity/lifecycle checks on the parent Match row, support leave/rejoin, and expose only safe public projections.
+- [x] Pass lobby integration tests and all existing checks, preserving account and deterministic turn behavior.
 
-**Exit criteria:** Reviewed PR merged, with no existing records deleted or invented historical settings. This branch has passed local verification; see `DEVELOPMENT_STATUS.md` and the draft PR for evidence. No endpoints, UI, world, or Turn 1 initialization. The owner clarified that all RUNNING joins, including duplicate retries, must fail. Next slice: session-authorized lobby APIs and later approved start/runtime-pin/world orchestration; do not mutate immutable configuration or treat an empty fixture as playable content.
+**Exit criteria:** Reviewed PR merged, with no existing records deleted or invented historical settings. No endpoints, UI, world, or Turn 1 initialization were included. All RUNNING joins, including duplicate retries, fail per owner clarification. APIs follow below; start/runtime-pin/world orchestration remains later work.
+
+## Phase 0B.2C — Authenticated lobby REST APIs (Issue #11)
+
+**Scope:** Five HTTP operations using existing PostgreSQL storage, persistent sessions, registered usernames and CSRF/origin enforcement. Implemented on `issue/11-lobby-rest-api`, unmerged; delivery items remain unchecked until human merge.
+
+- [ ] Expose create/list/view/join/leave with session-derived identity, strict public contracts and safe HTTP error mapping.
+- [ ] Retain repository transactions for capacity, idempotent OPEN joining, leave/rejoin and host/RUNNING rejection.
+- [ ] Pass auth/CSRF/forged-input/privacy/disabled-auth HTTP tests and actual session/PostgreSQL concurrency/recovery tests.
+- [ ] Document API paths, migration prerequisites and shared live-suite discovery/CI report validation.
+
+**Exit criteria:** Reviewed PR merged with all checks passing, no migration to the existing development database, and no new schema, frontend, start, world or scheduler work. See [LOBBY_API.md](LOBBY_API.md). Next slice: approved frontend/same-origin proxy integration or match-start design; no empty-world public shortcut.
 
 ## Phase 1 — Map and game shell
 

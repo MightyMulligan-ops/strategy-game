@@ -4,7 +4,7 @@ A browser-based, multiplayer 2D grand strategy game inspired by the broad gamepl
 
 ## Project status
 
-**Pre-production / foundation.** The pnpm workspace has React/Vite and Fastify applications, validated turn/order contracts, a pure turn lifecycle, deterministic empty-turn resolution, a movement-queue planning helper, PostgreSQL/Prisma persistence, and Discord/Google sign-in with persistent accounts and sessions. Authentication requires local provider configuration; it is disabled by default. There is no playable game, scheduler, or multiplayer transport. Live PostgreSQL behavior requires the separate integration suite below.
+**Pre-production / foundation.** The pnpm workspace has React/Vite and Fastify applications, validated turn/order contracts, a pure turn lifecycle, deterministic empty-turn resolution, a movement-queue planning helper, PostgreSQL/Prisma persistence, Discord/Google accounts/sessions, and authenticated lobby REST operations. Authentication requires local provider configuration; it is disabled by default. There is no playable game, match start, scheduler, or realtime transport. Live PostgreSQL behavior requires the separate integration suite below.
 
 ## Product direction
 
@@ -39,7 +39,8 @@ Use a **server-authoritative modular monolith** initially. Do not introduce micr
 - `docs/ATWAR_REFERENCE.md` — reference observations, sources, and unresolved verification items.
 - `docs/AUTHENTICATION.md` — OAuth/session behavior, endpoints, provider setup, and security limitations.
 - `docs/CI.md` — GitHub Actions jobs, failure diagnostics, and recommended required checks for `main`.
-- `docs/MATCH_LOBBIES.md` — approved lobby rules, versioned contracts, and internal PostgreSQL lobby persistence; APIs, UI, and starting matches remain unimplemented.
+- `docs/MATCH_LOBBIES.md` — approved lobby rules, versioned contracts, and PostgreSQL lobby persistence.
+- `docs/LOBBY_API.md` — authenticated lobby REST endpoints, CSRF/origin safeguards, errors, isolated test prerequisites; UI and match start remain future work.
 - `docs/CODEX_WORKFLOW.md` — human-started Windows VS Code issue-to-draft-PR workflow and metadata labels.
 - `docs/DEVELOPMENT_STATUS.md` — evidence-based progress handoff and update policy.
 - `AGENTS.md` — instructions for AI coding agents and contributors.
@@ -121,7 +122,9 @@ pnpm docker:up:test
 
 Development uses `127.0.0.1:5433`; tests use `127.0.0.1:5434`. Both have persistent named volumes. `pnpm docker:stop` stops both services and preserves data. If using your own PostgreSQL instance, manage it yourself and configure the URLs accordingly.
 
-### 6. Apply committed migrations
+### 6. Review and apply approved migrations
+
+**Issue #11 safety:** PR #10's `202611110001_lobby_persistence` migration is merged but has not been approved for the owner's existing development database. The migration examples below apply only to a new isolated database or a separately approved rollout. Do not apply the pending chain to existing development/test data during this assignment. See [isolated API test prerequisites](docs/LOBBY_API.md#prerequisites-and-database-safety).
 
 ```powershell
 pnpm db:migrate
@@ -129,7 +132,7 @@ pnpm db:status
 pnpm db:migrate:test
 ```
 
-Run the test migration command only with the test database running. Apply pending migrations after pulling schema changes. These commands use committed migrations, including the additive authentication migration. Never use schema push/reset: migrations contain custom constraints and triggers. Development startup does not automatically start Docker, migrate, or reset either database.
+Review pending SQL after pulling schema changes before any approved application. These commands use committed migrations, including authentication and lobby persistence. Never use schema push/reset: migrations contain custom constraints and triggers. Development startup does not automatically start Docker, migrate, or reset either database.
 
 ### 7. Start the development servers
 
@@ -173,11 +176,10 @@ After pulling:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm docker:up
-pnpm db:migrate
 pnpm dev
 ```
 
-Start/migrate the test database separately when needed. Each PC has its own `.env`, dependencies, generated files, cache, and Docker volumes. Git synchronizes code and migrations, not database contents, sessions, accounts, or credentials. Configure secrets privately on each PC and review new `.env.example` keys and toolchain requirements after pulling.
+Review pending migrations and obtain the separate rollout approval before modifying an existing database; use a newly created isolated instance for migration tests. Each PC has its own `.env`, dependencies, generated files, cache, and Docker volumes. Git synchronizes code and migrations, not database contents, sessions, accounts, or credentials. Configure secrets privately on each PC and review new `.env.example` keys and toolchain requirements after pulling.
 
 ### 9. Troubleshooting
 
@@ -191,7 +193,7 @@ Start/migrate the test database separately when needed. Each PC has its own `.en
 | Docker daemon unavailable | Start Docker Desktop, wait for its engine, then rerun `pnpm docker:up` |
 | PostgreSQL preflight fails | Check service health and `.env` host/port/credentials privately; check migrations after connectivity is restored |
 | Changed `.env` password fails with an existing volume | PostgreSQL retains the original volume password; restore the correct setting or deliberately change the database password. Editing `.env` does not reinitialize the volume |
-| Missing tables after pulling | Run the appropriate `pnpm db:migrate` or `pnpm db:migrate:test` command |
+| Missing tables after pulling | Inspect migration status; review pending SQL and the approval/isolation requirements above before applying anything |
 | Sign-in buttons disabled | Auth is disabled or the provider is unconfigured; follow the auth guide and restart |
 | OAuth callback/Origin failure | Match `127.0.0.1:5173`, provider redirects, `AUTH_ORIGIN`, and proxy ports |
 | Port already in use | Stop the conflicting process; intentional port changes need matching proxy/origin/callback settings |
@@ -203,14 +205,14 @@ Assignment 004B.1 adds `openid-client` for OAuth/OIDC protocol handling and Fast
 
 ### Local PostgreSQL setup
 
-Install Docker with Compose, or provide your own local PostgreSQL 17 instance. Assignment 004B.1 adds an authentication migration after the existing persistence migrations. Apply pending migrations to both local databases; no reset or recreation is needed.
+Install Docker with Compose, or provide your own local PostgreSQL 17 instance. Authentication and lobby APIs require their committed migrations. Existing-database application requires the review/approval described in step 6; no reset is permitted.
 
 1. Copy `.env.example` to `.env`. Replace `replace_me` consistently in `POSTGRES_PASSWORD`, `DATABASE_URL`, and `TEST_DATABASE_URL` (URL-encode special characters in connection URLs). No production credentials are needed.
 2. Start development storage: `docker compose up -d --wait db`. It listens only on `127.0.0.1:5433` and uses a named volume.
-3. Apply the committed migration with `pnpm db:migrate`, then inspect it with `pnpm db:status`.
-4. For integration tests, start the separate database: `docker compose --profile test up -d --wait db-test` on port 5434. Run `pnpm db:migrate:test`, then `pnpm test:db`.
+3. Inspect with `pnpm db:status`; apply committed migrations only to a new isolated target or under a separately approved existing-database rollout. This task does not migrate the existing development database.
+4. For this assignment's integration tests, use a newly created verified isolated PostgreSQL instance as described in [LOBBY_API.md](docs/LOBBY_API.md#prerequisites-and-database-safety). The Compose test service on port 5434 has persistent storage; its name alone does not establish that it is disposable or safe to migrate.
 
-The default `pnpm test` runs unit tests and explicitly skips live database tests. `pnpm test:db` requires `TEST_DATABASE_URL` pointing to a local database whose name ends in `_test`; it never falls back to `DATABASE_URL`. It uses committed migrations, not schema push/reset. Missing or unreachable PostgreSQL fails that explicit command. Integration tests delete only their tracked fixture records, including test accounts and sessions. The 17 live tests cover turn persistence plus identity uniqueness, linking, username races, OAuth-state consumption, session recovery, expiration, and revocation. Mocked OAuth unit tests require no real provider credentials.
+The default `pnpm test` runs unit tests and explicitly skips live database tests. `pnpm test:db` requires `TEST_DATABASE_URL` pointing to a local database whose name ends in `_test`; it never falls back to `DATABASE_URL`. It uses committed migrations, not schema push/reset. Missing or unreachable PostgreSQL fails that explicit command. Integration tests delete only their tracked fixture records, including test accounts and sessions. All 45 live tests cover turn/auth/lobby persistence and authenticated lobby HTTP, including concurrency, CSRF/origin protection and session recovery. Mocked OAuth tests require no real provider credentials.
 
 `pnpm db:validate` and schema-to-SQL diff generation work without a running database. Schema validation does not prove migration SQL, triggers, concurrency, rollback, or restart recovery work against PostgreSQL; those require the live suite. Generated Prisma sources are ignored and regenerated from the pinned toolchain.
 

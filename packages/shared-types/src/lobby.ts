@@ -177,6 +177,7 @@ export type StartLobbyResponse = z.infer<typeof StartLobbyResponseSchema>;
 export const LobbyErrorResponseSchema = z.strictObject({
   schemaVersion: version,
   error: z.enum(["UNAUTHENTICATED", "USERNAME_REQUIRED", "NOT_FOUND", "LOBBY_NOT_OPEN", "LOBBY_FULL",
-    "HOST_CANNOT_LEAVE", "HOST_REQUIRED", "NOT_A_PARTICIPANT", "NOT_ENOUGH_PARTICIPANTS"])
+    "HOST_CANNOT_LEAVE", "HOST_REQUIRED", "NOT_A_PARTICIPANT", "NOT_ENOUGH_PARTICIPANTS",
+    "INVALID_REQUEST", "INVALID_ORIGIN", "CSRF_REJECTED", "RATE_LIMITED", "INTERNAL_ERROR"])
 }).readonly();
 export type LobbyErrorResponse = z.infer<typeof LobbyErrorResponseSchema>;

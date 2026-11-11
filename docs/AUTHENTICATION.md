@@ -2,7 +2,7 @@
 
 ## Implemented boundary
 
-Discord and Google sign-in create or recover a persistent internal player identity. There is no email/password login, email-based account discovery, automatic account merging, match creation/joining, order API, scheduler, or WebSocket implementation. Authentication does not authorize access to any match or another player's state.
+Discord and Google sign-in create or recover a persistent internal player identity. Registered users can use the authenticated [lobby REST API](LOBBY_API.md) to create/list/view/join/leave public lobbies. There is no email/password login, email-based account discovery, automatic account merging, match start, order API, scheduler, or WebSocket implementation. Authentication alone grants no game-state or other-player draft access.
 
 The public, versioned `AuthenticatedPlayer` contract contains only `id`, nullable `username`, and linked provider names. Provider subjects, tokens, OAuth attempt data, session data, match drafts, and authoritative snapshots stay on the server. The username rules approved by the owner are 3–24 ASCII letters/digits/underscores, beginning with a letter, with case-insensitive uniqueness. Initial selection is supported once. Renaming needs a separate decision.
 
@@ -18,7 +18,7 @@ The server uses [openid-client](https://github.com/panva/openid-client) for main
 
 ## Local setup
 
-1. Follow the root README to start local PostgreSQL. Apply pending committed migrations with `pnpm db:migrate` and `pnpm db:migrate:test`. The additive `202611100002_authentication` migration extends `PlayerIdentity` and adds `OAuthAccount`, `AuthSession`, and `OAuthAttempt`. It preserves existing identities, match data, and game constraints. Do not reset or schema-push either database.
+1. Follow the root README to start local PostgreSQL. Authentication requires the existing `202611100002_authentication` migration. Lobby APIs additionally require `202611110001_lobby_persistence`; that pending migration is **not approved for the owner's existing development database**. Do not apply the pending chain there during this assignment. Use only a newly created verified isolated database for migration/integration tests; see [LOBBY_API.md](LOBBY_API.md#prerequisites-and-database-safety). No startup command automatically migrates, resets, or schema-pushes a database.
 2. Copy missing keys from `.env.example` into the ignored root `.env`; preserve existing database configuration. Set `AUTH_ENABLED=true` and `AUTH_ORIGIN=http://127.0.0.1:5173`.
 3. Generate a session-signing secret locally, for example with `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"`, and put it in `SESSION_SECRET`. Use a different secret for each environment. Never commit it or put it in a `VITE_` variable.
 4. Register provider applications and configure at least one complete client ID/secret pair. Set `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` and/or `DISCORD_CLIENT_ID`/`DISCORD_CLIENT_SECRET`. The UI enables only configured providers. Set exact registered redirect URLs to:

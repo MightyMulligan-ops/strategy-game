@@ -1,6 +1,6 @@
 # PostgreSQL persistence foundation
 
-This package is server-only. It imports validated contracts and the pure game engine; neither the browser nor the engine imports Prisma. Fastify uses separate match and authentication repositories; only authentication has HTTP endpoints so far.
+This package is server-only. It imports validated contracts and the pure game engine; neither the browser nor the engine imports Prisma. Fastify uses separate match, authentication and lobby repositories. Authentication and lobby metadata have HTTP endpoints; game commands and match start remain unimplemented.
 
 ## Models
 
@@ -52,7 +52,7 @@ Account tables reference identities with restrictive foreign keys; deletion need
 
 ## Lobby repository (004B.2B / Issue #9)
 
-`new LobbyRepository(client)` accepts **trusted internal identity IDs**, derived by a future authenticated server adapter. It checks that an identity exists and has a registered username for every operation; it does not authenticate an HTTP request. No endpoints or UI invoke it yet.
+`new LobbyRepository(client)` accepts **trusted internal identity IDs**. The [authenticated server adapter](../docs/LOBBY_API.md) derives these exclusively from persistent sessions and invokes the repository using the same Prisma client as auth. The repository checks that an identity exists and has a registered username for every operation; HTTP authentication/CSRF enforcement belongs to the adapter. No lobby UI or match-start operation is implemented.
 
 | Method | Committed behavior |
 |---|---|
@@ -96,7 +96,7 @@ Seed generation/reveal, roster changes, pauses, clock correction, acknowledgemen
 
 ## Validation
 
-Root `pnpm test` runs mapping/environment and mocked authentication unit tests without PostgreSQL, explicitly skipping the three database integration files. The opt-in suite has 38 live tests: 11 turn persistence, 6 authentication, and 21 lobby tests. Lobby coverage includes capacity/registration/settings, database uniqueness, same-account concurrency, competing last-slot joins across clients, lifecycle locking, duplicate/full retries, leave/rejoin, host protection, SQL rollback, fresh-client recovery, privacy, and auth/legacy compatibility. `scripts/test-database.ts` automatically discovers the new file; the CI report guard requires all three suites to execute with no skips. Run migration tests only against a newly created, verified isolated `_test` database after SQL review. Do not use the development database or reset/reuse an existing database for upgrade fixtures.
+Root `pnpm test` runs mapping/environment and mocked authentication/lobby HTTP tests without PostgreSQL, skipping live suites. The opt-in suite has 45 live tests across four files: 11 turn persistence, 6 authentication, 21 lobby persistence and 7 actual HTTP/session/PostgreSQL tests. Coverage includes capacity/registration/settings, uniqueness, same-account/last-slot concurrency, lifecycle locking, duplicate/full retries, leave/rejoin, host protection, SQL rollback, recovery, privacy and real session/CSRF/origin enforcement. The runner and CI report guard share discovery across database/server tests and require every suite to execute with no skips. Run migration tests only against a newly created, verified isolated `_test` database after SQL review. Do not use the development database or reset/reuse an existing database for upgrade fixtures. The database package exports the existing `testDatabaseUrl` validator so server integration tests use the same guard without crossing source-package boundaries.
 
 Prisma schema validation, generation, TypeScript checks, and an offline schema-to-SQL diff can run without credentials. The initial implementation used a supplementary in-memory PGlite SQL smoke check; no application code or committed tests depend on PGlite. The follow-up verified the owner-applied initial migration on the existing PostgreSQL 17.11 test database and passed all 11 live integration tests, including a new fixture-isolation regression. No database reset, migration reapplication, schema change, or foreign-key relaxation was needed.
 

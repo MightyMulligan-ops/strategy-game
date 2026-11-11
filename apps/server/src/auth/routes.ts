@@ -10,6 +10,7 @@ import type { AuthConfig } from "./config.js";
 import { createOAuthClient } from "./providers.js";
 import type { OAuthClient } from "./providers.js";
 import { PersistentSessionStore } from "./session-store.js";
+import { privateResponseHeaders, sameOrigin, sessionPlayer } from "./security.js";
 
 export type Authentication = Readonly<{ config: AuthConfig; persistence: AuthPersistence; oauth?: OAuthClient }>;
 
@@ -31,14 +32,13 @@ export async function registerAuthentication(app: FastifyInstance, options: Auth
   await app.register(rateLimit, { max: 60, timeWindow: "1 minute" });
   app.addHook("onRequest", async (request, reply) => {
     if (!request.url.startsWith("/auth/")) return;
-    reply.header("Cache-Control", "no-store").header("Referrer-Policy", "no-referrer").header("X-Content-Type-Options", "nosniff");
-    if (!["GET", "HEAD"].includes(request.method) && request.headers.origin !== config.origin) {
+    privateResponseHeaders(reply);
+    if (!["GET", "HEAD"].includes(request.method) && !sameOrigin(request, config.origin)) {
       return reply.code(403).send({ error: "invalid_origin" });
     }
   });
   const requireUser = async (request: FastifyRequest, reply: FastifyReply) => {
-    const id = request.session.playerIdentityId;
-    if (!id || !await persistence.profile(id)) return reply.code(401).send({ error: "unauthorized" });
+    if (!await sessionPlayer(request, persistence)) return reply.code(401).send({ error: "unauthorized" });
   };
   const mutation = { onRequest: [app.csrfProtection] };
   const authenticatedMutation = { onRequest: [requireUser, app.csrfProtection] };

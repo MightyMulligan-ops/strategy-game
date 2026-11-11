@@ -1,16 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { sanitizeLog, verifyDatabaseReport } from "../ci-reports.ts";
 
-const files = ["auth.integration.test.ts", "persistence.integration.test.ts"];
+const files = ["database/tests/auth.integration.test.ts", "database/tests/persistence.integration.test.ts",
+  "database/tests/lobby.integration.test.ts", "apps/server/tests/lobby.integration.test.ts"];
 function report(status = "passed") {
   return { success: true, testResults: files.map((file) => ({
-    name: `C:\\repo\\database\\tests\\${file}`, status: "passed", assertionResults: [{ status }]
+    name: `C:\\repo\\${file.replaceAll("/", "\\")}`, status: "passed", assertionResults: [{ status }]
   })) };
 }
 
 describe("CI integration execution guard", () => {
   it("accepts executed tests across all integration files without hard-coding a test count", () => {
-    expect(verifyDatabaseReport(report(), files)).toBe(2);
+    expect(verifyDatabaseReport(report(), files)).toBe(files.length);
   });
   it.each(["pending", "skipped", "todo", "failed"])("rejects %s tests even when the report claims success", (status) => {
     expect(() => verifyDatabaseReport(report(status), files)).toThrow();
