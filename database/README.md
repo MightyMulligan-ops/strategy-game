@@ -6,7 +6,7 @@ This package is server-only. It imports validated contracts and the pure game en
 
 | Model | Responsibility |
 |---|---|
-| `Match` / `MatchConfiguration` | Match identity and current state version; fixed configuration, duration, and pinned ruleset/simulation metadata. Configuration updates are blocked by a database trigger. |
+| `Match` / `MatchConfiguration` | Identity/state version, OPEN/RUNNING lifecycle, nullable historical host/creation metadata; immutable duration/config, lobby name/capacity, and optional initialized-match runtime pins. |
 | `PlayerIdentity` / `MatchParticipant` | Stable global player reference with nullable username/unique normalized key, separate from game-scoped participant identity. |
 | `OAuthAccount` | Unique provider/subject ownership; one identity per provider account, at most one provider account of each kind per identity. No emails or tokens. |
 | `AuthSession` | Server-private JSON, generation, optional identity, absolute expiry, and revocation tombstone. |
@@ -50,6 +50,44 @@ OAuth attempts are inserted transactionally, replacing the browser generation's 
 
 Account tables reference identities with restrictive foreign keys; deletion needs an explicit retention/dependency policy. Tests remove only their tracked attempts/sessions/provider mappings/identities, in that order. No automatic cleanup of old failed-run fixtures is performed. Expired attempt/session pruning is deferred; no scheduler is introduced. See [authentication documentation](../docs/AUTHENTICATION.md) for configuration and security behavior.
 
+## Lobby repository (004B.2B / Issue #9)
+
+`new LobbyRepository(client)` accepts **trusted internal identity IDs**, derived by a future authenticated server adapter. It checks that an identity exists and has a registered username for every operation; it does not authenticate an HTTP request. No endpoints or UI invoke it yet.
+
+| Method | Committed behavior |
+|---|---|
+| `createLobby(identityId, settings)` | Validate existing `LobbySettings`, create OPEN match, immutable configuration, host, server creation timestamp, and first membership atomically. |
+| `joinLobby(lobbyId, identityId)` | Lock parent Match, require OPEN, acknowledge active duplicate before capacity checking, otherwise create/reactivate membership if room. Returns detail and JOINED/ALREADY_JOINED. |
+| `leaveLobby(lobbyId, identityId)` | Take the same lock, require OPEN and a non-host active member, mark membership inactive. Never delete membership/history. |
+| `getLobby(lobbyId, identityId)` | Read a consistent detail with public roster and viewer projection in repeatable-read isolation. |
+| `listLobbies(identityId, filters?)` | Read consistent public summaries; optional version-1 status/duration-category filters. Historical internal matches lacking lobby metadata are excluded. |
+
+IDs are generated on the server, independent of account/provider/session IDs. `(matchId, identityId)` is unique even for inactive memberships; leaving frees capacity and rejoining retains the same match-local player ID. Only active membership counts toward capacity. All membership writers use parameterized `SELECT ... FOR UPDATE` on Match in a short read-committed transaction, reading lifecycle/roster **after** acquisition. A future start transaction must take this same lock before checking host/minimum roster and fixing membership. There is no start operation in this assignment. Success resolves after commit; SQL/transient failures roll back and propagate without hidden retries.
+
+Issue #9 and the owner's clarification require **all RUNNING join retries to fail**, including existing members. This is stricter than the unchanged version-1 schema's ability to represent an ALREADY_JOINED response after start. Domain failures use `LobbyError.code`: UNAUTHENTICATED, USERNAME_REQUIRED, INVALID_INPUT, NOT_FOUND, LOBBY_NOT_OPEN, LOBBY_FULL, HOST_CANNOT_LEAVE, NOT_A_PARTICIPANT, INVALID_STORAGE. Legacy matches are NOT_FOUND at the public lobby boundary. Later HTTP adapters must map unexpected SQL errors to safe responses rather than exposing driver exceptions.
+
+Results explicitly project the existing public summary/detail schemas: no internal identity IDs, OAuth records, sessions, ruleset pins, snapshots, or game state. Lobby discovery grants no game-state/spectator authorization. Pagination and request receipts remain future API work.
+
+### Additive migration safety
+
+`202611110001_lobby_persistence` is one transactional migration. It takes table locks and checks for legacy duplicate memberships **before** DDL/uniqueness. A conflict raises a clear error and rolls back; it never deletes or merges records. For operator review, this read-only query identifies conflicts:
+
+```sql
+SELECT "matchId", "identityId", count(*)
+FROM "MatchParticipant"
+GROUP BY "matchId", "identityId" HAVING count(*) > 1;
+```
+
+Those are private internal IDs; inspect them locally, never paste them into public logs. Resolve data conflicts through an owner-approved plan before retrying. Prisma can retain a failed migration-history entry even though the SQL transaction rolled back; inspect it and follow Prisma's documented failed-migration procedure only after review. No automated repair/reset is provided.
+
+Existing matches default to RUNNING. Their host, lobby name/capacity, and creation timestamp remain NULL; existing configurations, identities, authentication data, and turn archives stay intact. The original configuration/turn/history checks and triggers are preserved. Host/creation metadata is immutable; RUNNING cannot reopen. New configuration checks enforce name/capacity shape and complete-or-absent runtime pins. The only column relaxations remove NOT NULL from the four runtime pin fields so OPEN lobbies need no invented ruleset, simulation, or world. Legacy configurations still require complete pins; all existing values are preserved.
+
+New lobbies store the existing game ID/duration configuration and immutable lobby settings, but **no snapshot, active turn, deadline, ruleset pin, or world**. The future start assignment must define how initialized runtime pins are persisted without updating fixed settings, and validate safe opening-plus-duration arithmetic. This assignment does not relax the configuration update trigger or call internal empty-world initialization.
+
+SQL was generated offline from the prior/current Prisma schemas, then reviewed with the custom checks/triggers before execution. Local upgrade verification used a newly created PostgreSQL 17 container with tmpfs storage, no volume/bind mounts, and loopback-only networking; both pre-existing Compose databases were left untouched. Separate new databases verified: preservation of every legacy table and original SQL guard/index with synthetic auth, two-turn history, ordered drafts/dependency, frozen/result archives; readable legacy turns/accounts through existing repositories; and duplicate preflight rejection with unchanged records/schema. A third new database applied the full migration chain via `pnpm db:migrate:test` and ran all integration suites. No existing development/test data was reset, truncated, or deleted.
+
+Schema-only Prisma diffs still propose dropping the pre-existing custom deferred `order_content_revision` foreign key. That identical baseline diff was checked before/after this migration; it is not new drift and must never be executed as a repair.
+
 ## Dependencies and deferred decisions
 
 `OrderDependency` has scoped foreign keys and rejects self-links. The repository currently refuses order edits if dependencies exist rather than inventing a cancellation policy. No API creates dependencies. Before enabling recruitment references, approve block-versus-cascade cancellation, validate cycles/output quantities, add versioned contracts, and warn about affected dependent orders.
@@ -58,7 +96,7 @@ Seed generation/reveal, roster changes, pauses, clock correction, acknowledgemen
 
 ## Validation
 
-Root `pnpm test` runs mapping/environment and mocked authentication unit tests without PostgreSQL, explicitly skipping both database integration files. The opt-in suite exercises actual migrations/constraints, Ready/revisions/cancellations, competing submissions, closure rollback, seed recovery on a new client, idempotent commits, future dependency storage, and account/session persistence. It currently has 17 live tests. Run it only after the separate local `_test` database has been migrated using the root README instructions.
+Root `pnpm test` runs mapping/environment and mocked authentication unit tests without PostgreSQL, explicitly skipping the three database integration files. The opt-in suite has 38 live tests: 11 turn persistence, 6 authentication, and 21 lobby tests. Lobby coverage includes capacity/registration/settings, database uniqueness, same-account concurrency, competing last-slot joins across clients, lifecycle locking, duplicate/full retries, leave/rejoin, host protection, SQL rollback, fresh-client recovery, privacy, and auth/legacy compatibility. `scripts/test-database.ts` automatically discovers the new file; the CI report guard requires all three suites to execute with no skips. Run migration tests only against a newly created, verified isolated `_test` database after SQL review. Do not use the development database or reset/reuse an existing database for upgrade fixtures.
 
 Prisma schema validation, generation, TypeScript checks, and an offline schema-to-SQL diff can run without credentials. The initial implementation used a supplementary in-memory PGlite SQL smoke check; no application code or committed tests depend on PGlite. The follow-up verified the owner-applied initial migration on the existing PostgreSQL 17.11 test database and passed all 11 live integration tests, including a new fixture-isolation regression. No database reset, migration reapplication, schema change, or foreign-key relaxation was needed.
 
