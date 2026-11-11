@@ -23,9 +23,9 @@ The first playable prototype should demonstrate the strategy-game loop and inclu
 - [x] Add PostgreSQL/Prisma schema, initial migration, and repository foundation (Assignment 004A; follow-up live database suite passed).
 - [ ] Complete an atWar reference audit for mechanics that will be reproduced.
 - [ ] Record open decisions rather than inventing formulas.
-- [ ] Establish GitHub Issues/PR workflow and branch conventions.
+- [x] Establish GitHub Issues/PR workflow and branch conventions (Assignment 007 / PR #5, merged as `963869a`).
 
-Assignment 007 / Issue #2 proposes issue templates, status labels, a human-started local VS Code Codex workflow, and metadata-only synchronization. Its delivery state is tracked in `DEVELOPMENT_STATUS.md`; keep this item unchecked until the implementation is merged. No unattended agent execution is planned.
+Assignment 007 / Issue #2 is merged: issue templates, status labels, a human-started local VS Code Codex workflow, and metadata-only synchronization. No unattended agent execution is planned. Ongoing delivery state is tracked in `DEVELOPMENT_STATUS.md`.
 
 **Exit criteria:** A clean install, type-check, and test command work; web and server can start locally; core design docs are discoverable.
 
@@ -84,6 +84,17 @@ Assignment 004A supplies schema and internal storage operations, not production 
 - [ ] Decide account recovery, unlinking, renaming, session/attempt retention, and any fresh-sign-in requirement before linking.
 
 Account authentication is implemented independently of match authorization. Phase 0B's authenticated commands, membership checks, order acknowledgements, and scheduler remain incomplete. See [AUTHENTICATION.md](AUTHENTICATION.md) for setup and the precise implemented boundary.
+
+## Phase 0B.2A — Multiplayer lobby contracts (Issue #7)
+
+**Scope:** Approved public lobby rules and strict versioned contracts only. Implementation is tracked as unmerged work in `DEVELOPMENT_STATUS.md`; do not mark this milestone delivered before human merge.
+
+- [ ] Add MATCH_LOBBIES.md, public request/response schemas, and at least 40 focused contract tests.
+- [ ] Validate 2–40 capacity, host/roster consistency, registered-user viewer permissions, safe public projections, and Quick/Casual timing categories.
+- [ ] Document immutable settings, OPEN-only admission, idempotent joins, host-only start with at least two participants, and fixed membership after start.
+- [ ] Preserve existing authentication, turn resolution, persistence, and runtime behavior.
+
+**Exit criteria:** Contract checks and docs pass review/CI and are merged. No working lobby API/UI or database changes are implied. Follow-up implementation must add session-bound membership authorization, atomic persistence, and command handling before real creation/join/start is exposed. Private/invite-only access, spectators, late joining, host transfer/cancellation, teams, victory/duration, and starting-country/resource rules remain future decisions.
 
 ## Phase 1 — Map and game shell
 

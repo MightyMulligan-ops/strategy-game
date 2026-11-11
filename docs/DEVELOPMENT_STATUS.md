@@ -1,6 +1,6 @@
 # Development status
 
-This is a short, evidence-based handoff, not a replacement for the authoritative rules or roadmap. The baseline below is checked against `main` at `3834fd6` (Assignment 006 squash merge). New work in a feature branch remains unmerged even when its tests pass.
+This is a short, evidence-based handoff, not a replacement for the authoritative rules or roadmap. The baseline below is checked against `main` at `963869a` (Assignment 007 squash merge). New work in a feature branch remains unmerged even when its tests pass.
 
 | Area | State | Evidence / limitations |
 |---|---|---|
@@ -11,7 +11,8 @@ This is a short, evidence-based handoff, not a replacement for the authoritative
 | Accounts and sessions (004B.1) | Merged | Discord/Google adapters, sessions, account UI; real consent/deployment verification remains separate |
 | Windows startup automation (005) | Merged | Dependency preparation and preflight; shared packages require restart |
 | GitHub Actions CI (006 / Issue #1) | Merged | Application and PostgreSQL checks; owner configures branch protection |
-| Local issue-to-draft-PR workflow (007 / Issue #2) | In review, unmerged | [Draft PR #5](https://github.com/MightyMulligan-ops/strategy-game/pull/5), `issue/2-codex-workflow`; metadata automation becomes live only after owner merge |
+| Local issue-to-draft-PR workflow (007 / Issue #2) | Merged | [PR #5](https://github.com/MightyMulligan-ops/strategy-game/pull/5), `963869a`; local sessions and metadata-only automation |
+| Lobby contracts and documentation (004B.2A / Issue #7) | In progress, unmerged | `issue/7-lobby-contracts`; schemas/tests/docs only, no working lobbies |
 | Match authorization, command APIs, scheduler | Planned | Next Phase 0B work; account authentication does not grant match permissions |
 | Map, gameplay, leadership, Military Supplies | Planned | Rules remain in GAME_DESIGN.md; no claim of implemented gameplay |
 

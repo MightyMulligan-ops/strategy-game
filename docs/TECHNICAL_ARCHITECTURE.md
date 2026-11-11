@@ -208,6 +208,8 @@ Do not infer policies for joins, elimination, surrender, an empty active roster,
 
 Likewise, no gameplay phase order, movement path/leader validation, attack legality, combat formula, resource reservation, or same-stack conflicting-order policy has been implemented. Existing leadership, supply, and economy rules remain authoritative and will be applied by later domain modules.
 
+The later 004B.2A lobby specification in section 10.1 defines pre-start public joining/leaving separately. It adds contracts only and does not change this fixed-roster turn engine or implement in-match joins, surrender, or elimination.
+
 ### 8.7 Empty-turn resolution foundation (Assignment 003)
 
 The server-only schema version 1 contracts are:
@@ -302,6 +304,16 @@ Cookies are host-only, HTTP-only, SameSite=Lax, Secure on HTTPS, and use the `__
 The additive `202611100002_authentication` migration preserves the prior game schema and custom SQL constraints. The live suite now includes six account/session persistence tests in addition to the eleven existing tests. HTTP/provider unit tests use mocks, including signed Google ID tokens with invalid-claim/signature rejection. Real provider consent and production HTTPS/proxy behavior still require deployment verification. Configuration, endpoint details, rate limits, and deferred operational/product decisions are in [AUTHENTICATION.md](AUTHENTICATION.md). Authentication alone supplies no match authorization or game-data endpoints.
 
 ## 10. Multiplayer and security
+
+### 10.1 Public lobby contract boundary (004B.2A)
+
+`packages/shared-types/src/lobby.ts` and its public barrel add strict version-1 create/list/view/join/leave/start request/response schemas without changing existing account, turn, snapshot, or repository contracts. [MATCH_LOBBIES.md](MATCH_LOBBIES.md) specifies the approved public, pre-start lifecycle. Capacity is 2–40 including the host; start requires the host and at least two participants. `DRAFT` is reserved and unsupported; only `OPEN` admits new members, and the roster is fixed after `STARTED`.
+
+Lobby participants expose lobby-scoped IDs and registered usernames only. Summaries contain approved metadata; detailed views add the public roster and a session-derived viewer projection. Schemas check occupancy, host presence, uniqueness, derived timing categories, and permission consistency. Requests contain no acting identity, host, roster, or permission fields. Era/scenario selectors and private access are rejected. Public lobby viewing grants no spectator or game-state access.
+
+The pure `lobbyActionRequestSchema` factory validates a request against trusted, session-bound lobby metadata; it executes no command. A future server must authenticate and require a username, derive the viewer/membership mapping, enforce current-state checks atomically, commit, and return only an authorized projection. Neither client parsing nor response flags replace that authorization. No endpoints, new Prisma models/migrations, lobby persistence, UI, or WebSockets are introduced. Current `MatchRepository.createMatch` and the fixed-roster engine remain internal and unchanged; their integration is later work.
+
+### 10.2 Existing multiplayer foundations
 
 - Test two-player interactions early, not only after single-player systems are complete.
 - Enforce authorization on every game command.
