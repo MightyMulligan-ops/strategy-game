@@ -39,7 +39,7 @@ Use a **server-authoritative modular monolith** initially. Do not introduce micr
 - `docs/ATWAR_REFERENCE.md` — reference observations, sources, and unresolved verification items.
 - `docs/AUTHENTICATION.md` — OAuth/session behavior, endpoints, provider setup, and security limitations.
 - `docs/CI.md` — GitHub Actions jobs, failure diagnostics, and recommended required checks for `main`.
-- `docs/MATCH_LOBBIES.md` — approved lobby rules and strict versioned contracts; lobby APIs, persistence, and UI remain unimplemented.
+- `docs/MATCH_LOBBIES.md` — approved lobby rules, versioned contracts, and internal PostgreSQL lobby persistence; APIs, UI, and starting matches remain unimplemented.
 - `docs/CODEX_WORKFLOW.md` — human-started Windows VS Code issue-to-draft-PR workflow and metadata labels.
 - `docs/DEVELOPMENT_STATUS.md` — evidence-based progress handoff and update policy.
 - `AGENTS.md` — instructions for AI coding agents and contributors.

@@ -1,6 +1,6 @@
 # Multiplayer lobby contracts (Assignment 004B.2A / Issue #7)
 
-**Scope:** Approved rules and strict version-1 transport contracts. There are no lobby endpoints, UI, database models/migrations, WebSockets, matchmaking, or working create/join/start operations. Existing authentication, turn resolution, and match persistence are unchanged.
+**Scope:** Approved rules and strict version-1 transport contracts (004B.2A), plus internal PostgreSQL create/join/leave/read persistence (004B.2B / Issue #9). There are no lobby endpoints, UI, WebSockets, matchmaking, or start/Turn 1 operations. Existing authentication and deterministic turn behavior are unchanged. See [database documentation](../database/README.md) for storage, locks, migration safety, and safe projections.
 
 ## Access and lifecycle
 
@@ -15,12 +15,12 @@
 |---|---|---|---|
 | No lobby | Create | Authenticated creator with username; valid settings | `OPEN`, host is the sole participant |
 | `OPEN` | New join | Caller is not a participant; at least one available slot | Caller becomes a non-host participant |
-| `OPEN` or `RUNNING` | Duplicate join | Caller already belongs to the roster | `ALREADY_JOINED`; same membership, no new slot consumed |
+| `OPEN` | Duplicate join | Caller already belongs to the roster | `ALREADY_JOINED`; same membership, no new slot consumed |
 | `OPEN` | Leave | Caller is a non-host participant | Caller is no longer in the roster; host remains |
 | `OPEN` | Start | Caller is the host; at least two participants | `RUNNING`; joining/leaving locked |
 | `OPEN` or `RUNNING` | List/view | Authenticated caller with username | Authorized lobby metadata only |
 
-Duplicate joining is idempotent, including an existing member retrying when the lobby is full. A retry can acknowledge existing membership after start without changing the roster. It cannot admit a late participant. Durable request receipts, start/leave retry semantics, HTTP status mapping, and transaction implementation remain later API work. Membership/capacity checks and start must eventually use one server serialization boundary so concurrent requests cannot overfill or alter a started roster. No concurrency implementation is introduced by these schemas.
+Duplicate joining is idempotent while OPEN, including an existing member retrying when the lobby is full. **Issue #9 / owner clarification supersedes the earlier after-start retry policy:** every RUNNING join is rejected, including duplicate retries. The version-1 shared contracts remain unchanged and can structurally represent such an acknowledgement; the repository intentionally enforces the stricter approved lifecycle rule. Durable request receipts, start/leave retry semantics, and HTTP status mapping remain later API work. Membership/capacity writes now serialize on the parent Match row in PostgreSQL; future start must use that same boundary so concurrent requests cannot alter a started roster. These schemas themselves still execute no commands.
 
 ## Fixed settings and timing
 
@@ -54,7 +54,7 @@ A detail additionally contains the public roster and the caller's session-derive
 | `PARTICIPANT` | No; already a member | Only while `OPEN` | No |
 | `NON_PARTICIPANT` | Only while `OPEN` with room | No | No |
 
-All flags are false after `RUNNING`. Existing-membership join acknowledgements remain possible without a new join permission. Viewing a public lobby's settings/roster confers no authorization to observe its turns, drafts, map, units, economy, or hidden state. Spectator and fog-of-war policies remain unresolved.
+All flags are false after `RUNNING`; the repository also rejects existing-membership join acknowledgements after start. Viewing a public lobby's settings/roster confers no authorization to observe its turns, drafts, map, units, economy, or hidden state. Spectator and fog-of-war policies remain unresolved.
 
 Strict schemas reject unknown fields recursively. Summaries/details reject OAuth subjects, emails, provider mappings/tokens, session data, internal account IDs, drafts, snapshots, seeds, and authoritative game state. The future server must explicitly build the safe projection before transmission; it must not send a private record and rely on UI hiding. Schema validation cannot prove authentication, ownership, freshness, or that two IDs refer to the same real account.
 
@@ -75,7 +75,7 @@ Request bodies accept no acting player/account ID, username, host field, permiss
 
 Context-free requests validate payload shape. `lobbyActionRequestSchema(action, trustedDetail)` additionally checks the target lobby and the current viewer's join/leave/start eligibility, including host-only start and minimum occupancy. It parses a **server-constructed, current, session-bound** detail, never a client-supplied context. It is a pure schema factory: no command execution, membership mutation, persistence, network, clock, or game-state transition occurs. Successful parsing is not a durable acknowledgement. A later server must recheck under its transaction boundary, authorize the session, apply the action, commit, and then return the appropriate response.
 
-The existing `GameConfig`, `GamePlayer`, account schemas, authoritative snapshots, resolver, and repository are preserved. Old engine/internal fixtures with one active player continue to validate; the 2–40 capacity and two-participant start constraints apply to the new lobby boundary. Mapping lobby lifecycle/identifiers into persisted matches and turn orchestration is future implementation work.
+The existing `GameConfig`, `GamePlayer`, account schemas, authoritative snapshots, resolver, and `MatchRepository` are preserved. Old engine/internal fixtures with one active player continue to validate; the 2–40 capacity and two-participant start constraints apply to the new lobby boundary. `LobbyRepository` now maps trusted identities to persisted match-local membership and explicitly projects public results. HTTP authentication/authorization and start/turn orchestration remain future work; creation initializes no world or deadline.
 
 ## Future decisions
 

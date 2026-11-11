@@ -5,3 +5,5 @@ export { PersistenceError } from "./errors.js";
 export { AuthRepository } from "./auth-repository.js";
 export { AuthError } from "./auth-types.js";
 export type { AuthPersistence, OAuthAttemptData, SessionWrite } from "./auth-types.js";
+export { LobbyRepository, LobbyError } from "./lobby-repository.js";
+export type { LobbyErrorCode } from "./lobby-repository.js";

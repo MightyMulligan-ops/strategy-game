@@ -1,6 +1,6 @@
 # Development status
 
-This is a short, evidence-based handoff, not a replacement for the authoritative rules or roadmap. The baseline below is checked against `main` at `963869a` (Assignment 007 squash merge). New work in a feature branch remains unmerged even when its tests pass.
+This is a short, evidence-based handoff, not a replacement for the authoritative rules or roadmap. The baseline below is checked against `main` at `b0164b7` (PR #8 squash merge). New work in a feature branch remains unmerged even when its tests pass.
 
 | Area | State | Evidence / limitations |
 |---|---|---|
@@ -12,7 +12,8 @@ This is a short, evidence-based handoff, not a replacement for the authoritative
 | Windows startup automation (005) | Merged | Dependency preparation and preflight; shared packages require restart |
 | GitHub Actions CI (006 / Issue #1) | Merged | Application and PostgreSQL checks; owner configures branch protection |
 | Local issue-to-draft-PR workflow (007 / Issue #2) | Merged | [PR #5](https://github.com/MightyMulligan-ops/strategy-game/pull/5), `963869a`; local sessions and metadata-only automation |
-| Lobby contracts and documentation (004B.2A / Issue #7) | In review, unmerged | [Draft PR #8](https://github.com/MightyMulligan-ops/strategy-game/pull/8), `issue/7-lobby-contracts`; review follow-up aligns the active state to RUNNING and documents deadline-overflow checks; no working lobbies |
+| Lobby contracts and documentation (004B.2A / Issue #7) | Merged | [PR #8](https://github.com/MightyMulligan-ops/strategy-game/pull/8), `b0164b7`; lifecycle, privacy, capacity, deadline-overflow contracts |
+| PostgreSQL lobby persistence (004B.2B / Issue #9) | In review, unmerged | [Draft PR #10](https://github.com/MightyMulligan-ops/strategy-game/pull/10), `issue/9-lobby-persistence`; additive SQL reviewed and tested only in new isolated PostgreSQL 17 databases; safe transactional repository, 21 lobby tests / 38 total live tests; no API/UI or Turn 1 |
 | Match authorization, command APIs, scheduler | Planned | Next Phase 0B work; account authentication does not grant match permissions |
 | Map, gameplay, leadership, Military Supplies | Planned | Rules remain in GAME_DESIGN.md; no claim of implemented gameplay |
 
@@ -27,4 +28,4 @@ This is a short, evidence-based handoff, not a replacement for the authoritative
 
 ## Next planned development slice
 
-After this contract handoff, select a focused Phase 0B issue for persisted lobby/match membership and session-authorized command handling, then durable acknowledgement/retry behavior and offline scheduling/recovery. Implement against [MATCH_LOBBIES.md](MATCH_LOBBIES.md), and resolve the documented open decisions before affected gameplay work. See [DEVELOPMENT_ROADMAP.md](DEVELOPMENT_ROADMAP.md) and [CODEX_WORKFLOW.md](CODEX_WORKFLOW.md).
+Review Issue #9's internal persistence before session-authorized lobby API work. Match start/runtime-pin storage/world initialization need a later approved slice that preserves fixed settings and checks safe deadline arithmetic. Then address command acknowledgements/retries and offline scheduling/recovery. The owner clarified that every RUNNING join retry fails, including duplicate membership acknowledgements; shared schemas remain unchanged. Implement against [MATCH_LOBBIES.md](MATCH_LOBBIES.md) and resolve open decisions before affected gameplay work. See [DEVELOPMENT_ROADMAP.md](DEVELOPMENT_ROADMAP.md) and [CODEX_WORKFLOW.md](CODEX_WORKFLOW.md).

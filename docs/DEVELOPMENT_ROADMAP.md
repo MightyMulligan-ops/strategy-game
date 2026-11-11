@@ -87,14 +87,25 @@ Account authentication is implemented independently of match authorization. Phas
 
 ## Phase 0B.2A — Multiplayer lobby contracts (Issue #7)
 
-**Scope:** Approved public lobby rules and strict versioned contracts only. Implementation is tracked as unmerged work in `DEVELOPMENT_STATUS.md`; do not mark this milestone delivered before human merge.
+**Scope:** Approved public lobby rules and strict versioned contracts only. Merged in PR #8 as `b0164b7`; internal persistence follows below.
 
-- [ ] Add MATCH_LOBBIES.md, public request/response schemas, and at least 40 focused contract tests.
-- [ ] Validate 2–40 capacity, host/roster consistency, registered-user viewer permissions, safe public projections, and Quick/Casual timing categories.
-- [ ] Document immutable settings, OPEN-only admission, idempotent joins, host-only start with at least two participants, and fixed membership after start.
-- [ ] Preserve existing authentication, turn resolution, persistence, and runtime behavior.
+- [x] Add MATCH_LOBBIES.md, public request/response schemas, and at least 40 focused contract tests.
+- [x] Validate 2–40 capacity, host/roster consistency, registered-user viewer permissions, safe public projections, and Quick/Casual timing categories.
+- [x] Document immutable settings, OPEN-only admission, idempotent joins, host-only start with at least two participants, and fixed membership after start.
+- [x] Preserve existing authentication, turn resolution, persistence, and runtime behavior.
 
 **Exit criteria:** Contract checks and docs pass review/CI and are merged. No working lobby API/UI or database changes are implied. Follow-up implementation must add session-bound membership authorization, atomic persistence, and command handling before real creation/join/start is exposed. Private/invite-only access, spectators, late joining, host transfer/cancellation, teams, victory/duration, and starting-country/resource rules remain future decisions.
+
+## Phase 0B.2B — PostgreSQL lobby persistence (Issue #9)
+
+**Scope:** Internal create/join/leave/detail/list storage only. Implemented on `issue/9-lobby-persistence`, unmerged; retain unchecked delivery items until human merge.
+
+- [ ] Extend existing models with OPEN/RUNNING, nullable legacy host/metadata, immutable lobby settings, and unique account membership.
+- [ ] Review one additive SQL migration, preflight duplicate legacy memberships, and verify preservation on isolated PostgreSQL 17 databases.
+- [ ] Serialize membership/capacity/lifecycle checks on the parent Match row, support leave/rejoin, and expose only safe public projections.
+- [ ] Pass lobby integration tests and all existing checks, preserving account and deterministic turn behavior.
+
+**Exit criteria:** Reviewed PR merged, with no existing records deleted or invented historical settings. This branch has passed local verification; see `DEVELOPMENT_STATUS.md` and the draft PR for evidence. No endpoints, UI, world, or Turn 1 initialization. The owner clarified that all RUNNING joins, including duplicate retries, must fail. Next slice: session-authorized lobby APIs and later approved start/runtime-pin/world orchestration; do not mutate immutable configuration or treat an empty fixture as playable content.
 
 ## Phase 1 — Map and game shell
 

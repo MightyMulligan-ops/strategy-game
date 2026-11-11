@@ -12,6 +12,7 @@ const executable = fileURLToPath(new URL(migrate
 const arguments_ = migrate
   ? ["migrate", "deploy", "--config", fileURLToPath(new URL("../database/prisma.config.ts", import.meta.url))]
   : ["run", ...readdirSync(new URL("../database/tests/", import.meta.url))
+    // Includes lobby, auth, and turn persistence; new suites need no fixed list.
     .filter((name) => name.endsWith(".integration.test.ts")).sort().map((name) => `database/tests/${name}`),
     ...process.argv.slice(2)];
 const result = spawnSync(process.execPath, [executable, ...arguments_], {
