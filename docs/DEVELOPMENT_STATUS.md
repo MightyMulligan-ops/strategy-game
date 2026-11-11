@@ -16,7 +16,7 @@ This is a short, evidence-based handoff, not a replacement for the authoritative
 | PostgreSQL lobby persistence (004B.2B / Issue #9) | Merged | [PR #10](https://github.com/MightyMulligan-ops/strategy-game/pull/10), `df975a2`; migration is not approved for the existing development DB; 21 lobby tests / 38 repository tests |
 | Authenticated lobby REST API (004B.2C / Issue #11) | Merged | [PR #12](https://github.com/MightyMulligan-ops/strategy-game/pull/12), `5cbd901`; five session-bound operations, safe envelopes and 45 live tests; existing development migration remains unapproved |
 | Sovereign account/lobby UI and proxy (004B.2D / Issue #13) | Merged | [PR #14](https://github.com/MightyMulligan-ops/strategy-game/pull/14), `9a45f27`; branded account/lobby UI, original assets and same-origin proxy |
-| Loopback local test sign-in (004B.2E / Issue #15) | In progress, unmerged | `issue/15-local-test-sign-in`; explicit development/loopback gates, isolated fixture identities, normal sessions/CSRF/lobby authorization; memory/UI security tests; existing dev/test/sandbox databases never connected |
+| Loopback local test sign-in (004B.2E / Issue #15) | In review, unmerged | [Draft PR #16](https://github.com/MightyMulligan-ops/strategy-game/pull/16), `issue/15-local-test-sign-in`; explicit development/loopback gates, isolated fixture identities, normal sessions/CSRF/lobby authorization; 380 unit tests passed; existing dev/test/sandbox databases never connected |
 | Match authorization, command APIs, scheduler | Planned | Next Phase 0B work; account authentication does not grant match permissions |
 | Map, gameplay, leadership, Military Supplies | Planned | Rules remain in GAME_DESIGN.md; no claim of implemented gameplay |
 
