@@ -1,10 +1,10 @@
-# Strategy Game
+# Sovereign
 
 A browser-based, multiplayer 2D grand strategy game inspired by the broad gameplay patterns of atWar, with an original implementation, original assets, and an extensible rules architecture.
 
 ## Project status
 
-**Pre-production / foundation.** The pnpm workspace has React/Vite and Fastify applications, validated turn/order contracts, a pure turn lifecycle, deterministic empty-turn resolution, a movement-queue planning helper, PostgreSQL/Prisma persistence, Discord/Google accounts/sessions, and authenticated lobby REST operations. Authentication requires local provider configuration; it is disabled by default. There is no playable game, match start, scheduler, or realtime transport. Live PostgreSQL behavior requires the separate integration suite below.
+**Pre-production / foundation.** The pnpm workspace has a Sovereign-branded login/account and multiplayer lobby browser, React/Vite and Fastify applications, validated turn/order contracts, a pure turn lifecycle, deterministic empty-turn resolution, movement-queue planning, PostgreSQL/Prisma persistence and authenticated lobby APIs. Authentication requires provider configuration; it is disabled by default. The existing development database still lacks the unapproved lobby migration, so live lobby UI testing there remains blocked pending separate owner approval. No playable game, match start, scheduler or realtime transport is implemented.
 
 ## Product direction
 
@@ -40,7 +40,8 @@ Use a **server-authoritative modular monolith** initially. Do not introduce micr
 - `docs/AUTHENTICATION.md` — OAuth/session behavior, endpoints, provider setup, and security limitations.
 - `docs/CI.md` — GitHub Actions jobs, failure diagnostics, and recommended required checks for `main`.
 - `docs/MATCH_LOBBIES.md` — approved lobby rules, versioned contracts, and PostgreSQL lobby persistence.
-- `docs/LOBBY_API.md` — authenticated lobby REST endpoints, CSRF/origin safeguards, errors, isolated test prerequisites; UI and match start remain future work.
+- `docs/LOBBY_API.md` — authenticated lobby REST endpoints, CSRF/origin safeguards, errors and isolated test prerequisites; match start remains future work.
+- `docs/LOBBY_UI.md` — Sovereign account/lobby screens, same-origin API integration, verified asset inventory, accessibility, tests and live-database limitations.
 - `docs/CODEX_WORKFLOW.md` — human-started Windows VS Code issue-to-draft-PR workflow and metadata labels.
 - `docs/DEVELOPMENT_STATUS.md` — evidence-based progress handoff and update policy.
 - `AGENTS.md` — instructions for AI coding agents and contributors.
@@ -124,7 +125,7 @@ Development uses `127.0.0.1:5433`; tests use `127.0.0.1:5434`. Both have persist
 
 ### 6. Review and apply approved migrations
 
-**Issue #11 safety:** PR #10's `202611110001_lobby_persistence` migration is merged but has not been approved for the owner's existing development database. The migration examples below apply only to a new isolated database or a separately approved rollout. Do not apply the pending chain to existing development/test data during this assignment. See [isolated API test prerequisites](docs/LOBBY_API.md#prerequisites-and-database-safety).
+**Issue #13 safety:** PR #10's `202611110001_lobby_persistence` migration is merged but has not been approved for the owner's existing development database. The migration examples below apply only to a new isolated database or a separately approved rollout. Do not apply the pending chain to existing development/test data during this assignment. See [isolated API test prerequisites](docs/LOBBY_API.md#prerequisites-and-database-safety).
 
 ```powershell
 pnpm db:migrate

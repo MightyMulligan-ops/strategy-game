@@ -1,4 +1,31 @@
-:root { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #203c33; background: #f6f4ed; font-synthesis: none; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+:root {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --gold: #D4AF37; --silver: #C9CDD6; --navy: #0E1A26; --charcoal: #0A0F16; --white: #E8EAEF;
+  --border: #344250;
+  color: var(--white); background: var(--charcoal); color-scheme: dark;
+  font-synthesis: none; text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+}
 body { margin: 0; min-width: 320px; }
 * { box-sizing: border-box; }
 p { margin-top: 0; }
+button, input, select { font: inherit; }
+button { cursor: pointer; min-height: 44px; border: 1px solid var(--border); border-radius: 4px; background: var(--navy); color: var(--white); padding: 11px 16px; transition: border-color .15s, background-color .15s; }
+button:hover:enabled { border-color: var(--gold); background: #1b2b3b; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--gold); outline-offset: 4px; }
+button.primary { background: var(--gold); border-color: var(--gold); color: var(--charcoal); font-weight: 700; }
+button.primary:hover:enabled { background: #e2c466; }
+label { display: block; font-weight: 600; font-size: 14px; margin: 18px 0 9px; }
+input, select { width: 100%; min-height: 46px; border: 1px solid #536170; border-radius: 4px; padding: 12px; color: var(--white); background: var(--charcoal); }
+input::placeholder { color: #a0a9b6; }
+fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+h1, h2, h3 { overflow-wrap: anywhere; }
+h1, h2 { font-family: Georgia, 'Times New Roman', serif; font-weight: 400; }
+.muted { color: var(--silver); line-height: 1.65; }
+.small { font-size: 12px; }
+.eyebrow { color: var(--gold); font-size: 11px; font-weight: 650; letter-spacing: .16em; text-transform: uppercase; margin: 0 0 16px; }
+.development-label { color: var(--silver); font-size: 11px; letter-spacing: .08em; line-height: 1.6; text-transform: uppercase; }
+.notice { color: var(--gold); font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; } }

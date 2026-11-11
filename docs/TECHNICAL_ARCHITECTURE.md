@@ -331,7 +331,13 @@ Every lobby operation resolves the acting identity only from the persisted signe
 
 Live verification now discovers repository and server integration tests through one shared runner/CI guard. Seven real cookie/session/HTTP/PostgreSQL tests bring the live total to 45 across four files, all required to execute without skips. Local migration prerequisites were applied only in a new verified isolated PostgreSQL 17 container; the existing development/test databases were untouched. No schema/migration, frontend/proxy, match start, world, Turn 1 or scheduler changes are introduced. Precise endpoint/status tables, privacy, current proxy limitations and the unapproved development migration are documented in [LOBBY_API.md](LOBBY_API.md).
 
-### 10.4 Existing multiplayer foundations
+### 10.4 Sovereign lobby/account client (004B.2D / Issue #13)
+
+`App.tsx` keeps account/session bootstrap, login/onboarding/profile/link/logout and a single shared mutation guard. Registered accounts mount `LobbyBrowser.tsx`; `lobby-api.ts` validates version-1 responses and fetches a fresh session CSRF token for each explicit lobby POST. Reads are cancellable; mutations are not retried automatically. Success and membership/lifecycle failures trigger authoritative list/detail refreshes. Viewer flags guide controls, while the unchanged backend remains authoritative. Vite proxies `/auth` and `/api` with the existing Origin and no CORS exception.
+
+Approved Sovereign palette tokens and the original emblem/wordmark unify account and lobby screens. All 15 tracked assets move byte-identically into `apps/web/public/assets/branding/`, served by default Vite routing; no artwork substitution or custom publicDir is used. React DOM tests use one pinned test-only jsdom dependency. Local Chromium checks use an isolated mock HTTP backend for asset/proxy/layout/navigation checks, not existing databases. Backend/auth, gameplay contracts and migrations remain unchanged. Live UI/database and real-provider consent verification remain pending owner-approved environment preparation. See [LOBBY_UI.md](LOBBY_UI.md).
+
+### 10.5 Existing multiplayer foundations
 
 - Test two-player interactions early, not only after single-player systems are complete.
 - Enforce authorization on every game command.

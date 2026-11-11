@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { SyntheticEvent } from 'react'
 import { AuthenticatedPlayerSchema } from '@strategy-game/shared-types'
 import type { AuthenticatedPlayer, OAuthProvider } from '@strategy-game/shared-types'
 import './App.css'
+import LobbyBrowser from './LobbyBrowser'
 
 function App() {
   const [user, setUser] = useState<AuthenticatedPlayer | null>(null)
@@ -12,6 +13,31 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
+  const actionLock = useRef(false)
+  const sessionRead = useRef<AbortController | null>(null)
+  const beginLobbyAction = useCallback(() => {
+    if (actionLock.current) return false
+    actionLock.current = true; setBusy(true); return true
+  }, [])
+  const endLobbyAction = useCallback(() => { actionLock.current = false; setBusy(false) }, [])
+
+  const recheckAccount = useCallback(async () => {
+    sessionRead.current?.abort()
+    const controller = new AbortController(); sessionRead.current = controller
+    try {
+      const response = await fetch('/auth/me', { credentials: 'same-origin', cache: 'no-store', signal: controller.signal })
+      if (controller.signal.aborted) return
+      if (response.status === 401) setUser(null)
+      else if (response.ok) {
+        const profile = AuthenticatedPlayerSchema.parse((await response.json() as { user: unknown }).user)
+        if (!controller.signal.aborted) setUser(profile)
+      } else throw new Error('unavailable')
+      const token = await fetch('/auth/csrf', { credentials: 'same-origin', cache: 'no-store', signal: controller.signal })
+      if (!token.ok) throw new Error('unavailable')
+      const result = await token.json() as { csrfToken: string }
+      if (!controller.signal.aborted) { setCsrf(result.csrfToken); setMessage('Your account was refreshed. Sign in or choose a username if needed.') }
+    } catch { if (!controller.signal.aborted) setMessage('Unable to refresh your account. Please reload the page.') }
+  }, [])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -24,21 +50,27 @@ function App() {
         const available = await fetch('/auth/config', { signal: controller.signal, credentials: 'same-origin' })
         if (!available.ok) throw new Error('unavailable')
         const settings = await available.json() as { enabled: boolean; providers: OAuthProvider[] }
+        if (controller.signal.aborted) return
         setProviders(settings.providers.filter((provider) => provider === 'google' || provider === 'discord'))
         if (!settings.enabled) { setMessage('Sign-in is temporarily unavailable.'); return }
         // Sequence first visits so CSRF and identity share one browser cookie.
         const response = await fetch('/auth/csrf', { signal: controller.signal, credentials: 'same-origin' })
         if (!response.ok) throw new Error('unavailable')
-        setCsrf((await response.json() as { csrfToken: string }).csrfToken)
+        const token = (await response.json() as { csrfToken: string }).csrfToken
+        if (controller.signal.aborted) return
+        setCsrf(token)
         const profile = await fetch('/auth/me', { signal: controller.signal, credentials: 'same-origin' })
-        if (profile.ok) setUser(AuthenticatedPlayerSchema.parse((await profile.json() as { user: unknown }).user))
+        if (profile.ok) {
+          const player = AuthenticatedPlayerSchema.parse((await profile.json() as { user: unknown }).user)
+          if (!controller.signal.aborted) setUser(player)
+        }
         else if (profile.status !== 401) throw new Error('unavailable')
       } catch {
         if (!controller.signal.aborted) setMessage('Unable to connect. Please refresh and try again.')
       } finally { if (!controller.signal.aborted) setLoading(false) }
     }
     void load()
-    return () => controller.abort()
+    return () => { controller.abort(); sessionRead.current?.abort() }
   }, [])
 
   async function mutate(path: string, body: object = {}) {
@@ -47,42 +79,52 @@ function App() {
     }, body: JSON.stringify(body) })
   }
   async function connect(provider: OAuthProvider, linking: boolean) {
+    if (actionLock.current) return
+    actionLock.current = true
     setBusy(true); setMessage('')
     try {
       const response = await mutate(`/auth/${linking ? 'link' : 'login'}/${provider}`)
       if (!response.ok) throw new Error('failed')
       const result = await response.json() as { authorizationUrl: string }
       window.location.assign(result.authorizationUrl)
-    } catch { setBusy(false); setMessage('Unable to continue. Refresh the page and try again.') }
+    } catch { actionLock.current = false; setBusy(false); setMessage('Unable to continue. Refresh the page and try again.') }
   }
   async function chooseUsername(event: SyntheticEvent<HTMLFormElement>) {
-    event.preventDefault(); setBusy(true); setMessage('')
+    event.preventDefault()
+    if (actionLock.current) return
+    actionLock.current = true; setBusy(true); setMessage('')
     try {
       const response = await mutate('/auth/username', { username })
       if (response.status === 409) { setMessage('That username is unavailable. Choose another.'); return }
       if (!response.ok) throw new Error('failed')
       setUser(AuthenticatedPlayerSchema.parse((await response.json() as { user: unknown }).user))
     } catch { setMessage('Unable to save your username. Refresh and try again.') }
-    finally { setBusy(false) }
+    finally { actionLock.current = false; setBusy(false) }
   }
   async function logout(all: boolean) {
+    if (actionLock.current) return
+    actionLock.current = true
     setBusy(true)
     try {
       const response = await mutate(`/auth/${all ? 'logout-all' : 'logout'}`)
       if (!response.ok) throw new Error('failed')
       window.location.replace('/')
-    } catch { setBusy(false); setMessage('Unable to sign out. Please try again.') }
+    } catch { actionLock.current = false; setBusy(false); setMessage('Unable to sign out. Please try again.') }
   }
 
-  return <main className="auth-layout">
-    <section className="introduction" aria-labelledby="brand-title">
-      <span className="brand">STRATEGY GAME</span>
-      <div className="map-lines" aria-hidden="true"><span /><span /><span /></div>
-      <p className="eyebrow">A world of decisions</p>
-      <h1 id="brand-title">Every turn<br />starts with a plan.</h1>
-      <p className="intro-copy">Build your identity. Join the next chapter of an original multiplayer strategy game.</p>
-      <span className="development-label">In development</span>
-    </section>
+  const registered = !loading && !!user?.username
+  return <main>
+    <header className="masthead"><div className="brand-lockup"><img src="/assets/branding/emblem.svg" alt="" width="42" height="44" />
+      <img src="/assets/branding/wordmark.svg" alt="Sovereign" width="220" height="42" /></div><span className="eyebrow">Global Crown <span aria-hidden="true">/</span> In development</span></header>
+    <div className={registered ? 'registered-layout' : 'auth-layout'}>
+    {registered ? <LobbyBrowser busy={busy} onBegin={beginLobbyAction} onEnd={endLobbyAction} onSessionError={recheckAccount} /> :
+      <section className="introduction" aria-labelledby="brand-title">
+        <img className="hero-emblem" src="/assets/branding/emblem.svg" alt="Gold crown over a circular globe" width="300" height="310" />
+        <p className="eyebrow">A world of decisions</p>
+        <h1 id="brand-title">Your place<br />in the world.</h1>
+        <p className="intro-copy">An original multiplayer strategy game.<br />Begin with an identity. Build what comes next.</p>
+        <span className="development-label">Plan together. Play your own hand.</span>
+      </section>}
     <section className="account-panel" aria-label="Player account" aria-busy={loading || busy}>
       {loading ? <p role="status">Loading your account…</p> : !user ? <>
         <p className="eyebrow">Welcome, commander</p>
@@ -97,7 +139,7 @@ function App() {
       </> : <>
         <p className="eyebrow">Your player profile</p>
         <h2>{user.username ? `Welcome, ${user.username}` : 'Choose your call sign'}</h2>
-        {user.username ? <p className="muted">Your account is ready. Match play is coming next.</p> :
+        {user.username ? <p className="muted">Your identity is ready. Explore the public assembly.</p> :
           <form onSubmit={(event) => void chooseUsername(event)}>
             <label htmlFor="username">In-game username</label>
             <input id="username" name="username" autoComplete="username" required minLength={3} maxLength={24}
@@ -118,6 +160,7 @@ function App() {
       </>}
       <p role="status" className="notice" aria-live="polite">{message || (busy ? 'Please wait…' : '')}</p>
     </section>
+    </div>
   </main>
 }
 
