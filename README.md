@@ -41,6 +41,7 @@ Use a **server-authoritative modular monolith** initially. Do not introduce micr
 - `docs/LOCAL_TEST_LOGIN.md` — opt-in loopback fixture login, isolation safeguards and owner-only sandbox/two-browser launch steps; no automatic database access or preparation.
 - `docs/CI.md` — GitHub Actions jobs, failure diagnostics, and recommended required checks for `main`.
 - `docs/MATCH_LOBBIES.md` — approved lobby rules, versioned contracts, and PostgreSQL lobby persistence.
+- `docs/WORLD_GENERATION.md` — 005B.1 pure seeded territory generator, versioned world specification, starting guarantees and deferred integration; no persisted or visible match world yet.
 - `docs/LOBBY_API.md` — authenticated lobby endpoints, readiness/start rules, CSRF/origin safeguards and isolated test prerequisites.
 - `docs/LOBBY_UI.md` — Sovereign account/lobby screens, same-origin API integration, verified asset inventory, accessibility, tests and live-database limitations.
 - `docs/CODEX_WORKFLOW.md` — human-started Windows VS Code issue-to-draft-PR workflow and metadata labels.

@@ -142,15 +142,25 @@ Account authentication is implemented independently of match authorization. Phas
 
 ## Phase 0B.2F — Lobby readiness and host start (005A / Issue #17)
 
-**Scope:** Per-participant readiness and atomic host-only OPEN→RUNNING transition. Implemented on `issue/17-lobby-readiness-start`; delivery remains unchecked until human merge.
+**Scope:** Per-participant readiness and atomic host-only OPEN→RUNNING transition. Merged in PR #18 as `280b7fa`.
 
-- [ ] Add default-false lobby readiness without changing per-turn Ready or existing migrations.
-- [ ] Validate host, at least two active players and unanimous readiness under the membership lock; repeated host start returns ALREADY_STARTED.
-- [ ] Add strict session/Origin/CSRF-protected ready/start APIs and authoritative lobby UI, preserving authentication and membership rules.
-- [ ] Verify authorization, reset/rejoin/leave, races and retry behavior; preserve duration and state version without world/turn/deadline initialization.
-- [ ] Review offline additive SQL; test only in disposable CI; document separately approved owner-only sandbox acceptance.
+- [x] Add default-false lobby readiness without changing per-turn Ready or existing migrations.
+- [x] Validate host, at least two active players and unanimous readiness under the membership lock; repeated host start returns ALREADY_STARTED.
+- [x] Add strict session/Origin/CSRF-protected ready/start APIs and authoritative lobby UI, preserving authentication and membership rules.
+- [x] Verify authorization, reset/rejoin/leave, races and retry behavior; preserve duration and state version without world/turn/deadline initialization.
+- [x] Review offline additive SQL; test only in disposable CI; document separately approved owner-only sandbox acceptance.
 
 **Exit criteria:** Reviewed draft PR merged after all checks. Existing databases remain untouched; sandbox SQL application is a separate owner approval. No map generation, gameplay execution, scheduler, merge or deployment is implemented. See [MATCH_LOBBIES.md](MATCH_LOBBIES.md), [LOBBY_API.md](LOBBY_API.md) and [LOCAL_TEST_LOGIN.md](LOCAL_TEST_LOGIN.md).
+
+## Milestone 005B — Procedural world and read-only map (parent Issue #19)
+
+The owner approved three smaller review phases. Only **005B.1 / Issue #20** is authorized in the current task. Its delivery stays unchecked until human merge; the parent milestone remains open.
+
+- [ ] **005B.1:** Versioned authoritative world contracts and pure deterministic generator; seeded integer geometry, adjacency/terrain, separate starting fixtures and measurable local equality; tests for 2/4/10/40 players and all supported sizes. No database, API, UI or start wiring. See [WORLD_GENERATION.md](WORLD_GENERATION.md).
+- [ ] **005B.2:** Additive persistence, atomic world initialization on start, participant-only API and minimal read-only map/inspector; retry/concurrency/failure/reload tests. Separate owner authorization required.
+- [ ] **005B.3:** Explicit idempotent legacy initialization and remaining map/acceptance hardening. Never silently initialize existing RUNNING matches on read; separate owner authorization required.
+
+No phase authorizes Codex to access an existing development/test/sandbox database. Any future migration must be reviewed and tested only in fresh disposable CI; manual sandbox application requires separate owner approval. World initialization does not resolve a simultaneous turn or imply gameplay execution.
 
 ## Phase 1 — Map and game shell
 

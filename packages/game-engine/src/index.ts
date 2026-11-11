@@ -10,3 +10,4 @@ export { freezeTurnInput, resolveTurn, SIMULATION_VERSION } from "./resolution.j
 export type { TurnResolution } from "./resolution.js";
 export { groupMovementOrders, SEEDED_MOVEMENT_POLICY, seededSequentialPrecedence } from "./movement-queue.js";
 export type { MovementOrderGroup, MovementTieBreaker } from "./movement-queue.js";
+export { generateWorld } from "./world-generation.js";

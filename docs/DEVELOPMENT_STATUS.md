@@ -1,6 +1,6 @@
 # Development status
 
-This is a short, evidence-based handoff, not a replacement for the rules or roadmap. Baseline: `main` at `40c56a3` (PR #16 squash merge). Feature work remains unmerged even when its tests pass.
+This is a short, evidence-based handoff, not a replacement for the rules or roadmap. Baseline: `main` at `280b7fa` (PR #18 squash merge). Feature work remains unmerged even when its tests pass.
 
 | Area | State | Evidence / limitations |
 |---|---|---|
@@ -17,7 +17,8 @@ This is a short, evidence-based handoff, not a replacement for the rules or road
 | Authenticated lobby REST API (004B.2C / Issue #11) | Merged | [PR #12](https://github.com/MightyMulligan-ops/strategy-game/pull/12), `5cbd901`; five session-bound operations, safe envelopes and 45 live tests; existing development migration remains unapproved |
 | Sovereign account/lobby UI and proxy (004B.2D / Issue #13) | Merged | [PR #14](https://github.com/MightyMulligan-ops/strategy-game/pull/14), `9a45f27`; branded account/lobby UI, original assets and same-origin proxy |
 | Loopback local test sign-in (004B.2E / Issue #15) | Merged | [PR #16](https://github.com/MightyMulligan-ops/strategy-game/pull/16), `40c56a3`; explicit loopback/development gates, isolated fixtures and normal sessions/CSRF/lobby authorization |
-| Lobby readiness and host start (005A / Issue #17) | In review / unmerged | [Draft PR #18](https://github.com/MightyMulligan-ops/strategy-game/pull/18), `issue/17-lobby-readiness-start`; default-false readiness, serialized host/count/all-ready checks, lifecycle-only start and UI with Started-filter rediscovery; 409 local tests and two-context Chromium smoke passed. Initial [CI run 25](https://github.com/MightyMulligan-ops/strategy-game/actions/runs/43092036339) passed application checks and 61 integration tests across five files, zero skips, after migration on disposable PostgreSQL only; PR checks track subsequent commits. Existing databases remain untouched; readiness SQL is not approved for manual sandbox application |
+| Lobby readiness and host start (005A / Issue #17) | Merged | [PR #18](https://github.com/MightyMulligan-ops/strategy-game/pull/18), `280b7fa`; serialized readiness/host/count checks and lifecycle-only start, Open/Started discovery; no world or turn initialization |
+| Pure territory world foundation (005B.1 / Issue #20) | In review / unmerged | [Draft PR #21](https://github.com/MightyMulligan-ops/strategy-game/pull/21), `issue/20-deterministic-world-generator`, child of [#19](https://github.com/MightyMulligan-ops/strategy-game/issues/19); pure contracts/generator/docs only; 67 new focused tests and all 476 local unit tests passed, plus frozen install/build/typecheck/lint. The 61 live DB tests are intentionally skipped locally; PR checks provide disposable-CI regression evidence. Existing databases remain untouched. No persistence/API/UI/start integration |
 | Match authorization, command APIs, scheduler | Planned | Next Phase 0B work; account authentication does not grant match permissions |
 | Map, gameplay, leadership, Military Supplies | Planned | Rules remain in GAME_DESIGN.md; no claim of implemented gameplay |
 
@@ -32,4 +33,4 @@ This is a short, evidence-based handoff, not a replacement for the rules or road
 
 ## Next planned development slice
 
-Review Issue #17's readiness/start transaction, additive SQL and disposable-CI evidence. Separately approve any owner-only manual sandbox migration before following [two-browser acceptance](LOCAL_TEST_LOGIN.md#manual-two-browser-verification). Codex/CI must never connect to existing databases. Real OAuth consent/manual sandbox checks remain owner actions. Next: approve world/runtime-pin/Turn 1 initialization for lifecycle-started lobbies, including immutable settings and safe deadline arithmetic. Map generation, turn execution, scheduling and gameplay remain future work.
+Review the 005B.1 specification, seeded generator and precise local starting guarantees in [WORLD_GENERATION.md](WORLD_GENERATION.md). Parent Issue #19 remains open. 005B.2 (persistence/start/API/minimal map) and 005B.3 (explicit legacy initialization and acceptance hardening) require separate authorization. No existing database access is permitted. Runtime pins/Turn 1, turn execution, scheduling and gameplay remain future work; the pure generator is not integrated into match start or the browser.

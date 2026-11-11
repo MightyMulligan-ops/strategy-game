@@ -256,6 +256,14 @@ Dependency references should be scoped by player plus stable order ID, not by mu
 
 Before that feature ships, validate prerequisite existence, ownership, output type/quantity, cycles, and dependent-order legality in the same final draft. Queue reordering must not invalidate stable references. A prerequisite cancellation must identify/warn about affected dependent orders and prevent executable dangling references. The owner must choose blocked cancellation versus cascading cancellation and define failures at execution time; neither policy is selected or implemented here. These dependencies do not establish recruitment, attack, or cross-domain phase precedence.
 
+### 8.10 Procedural world foundation (005B.1 / Issue #20)
+
+The owner split milestone 005B (parent Issue #19) into three phases. Phase 1 adds only `game-engine/world-generation.ts` and versioned authoritative contracts in `shared-types/world.ts`, exposed through the existing server-only entry point. `generateWorld` is pure: explicit uint32 seed, 2–40-player roster and bounded region size produce deterministic rectangular territory geometry, a complete connected side-sharing graph, terrain and separate starting ownership/capital/city/empty-supply fixtures. Starting units remain empty. No new dependency, map package or application wiring is needed.
+
+`territory-grid-v1` pins integer geometry, seeded stream/draw order, canonical IDs/output, and reproducible local starting equality; it makes no full strategic-balance claim. Geometry, ownership and future geographic unit positions remain separate. Graph adjacency confers no movement permission. See [WORLD_GENERATION.md](WORLD_GENERATION.md) for exact algorithms, bounds, tradeoffs, failures and tests.
+
+This data is not a public DTO and does not widen the empty-world `GameSnapshot` or `empty-turn-v1` resolver. Existing match-start/readiness/authentication behavior remains unchanged. Phase 2 separately adds persistence, atomic start integration, authorized world projections and a minimal renderer; phase 3 handles explicitly invoked legacy initialization and acceptance hardening. No migration, database access, HTTP endpoint, UI or turn initialization occurs in phase 1.
+
 ## 9. Persistence and data
 
 PostgreSQL is the persistent store and Prisma is the schema/migration tool. Assignment 004A introduces the initial storage implementation; its follow-up passed the live PostgreSQL persistence suite.
