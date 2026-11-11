@@ -8,17 +8,17 @@
 - All supported lobbies are `PUBLIC`, discoverable by authenticated, registered users. Public discovery exposes lobby metadata, not game state or spectator access.
 - Creation makes the authenticated creator the host and first participant. New lobbies begin `OPEN`. Capacity is **2–40 total player slots, including the host**; one host can create a lobby, but at least two participants must be present to start.
 - Only `OPEN` lobbies admit new participants. Non-host participants may leave while `OPEN`. The host cannot leave before start. Only the host may start, and the roster must contain at least two participants.
-- Starting changes the lobby status to `STARTED` and fixes its roster. No new joining or leaving is permitted afterward. The existing engine's fixed active-roster behavior remains unchanged.
+- Starting changes the lobby status to `RUNNING` and fixes its roster. No new joining or leaving is permitted afterward. The existing engine's fixed active-roster behavior remains unchanged.
 - `DRAFT` is reserved for future use and rejected by the current public contracts. Cancellation, host transfer, completion states, and reopening need later decisions; no such command or status is added here.
 
 | Current state | Operation | Required trusted context | Result represented by the contracts |
 |---|---|---|---|
 | No lobby | Create | Authenticated creator with username; valid settings | `OPEN`, host is the sole participant |
 | `OPEN` | New join | Caller is not a participant; at least one available slot | Caller becomes a non-host participant |
-| `OPEN` or `STARTED` | Duplicate join | Caller already belongs to the roster | `ALREADY_JOINED`; same membership, no new slot consumed |
+| `OPEN` or `RUNNING` | Duplicate join | Caller already belongs to the roster | `ALREADY_JOINED`; same membership, no new slot consumed |
 | `OPEN` | Leave | Caller is a non-host participant | Caller is no longer in the roster; host remains |
-| `OPEN` | Start | Caller is the host; at least two participants | `STARTED`; joining/leaving locked |
-| `OPEN` or `STARTED` | List/view | Authenticated caller with username | Authorized lobby metadata only |
+| `OPEN` | Start | Caller is the host; at least two participants | `RUNNING`; joining/leaving locked |
+| `OPEN` or `RUNNING` | List/view | Authenticated caller with username | Authorized lobby metadata only |
 
 Duplicate joining is idempotent, including an existing member retrying when the lobby is full. A retry can acknowledge existing membership after start without changing the roster. It cannot admit a late participant. Durable request receipts, start/leave retry semantics, HTTP status mapping, and transaction implementation remain later API work. Membership/capacity checks and start must eventually use one server serialization boundary so concurrent requests cannot overfill or alter a started roster. No concurrency implementation is introduced by these schemas.
 
@@ -27,6 +27,8 @@ Duplicate joining is idempotent, including an existing member retrying when the 
 Version-1 `LobbySettings` contains a nonempty, already-trimmed `name`, `playerCapacity`, `turnDurationMs`, and literal `visibility: PUBLIC`. All settings are immutable after creation, including the name. There is no configuration-update request. Name validation is a transport convention, not a new gameplay balance rule; product payload/name-length limits remain to be decided before endpoints.
 
 Durations use the existing JSON-safe positive integer millisecond convention. They are not limited to the presets or named categories. Zero, fractions, unsafe integers, nonfinite numbers, and numeric strings are rejected. Existing `GameConfig` is not narrowed or extended.
+
+Accepting a duration in this shared contract does **not** guarantee it can be scheduled. Before committing a match/start, the future server must validate the trusted `openedAtMs` timestamp and compute `deadlineAtMs = openedAtMs + turnDurationMs` using safe-integer arithmetic. Require `Number.isSafeInteger(deadlineAtMs)` and a deadline later than opening; reject an unsupported deadline before committing any match/start state. For example, `Number.MAX_SAFE_INTEGER` is a valid duration, but adding it to `openedAtMs = 1` overflows the safe-integer range. The existing turn metadata schema rejects that deadline. This contracts-only assignment adds no scheduler, persistence change, or arbitrary duration cap; the approved categories/presets are unchanged.
 
 | Category | Inclusive turn-duration range |
 |---|---|
@@ -42,7 +44,7 @@ Era, map, scenario, teams, countries, starting resources, victory conditions, an
 
 `LobbyParticipant` contains only a lobby-scoped opaque `playerId` and a valid registered `username`. This ID is separate from a provider subject, session ID, account database record, or authoritative game identity mapping. The future server owns the mapping from the authenticated account to its lobby participant. It never accepts it from request bodies.
 
-A summary contains `schemaVersion`, `lobbyId`, settings, lifecycle, the public host record, participant count, available slots, and derived duration category. Count includes the host. `availableSlots` means slots currently available to new joiners: capacity minus participant count while `OPEN`, and zero after `STARTED`. Summaries do not include the roster or the requesting user's viewer projection.
+A summary contains `schemaVersion`, `lobbyId`, settings, lifecycle, the public host record, participant count, available slots, and derived duration category. Count includes the host. `availableSlots` means slots currently available to new joiners: capacity minus participant count while `OPEN`, and zero after `RUNNING`. Summaries do not include the roster or the requesting user's viewer projection.
 
 A detail additionally contains the public roster and the caller's session-derived `viewer` projection. IDs and case-insensitive registered usernames must be unique, the host must appear exactly once, and reported counts must match the roster. The caller's username must be registered; an existing participant's ID/username must match that roster entry. A non-participant has `playerId: null` and cannot masquerade as an existing username.
 
@@ -52,7 +54,7 @@ A detail additionally contains the public roster and the caller's session-derive
 | `PARTICIPANT` | No; already a member | Only while `OPEN` | No |
 | `NON_PARTICIPANT` | Only while `OPEN` with room | No | No |
 
-All flags are false after `STARTED`. Existing-membership join acknowledgements remain possible without a new join permission. Viewing a public lobby's settings/roster confers no authorization to observe its turns, drafts, map, units, economy, or hidden state. Spectator and fog-of-war policies remain unresolved.
+All flags are false after `RUNNING`. Existing-membership join acknowledgements remain possible without a new join permission. Viewing a public lobby's settings/roster confers no authorization to observe its turns, drafts, map, units, economy, or hidden state. Spectator and fog-of-war policies remain unresolved.
 
 Strict schemas reject unknown fields recursively. Summaries/details reject OAuth subjects, emails, provider mappings/tokens, session data, internal account IDs, drafts, snapshots, seeds, and authoritative game state. The future server must explicitly build the safe projection before transmission; it must not send a private record and rely on UI hiding. Schema validation cannot prove authentication, ownership, freshness, or that two IDs refer to the same real account.
 
@@ -67,7 +69,7 @@ All public exports live in `packages/shared-types/src/lobby.ts` and the existing
 | View | `ViewLobbyRequest`: version and lobby ID | `ViewLobbyResponse`: safe detail for the current authenticated caller |
 | Join | `JoinLobbyRequest`: version and lobby ID | `JoinLobbyResponse`: member detail plus `JOINED` or `ALREADY_JOINED`; a new member requires `OPEN` |
 | Leave | `LeaveLobbyRequest`: version and lobby ID | `LeaveLobbyResponse`: `OPEN` detail showing the caller as a non-participant |
-| Start | `StartLobbyRequest`: version and lobby ID | `StartLobbyResponse`: `STARTED` detail for the host with at least two participants |
+| Start | `StartLobbyRequest`: version and lobby ID | `StartLobbyResponse`: `RUNNING` detail for the host with at least two participants |
 
 Request bodies accept no acting player/account ID, username, host field, permission flag, roster, or state override. The operation will be selected by a future trusted transport adapter; this assignment chooses no REST paths. Strict error envelopes contain only a version and one enumerated safe code; they never carry raw exception details. Error precedence and HTTP mapping are not implemented.
 

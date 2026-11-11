@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  AuthenticatedPlayerSchema, GameConfigSchema, GamePlayerSchema,
+  AuthenticatedPlayerSchema, GameConfigSchema, GamePlayerSchema, TurnRecordSchema,
   LOBBY_TURN_DURATION_PRESETS_MS, classifyLobbyTurnDuration, lobbyActionRequestSchema,
   CreateLobbyRequestSchema, CreateLobbyResponseSchema, ListLobbiesRequestSchema, ListLobbiesResponseSchema,
   ViewLobbyRequestSchema, ViewLobbyResponseSchema, JoinLobbyRequestSchema, JoinLobbyResponseSchema,
@@ -26,8 +26,8 @@ function guest() {
 function participant() {
   return { ...opening(), viewer: { role: "PARTICIPANT", ...member, canJoin: false, canLeave: true, canStart: false } };
 }
-function started() {
-  return { ...opening(), status: "STARTED", availableSlots: 0,
+function running() {
+  return { ...opening(), status: "RUNNING", availableSlots: 0,
     viewer: { ...opening().viewer, canStart: false } };
 }
 function alone() {
@@ -53,6 +53,15 @@ describe("lobby creation and approved settings", () => {
   it.each([1, Number.MAX_SAFE_INTEGER])("retains existing positive-safe duration convention for %i", (turnDurationMs) => {
     expect(CreateLobbyRequestSchema.safeParse({ ...creation, settings: { ...settings, turnDurationMs } }).success).toBe(true);
   });
+  it("accepts a safe duration while deadline validation still rejects timestamp-addition overflow", () => {
+    const parsed = CreateLobbyRequestSchema.parse({ ...creation, settings: { ...settings, turnDurationMs: Number.MAX_SAFE_INTEGER } });
+    const turn = { schemaVersion: 1, gameId: "game", turnNumber: 1, status: "open" };
+    expect(TurnRecordSchema.safeParse({ ...turn, openedAtMs: 0, deadlineAtMs: parsed.settings.turnDurationMs }).success).toBe(true);
+    const openedAtMs = 1;
+    const deadlineAtMs = openedAtMs + parsed.settings.turnDurationMs;
+    expect(Number.isSafeInteger(deadlineAtMs)).toBe(false);
+    expect(TurnRecordSchema.safeParse({ ...turn, openedAtMs, deadlineAtMs }).success).toBe(false);
+  });
   it.each(["", " ", " World", "World\n"])("rejects blank/untrimmed lobby name %j", (name) => {
     expect(CreateLobbyRequestSchema.safeParse({ ...creation, settings: { ...settings, name } }).success).toBe(false);
   });
@@ -69,7 +78,7 @@ describe("lobby creation and approved settings", () => {
     expect(CreateLobbyRequestSchema.safeParse({ schemaVersion: 1 }).success).toBe(false);
     expect(CreateLobbyRequestSchema.safeParse({ ...creation, status: "OPEN" }).success).toBe(false);
     expect(CreateLobbyResponseSchema.safeParse(response(alone())).success).toBe(true);
-    for (const lobby of [opening(), started(), guest()]) expect(CreateLobbyResponseSchema.safeParse(response(lobby)).success).toBe(false);
+    for (const lobby of [opening(), running(), guest()]) expect(CreateLobbyResponseSchema.safeParse(response(lobby)).success).toBe(false);
   });
 });
 
@@ -127,13 +136,13 @@ describe("strict request and response privacy", () => {
 });
 
 describe("lifecycle, roster, and coherent viewer projections", () => {
-  it.each(["DRAFT", "CLOSED", "CANCELLED", "RUNNING", "FINISHED"])("reserves/rejects unsupported lifecycle %s", (status) => {
+  it.each(["DRAFT", "CLOSED", "CANCELLED", "STARTED", "FINISHED"])("reserves/rejects unsupported lifecycle %s", (status) => {
     expect(LobbySummarySchema.safeParse({ ...summary(), status }).success).toBe(false);
   });
   it.each([
     { participantCount: 0 }, { participantCount: 5 }, { participantCount: 1.5 }, { availableSlots: 3 },
     { availableSlots: -1 }, { durationCategory: "QUICK" }, { schemaVersion: 2 },
-    { status: "STARTED", participantCount: 1, availableSlots: 0 }
+    { status: "RUNNING", participantCount: 1, availableSlots: 0 }
   ])("rejects inconsistent summary %#", (change) => {
     expect(LobbySummarySchema.safeParse({ ...summary(), ...change }).success).toBe(false);
   });
@@ -141,8 +150,8 @@ describe("lifecycle, roster, and coherent viewer projections", () => {
     const players = [host, ...Array.from({ length: 39 }, (_, index) => ({ playerId: `player-${index}`, username: `Player_${index}` }))];
     const full = { ...opening(), settings: { ...settings, playerCapacity: 40 }, participants: players, participantCount: 40, availableSlots: 0 };
     expect(LobbyDetailSchema.safeParse(full).success).toBe(true);
-    expect(LobbyDetailSchema.safeParse(started()).success).toBe(true);
-    expect(LobbyDetailSchema.safeParse({ ...started(), availableSlots: 2 }).success).toBe(false);
+    expect(LobbyDetailSchema.safeParse(running()).success).toBe(true);
+    expect(LobbyDetailSchema.safeParse({ ...running(), availableSlots: 2 }).success).toBe(false);
   });
   it.each([
     { participants: [host] }, { participants: [member, { playerId: "other", username: "Other" }] },
@@ -181,7 +190,7 @@ describe("lifecycle, roster, and coherent viewer projections", () => {
 describe("context-dependent action contracts (no execution)", () => {
   it("permits only an OPEN host with at least two participants to request start", () => {
     expect(lobbyActionRequestSchema("start", opening()).safeParse(request).success).toBe(true);
-    for (const context of [alone(), participant(), guest(), started()]) {
+    for (const context of [alone(), participant(), guest(), running()]) {
       expect(lobbyActionRequestSchema("start", context).safeParse(request).success).toBe(false);
     }
     expect(lobbyActionRequestSchema("start", opening()).safeParse({ ...request, lobbyId: "other" }).success).toBe(false);
@@ -192,28 +201,28 @@ describe("context-dependent action contracts (no execution)", () => {
     const full = { ...guest(), settings: { ...settings, playerCapacity: 2 }, availableSlots: 0,
       viewer: { ...guest().viewer, canJoin: false } };
     expect(lobbyActionRequestSchema("join", full).safeParse(request).success).toBe(false);
-    const locked = { ...guest(), status: "STARTED", availableSlots: 0, viewer: { ...guest().viewer, canJoin: false } };
+    const locked = { ...guest(), status: "RUNNING", availableSlots: 0, viewer: { ...guest().viewer, canJoin: false } };
     expect(lobbyActionRequestSchema("join", locked).safeParse(request).success).toBe(false);
   });
   it("represents duplicate joins as existing membership without admitting anyone", () => {
-    for (const context of [opening(), participant(), started()]) {
+    for (const context of [opening(), participant(), running()]) {
       expect(lobbyActionRequestSchema("join", context).safeParse(request).success).toBe(true);
       expect(JoinLobbyResponseSchema.safeParse({ ...response(context), outcome: "ALREADY_JOINED" }).success).toBe(true);
     }
     expect(JoinLobbyResponseSchema.safeParse({ ...response(guest()), outcome: "ALREADY_JOINED" }).success).toBe(false);
     expect(JoinLobbyResponseSchema.safeParse({ ...response(participant()), outcome: "JOINED" }).success).toBe(true);
-    for (const context of [opening(), started(), guest()]) expect(JoinLobbyResponseSchema.safeParse({ ...response(context), outcome: "JOINED" }).success).toBe(false);
+    for (const context of [opening(), running(), guest()]) expect(JoinLobbyResponseSchema.safeParse({ ...response(context), outcome: "JOINED" }).success).toBe(false);
   });
   it("permits leaving only for an OPEN non-host participant", () => {
     expect(lobbyActionRequestSchema("leave", participant()).safeParse(request).success).toBe(true);
-    const lockedMember = { ...participant(), status: "STARTED", availableSlots: 0, viewer: { ...participant().viewer, canLeave: false } };
+    const lockedMember = { ...participant(), status: "RUNNING", availableSlots: 0, viewer: { ...participant().viewer, canLeave: false } };
     for (const context of [opening(), alone(), guest(), lockedMember]) expect(lobbyActionRequestSchema("leave", context).safeParse(request).success).toBe(false);
     expect(LeaveLobbyResponseSchema.safeParse(response(guest())).success).toBe(true);
-    for (const context of [opening(), participant(), started()]) expect(LeaveLobbyResponseSchema.safeParse(response(context)).success).toBe(false);
+    for (const context of [opening(), participant(), running()]) expect(LeaveLobbyResponseSchema.safeParse(response(context)).success).toBe(false);
   });
-  it("requires a STARTED host view for successful start responses", () => {
-    expect(StartLobbyResponseSchema.safeParse(response(started())).success).toBe(true);
-    const lockedMember = { ...participant(), status: "STARTED", availableSlots: 0, viewer: { ...participant().viewer, canLeave: false } };
+  it("requires a RUNNING host view for successful start responses", () => {
+    expect(StartLobbyResponseSchema.safeParse(response(running())).success).toBe(true);
+    const lockedMember = { ...participant(), status: "RUNNING", availableSlots: 0, viewer: { ...participant().viewer, canLeave: false } };
     for (const context of [opening(), alone(), lockedMember]) expect(StartLobbyResponseSchema.safeParse(response(context)).success).toBe(false);
   });
 });

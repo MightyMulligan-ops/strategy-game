@@ -3,7 +3,7 @@ import { UsernameSchema } from "./auth.js";
 import { identifier, nonnegativeInteger, positiveInteger, version } from "./primitives.js";
 
 export const LobbyCapacitySchema = z.number().int().min(2).max(40);
-export const LobbyStatusSchema = z.enum(["OPEN", "STARTED"]); // DRAFT is reserved, not supported in v1.
+export const LobbyStatusSchema = z.enum(["OPEN", "RUNNING"]); // DRAFT is reserved, not supported in v1.
 export const LobbyDurationCategorySchema = z.enum(["QUICK", "CASUAL", "UNCATEGORIZED"]);
 export type LobbyDurationCategory = z.infer<typeof LobbyDurationCategorySchema>;
 
@@ -24,6 +24,8 @@ export function classifyLobbyTurnDuration(turnDurationMs: unknown): LobbyDuratio
 export const LobbySettingsSchema = z.strictObject({
   name: identifier,
   playerCapacity: LobbyCapacitySchema,
+  // The future server must also check openedAtMs + turnDurationMs for safe
+  // deadline arithmetic before committing a match/start. This validates duration only.
   turnDurationMs: positiveInteger,
   visibility: z.literal("PUBLIC")
 }).readonly();
@@ -53,7 +55,7 @@ function checkSummary(summary: z.infer<typeof summaryBase>, context: z.Refinemen
   if (summary.availableSlots !== available) {
     context.addIssue({ code: "custom", path: ["availableSlots"], message: "Available slots must match lifecycle and occupancy" });
   }
-  if (summary.status === "STARTED" && summary.participantCount < 2) {
+  if (summary.status === "RUNNING" && summary.participantCount < 2) {
     context.addIssue({ code: "custom", path: ["participantCount"], message: "Starting requires at least two participants" });
   }
   if (summary.durationCategory !== durationCategory(summary.settings.turnDurationMs)) {
@@ -167,7 +169,7 @@ export const LeaveLobbyResponseSchema = z.strictObject(detailResponseFields).ref
 ).readonly();
 export type LeaveLobbyResponse = z.infer<typeof LeaveLobbyResponseSchema>;
 export const StartLobbyResponseSchema = z.strictObject(detailResponseFields).refine(
-  ({ lobby }) => lobby.status === "STARTED" && lobby.viewer.role === "HOST",
+  ({ lobby }) => lobby.status === "RUNNING" && lobby.viewer.role === "HOST",
   "Only the host may receive a successful start result with at least two participants"
 ).readonly();
 export type StartLobbyResponse = z.infer<typeof StartLobbyResponseSchema>;
