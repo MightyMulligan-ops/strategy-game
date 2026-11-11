@@ -38,6 +38,7 @@ Use a **server-authoritative modular monolith** initially. Do not introduce micr
 - `docs/DEVELOPMENT_ROADMAP.md` — milestones and vertical-slice priorities.
 - `docs/ATWAR_REFERENCE.md` — reference observations, sources, and unresolved verification items.
 - `docs/AUTHENTICATION.md` — OAuth/session behavior, endpoints, provider setup, and security limitations.
+- `docs/CI.md` — GitHub Actions jobs, failure diagnostics, and recommended required checks for `main`.
 - `AGENTS.md` — instructions for AI coding agents and contributors.
 - `packages/shared-types/` — strict, versioned runtime schemas and transport types.
 - `packages/game-engine/` — server-only lifecycle, empty-turn resolver, and movement-queue planning; no gameplay execution yet.
@@ -208,6 +209,10 @@ Install Docker with Compose, or provide your own local PostgreSQL 17 instance. A
 The default `pnpm test` runs unit tests and explicitly skips live database tests. `pnpm test:db` requires `TEST_DATABASE_URL` pointing to a local database whose name ends in `_test`; it never falls back to `DATABASE_URL`. It uses committed migrations, not schema push/reset. Missing or unreachable PostgreSQL fails that explicit command. Integration tests delete only their tracked fixture records, including test accounts and sessions. The 17 live tests cover turn persistence plus identity uniqueness, linking, username races, OAuth-state consumption, session recovery, expiration, and revocation. Mocked OAuth unit tests require no real provider credentials.
 
 `pnpm db:validate` and schema-to-SQL diff generation work without a running database. Schema validation does not prove migration SQL, triggers, concurrency, rollback, or restart recovery work against PostgreSQL; those require the live suite. Generated Prisma sources are ignored and regenerated from the pinned toolchain.
+
+## Continuous integration
+
+[CI](.github/workflows/ci.yml) runs on pull requests targeting `main` (including drafts) and pushes to `main`. Its two checks are **Application checks** and **PostgreSQL integration tests**. It uses Node.js 24, the pnpm version in `package.json`, a cached pnpm store, and a disposable PostgreSQL 17 test database. No local `.env`, OAuth credentials, or production secrets are needed. Database report validation fails if any integration test is skipped or missing. See [CI setup and branch protection](docs/CI.md) for the GitHub settings to enable after the first run.
 
 ## Current next step
 

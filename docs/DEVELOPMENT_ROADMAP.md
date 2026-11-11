@@ -14,6 +14,7 @@ The first playable prototype should demonstrate the strategy-game loop and inclu
 
 - [x] Initialize pnpm workspace and TypeScript conventions.
 - [x] Add frontend linting, workspace type-checking/builds, and runnable Vitest tests.
+- [x] Add GitHub Actions application and PostgreSQL integration checks; document required checks for `main` (Assignment 006 / Issue #1).
 - [ ] Establish a workspace-wide formatting/lint policy beyond the existing frontend checks.
 - [x] Create initial web and server applications.
 - [x] Automate local dependency preparation and development preflight; document Windows and two-PC setup (Assignment 005).
