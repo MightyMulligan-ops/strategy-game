@@ -16,7 +16,8 @@ try {
   app = await buildApp({
     logger: true,
     trustProxy: process.env.AUTH_TRUST_PROXY ? process.env.AUTH_TRUST_PROXY.split(",") : false,
-    ...(config && database ? { auth: { config, persistence: new AuthRepository(database) }, lobbies: new LobbyRepository(database) } : {})
+    ...(config && database ? { auth: { config, persistence: new AuthRepository(database),
+      ...(config.devLoginEnabled ? { localTestLogin: new AuthRepository(database) } : {}) }, lobbies: new LobbyRepository(database) } : {})
   });
   const ownedDatabase = database;
   if (ownedDatabase) app.addHook("onClose", async () => ownedDatabase.$disconnect());

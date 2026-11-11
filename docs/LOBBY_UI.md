@@ -4,6 +4,8 @@ The React client now provides public lobby browsing, detail, creation, joining a
 
 ## Account and API boundaries
 
+When the server advertises boolean `devLoginEnabled: true`, anonymous users also see Local test sign-in with two fixed fixture choices. This opt-in tool uses normal session rotation/bootstrap and username onboarding; no Vite flag, arbitrary account input or identity-header override enables it. Fixture provider linking is prohibited server-side. See [LOCAL_TEST_LOGIN.md](LOCAL_TEST_LOGIN.md) for strict gates and manual sandbox-only instructions. Existing Google/Discord, profile and lobby flows remain intact.
+
 `apps/web/src/App.tsx` retains configured-provider sign-in, callback error handling, username validation/conflicts, linking, current-session logout and account-wide logout. Initial configuration → CSRF → own-profile requests remain sequenced so the first visit shares one cookie. Callback navigation reloads the app and fetches a new session token. Unauthenticated users see login; accounts with a null username see onboarding; only registered users mount `LobbyBrowser`.
 
 `LobbyBrowser.tsx` requests the existing [five version-1 APIs](LOBBY_API.md). The default list requests OPEN lobbies; list/detail refreshes are explicit. The create form validates with `CreateLobbyRequestSchema`: trimmed nonempty name, 2–40 capacity including host, documented duration presets, PUBLIC only. All success/error responses are validated with shared schemas. Account IDs are never request authority, placed in mutation bodies, stored in localStorage or rendered in lobby metadata.

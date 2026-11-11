@@ -82,7 +82,7 @@ async function preflight(packages: string[]): Promise<void> {
     }
   } catch {
     // Database/driver errors can contain URLs and credentials. Never echo them.
-    throw new Error("Development PostgreSQL is unavailable. Start Docker Desktop and run pnpm docker:up (or start your own PostgreSQL), then check DATABASE_URL privately. Apply pending migrations with pnpm db:migrate.");
+    throw new Error("PostgreSQL is unavailable. Check the selected DATABASE_URL and service readiness privately. Do not switch database targets or apply migrations without separate owner approval.");
   }
   console.log("[dev] Authentication configuration and PostgreSQL connection checked. Use pnpm db:status to check migrations.");
 }

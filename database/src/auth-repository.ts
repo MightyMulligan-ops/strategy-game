@@ -5,6 +5,8 @@ import type { PrismaClient, Prisma, OAuthProvider as StoredProvider } from "./ge
 import { AuthError } from "./auth-types.js";
 import type { AuthPersistence, OAuthAttemptData, SessionWrite } from "./auth-types.js";
 import { json } from "./mappings.js";
+import { isLocalTestIdentity, localTestIdentity } from "./local-test-identities.js";
+import type { LocalTestLoginPersistence, LocalTestPlayer } from "./local-test-identities.js";
 
 const providerKey = (provider: OAuthProvider): StoredProvider => provider === "google" ? "GOOGLE" : "DISCORD";
 const duplicate = (error: unknown) => typeof error === "object" && error !== null && "code" in error && error.code === "P2002";
@@ -18,7 +20,7 @@ function publicPlayer(row: PlayerRow): AuthenticatedPlayer {
 }
 
 /** Trusted server operations only. No email lookup, account merging, or tokens. */
-export class AuthRepository implements AuthPersistence {
+export class AuthRepository implements AuthPersistence, LocalTestLoginPersistence {
   constructor(private readonly client: PrismaClient) {}
 
   async profile(identityId: string) {
@@ -30,6 +32,7 @@ export class AuthRepository implements AuthPersistence {
     const key = { provider: providerKey(provider), subject };
     const existing = await this.client.oAuthAccount.findUnique({ where: { provider_subject: key } });
     if (existing) {
+      if (isLocalTestIdentity(existing.identityId)) throw new AuthError("unauthorized");
       const player = await this.profile(existing.identityId);
       if (!player) throw new AuthError("unauthorized");
       return player;
@@ -44,6 +47,7 @@ export class AuthRepository implements AuthPersistence {
       // A concurrent callback may have created this same provider subject. The
       // nested create rolls back its losing identity rather than leaving orphans.
       const winner = await this.client.oAuthAccount.findUniqueOrThrow({ where: { provider_subject: key } });
+      if (isLocalTestIdentity(winner.identityId)) throw new AuthError("unauthorized");
       const player = await this.profile(winner.identityId);
       if (!player) throw new AuthError("unauthorized");
       return player;
@@ -51,6 +55,8 @@ export class AuthRepository implements AuthPersistence {
   }
 
   async link(identityId: string, provider: OAuthProvider, subject: string) {
+    // Local fixture sessions must never become a recovery path for a real account.
+    if (isLocalTestIdentity(identityId)) throw new AuthError("identity_conflict");
     try {
       return await this.client.$transaction(async (tx) => {
         const player = await tx.playerIdentity.findUnique({ where: { id: identityId } });
@@ -81,6 +87,20 @@ export class AuthRepository implements AuthPersistence {
     const player = await this.profile(identityId);
     if (!player) throw new AuthError("unauthorized");
     return player;
+  }
+
+  async signInLocalTest(player: LocalTestPlayer) {
+    const id = localTestIdentity(player);
+    if (!id) throw new AuthError("unauthorized");
+    return this.client.$transaction(async (tx) => {
+      // Keep the scalar upsert eligible for PostgreSQL ON CONFLICT; nested
+      // relation selection can force Prisma's read/create fallback in a race.
+      await tx.playerIdentity.upsert({ where: { id }, create: { id }, update: { id } });
+      const row = await tx.playerIdentity.findUniqueOrThrow({ where: { id }, include: userInclude });
+      // Refuse collisions; never detach/merge/claim an OAuth-linked identity.
+      if (row.oauthAccounts.length !== 0) throw new AuthError("identity_conflict");
+      return publicPlayer(row);
+    });
   }
 
   async createAttempt(attempt: OAuthAttemptData) {

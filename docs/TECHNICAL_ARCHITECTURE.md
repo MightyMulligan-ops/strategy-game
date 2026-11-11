@@ -337,7 +337,13 @@ Live verification now discovers repository and server integration tests through 
 
 Approved Sovereign palette tokens and the original emblem/wordmark unify account and lobby screens. All 15 tracked assets move byte-identically into `apps/web/public/assets/branding/`, served by default Vite routing; no artwork substitution or custom publicDir is used. React DOM tests use one pinned test-only jsdom dependency. Local Chromium checks use an isolated mock HTTP backend for asset/proxy/layout/navigation checks, not existing databases. Backend/auth, gameplay contracts and migrations remain unchanged. Live UI/database and real-provider consent verification remain pending owner-approved environment preparation. See [LOBBY_UI.md](LOBBY_UI.md).
 
-### 10.5 Existing multiplayer foundations
+### 10.5 Local fixture sign-in boundary (004B.2E / Issue #15)
+
+`AUTH_DEV_LOGIN_ENABLED` defaults off and requires normal auth enabled, NODE_ENV=development, exact HTTP IPv4-loopback origin and no proxy trust. Startup/listen and pre-session raw-peer/Host/header checks fail closed for public/forwarded use. Only the server's safe config boolean reveals UI availability. The POST route keeps normal Origin/CSRF/rate controls and rotates a normal persisted session; it accepts two fixture keys and no acting account/subject/username.
+
+AuthRepository maps keys to reserved non-UUID identities, refuses OAuth mapping collisions and blocks provider linking/recovery for that namespace. The session store disallows fixture identities outside enabled mode, including previously issued cookies. Username registration and all lobby authorization remain unchanged. Memory/HTTP/UI fixtures cover local security behavior; a new automatically discovered CI-only PostgreSQL suite tests persistence and real lobby operations using the disposable service. No existing database or private environment file is accessed, no schema/migration is added, and owner-only sandbox testing remains separate. See [LOCAL_TEST_LOGIN.md](LOCAL_TEST_LOGIN.md).
+
+### 10.6 Existing multiplayer foundations
 
 - Test two-player interactions early, not only after single-player systems are complete.
 - Enforce authorization on every game command.

@@ -1,6 +1,7 @@
 import type { Session } from "fastify";
 import type { SessionStore } from "@fastify/session";
 import type { AuthPersistence, SessionWrite } from "@strategy-game/database";
+import { isLocalTestIdentity } from "@strategy-game/database";
 
 declare module "fastify" {
   interface Session {
@@ -11,7 +12,9 @@ declare module "fastify" {
 const missing = () => Object.assign(new Error("Session is expired, revoked, or replaced"), { code: "ENOENT" });
 
 export class PersistentSessionStore implements SessionStore {
-  constructor(private readonly persistence: AuthPersistence, private readonly ttlMs: number) {}
+  constructor(private readonly persistence: AuthPersistence, private readonly ttlMs: number, private readonly allowLocalTestIdentities = false) {}
+
+  private allowed(id: string | null | undefined) { return !id || this.allowLocalTestIdentities || !isLocalTestIdentity(id); }
 
   private serialize(id: string, session: Session): SessionWrite {
     return {
@@ -23,17 +26,19 @@ export class PersistentSessionStore implements SessionStore {
   }
 
   set(id: string, session: Session, callback: (error?: Error) => void) {
+    if (!this.allowed(session.playerIdentityId)) { callback(missing()); return; }
     this.persistence.createSession(id, this.serialize(id, session)).then(() => callback(), () => callback(missing()));
   }
 
   compareAndSet(id: string, expectedGeneration: string, session: Session, callback: (error?: Error) => void) {
+    if (!this.allowed(session.playerIdentityId)) { callback(missing()); return; }
     this.persistence.updateSession(id, expectedGeneration, this.serialize(id, session))
       .then((changed) => callback(changed ? undefined : missing()), () => callback(missing()));
   }
 
   get(id: string, callback: (error: Error | null, session?: Session | null) => void) {
     this.persistence.readSession(id).then((record) => {
-      if (!record) return callback(null, null);
+      if (!record || !this.allowed(record.identityId)) return callback(null, null);
       const { cookie, __fastifySessionMetadata: metadata, playerIdentityId } = record.data;
       if (typeof cookie !== "object" || cookie === null ||
           typeof metadata !== "object" || metadata === null || !("generation" in metadata) || metadata.generation !== record.generation ||

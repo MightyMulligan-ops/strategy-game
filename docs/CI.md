@@ -25,6 +25,8 @@ The workflow uses fixed, public, **CI-only** credentials solely for that disposa
 
 ## Failure diagnostics and workflow validation
 
+Issue #15 adds a fifth live suite, `apps/server/tests/local-test.integration.test.ts`, with five local-fixture session/lobby/isolation/concurrency tests (50 live tests total). CI's fresh PostgreSQL service is the only DB-backed verification used for this task. Local runs explicitly use `RUN_DATABASE_TESTS=0` and memory/HTTP fixtures; no existing development/test/sandbox database is connected. The new suite refuses pre-existing reserved fixture identities rather than overwriting or cleaning them. Shared discovery/report validation continues to require every live assertion to execute without skips; no workflow or secret changes are needed.
+
 All command steps fail on a nonzero exit code, including commands piped to `tee` (the workflow explicitly uses Bash with GitHub's `pipefail` behavior). A failing command stops the later normal checks in its job; the other job runs independently. The database report guard still runs after the integration-test command fails, when possible.
 
 On failure, command logs are sanitized and uploaded as `application-failure-logs` or `database-failure-logs`, retained for seven days. Only the sanitized `.log` files are uploaded; `.env`, raw JSON reports, generated builds, and database dumps are excluded. Sanitization removes configured credential values and credential-bearing URLs while retaining error text. Setup failures before a log exists can be diagnosed in the Actions step logs. The existing Prisma/pg overlapping-query warning is visible in integration output and is not itself a test failure.

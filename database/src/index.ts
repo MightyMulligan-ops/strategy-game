@@ -8,3 +8,5 @@ export { AuthError } from "./auth-types.js";
 export type { AuthPersistence, OAuthAttemptData, SessionWrite } from "./auth-types.js";
 export { LobbyRepository, LobbyError } from "./lobby-repository.js";
 export type { LobbyErrorCode } from "./lobby-repository.js";
+export { localTestIdentity, isLocalTestIdentity } from "./local-test-identities.js";
+export type { LocalTestPlayer, LocalTestLoginPersistence } from "./local-test-identities.js";

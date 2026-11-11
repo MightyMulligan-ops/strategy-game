@@ -120,14 +120,25 @@ Account authentication is implemented independently of match authorization. Phas
 
 ## Phase 0B.2D — Sovereign lobby/account UI (Issue #13)
 
-**Scope:** Branded login/onboarding/profile and public lobby browser using the five existing APIs, with same-origin Vite proxy and original asset relocation. Implemented on `issue/13-sovereign-lobby-ui`, unmerged; delivery items remain unchecked until human merge.
+**Scope:** Branded login/onboarding/profile and public lobby browser using the five existing APIs, with same-origin Vite proxy and original asset relocation. Merged in PR #14 as `9a45f27`; no existing database access was included.
 
-- [ ] Browse/refresh/inspect/create/join/leave using strict public schemas, current CSRF and authoritative server recovery.
-- [ ] Preserve provider availability, username validation, linking/logout and callback/session behavior across Sovereign screens.
-- [ ] Move all original branding files unchanged to `apps/web/public/assets/branding/`; render verified emblem/wordmark with approved palette.
-- [ ] Pass frontend behavior tests, browser asset/layout checks and existing workspace gates; document the unapplied development migration.
+- [x] Browse/refresh/inspect/create/join/leave using strict public schemas, current CSRF and authoritative server recovery.
+- [x] Preserve provider availability, username validation, linking/logout and callback/session behavior across Sovereign screens.
+- [x] Move all original branding files unchanged to `apps/web/public/assets/branding/`; render verified emblem/wordmark with approved palette.
+- [x] Pass frontend behavior tests, browser asset/layout checks and existing workspace gates; document the unapplied development migration.
 
 **Exit criteria:** Reviewed PR merged; no backend/auth behavior/schema/migrations, existing database writes, Start action, world/Turn 1, map or deployment. Local browser verification uses mock HTTP fixtures; real-provider/live-database testing still needs separately approved preparation. See [LOBBY_UI.md](LOBBY_UI.md).
+
+## Phase 0B.2E — Local test sign-in (Issue #15)
+
+**Scope:** One opt-in loopback-only fixture sign-in route and server-advertised UI, retaining persisted sessions/CSRF and real lobby authorization. Implemented on `issue/15-local-test-sign-in`, unmerged; delivery items stay unchecked until human merge.
+
+- [ ] Fail closed outside explicit development, exact origin, loopback binding and no-proxy conditions.
+- [ ] Isolate two allowlisted identities from OAuth accounts; rotate normal sessions and reject fixture cookies when disabled.
+- [ ] Preserve normal OAuth/onboarding/link/logout/lobby behavior and pass memory/UI plus disposable-CI PostgreSQL coverage.
+- [ ] Document owner-only sandbox launch, inherited environment precedence and independent two-browser verification without automatic database access/preparation.
+
+**Exit criteria:** Reviewed draft PR merged after checks/security review. Existing development/test/sandbox databases remain untouched by Codex/CI; owner manual sandbox and real OAuth verification are separate. No schema, migration, reset, gameplay, Start, merge or deployment automation. See [LOCAL_TEST_LOGIN.md](LOCAL_TEST_LOGIN.md).
 
 ## Phase 1 — Map and game shell
 

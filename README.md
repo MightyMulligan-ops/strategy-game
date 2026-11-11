@@ -38,6 +38,7 @@ Use a **server-authoritative modular monolith** initially. Do not introduce micr
 - `docs/DEVELOPMENT_ROADMAP.md` — milestones and vertical-slice priorities.
 - `docs/ATWAR_REFERENCE.md` — reference observations, sources, and unresolved verification items.
 - `docs/AUTHENTICATION.md` — OAuth/session behavior, endpoints, provider setup, and security limitations.
+- `docs/LOCAL_TEST_LOGIN.md` — opt-in loopback fixture login, isolation safeguards and owner-only sandbox/two-browser launch steps; no automatic database access or preparation.
 - `docs/CI.md` — GitHub Actions jobs, failure diagnostics, and recommended required checks for `main`.
 - `docs/MATCH_LOBBIES.md` — approved lobby rules, versioned contracts, and PostgreSQL lobby persistence.
 - `docs/LOBBY_API.md` — authenticated lobby REST endpoints, CSRF/origin safeguards, errors and isolated test prerequisites; match start remains future work.
@@ -60,6 +61,8 @@ Use a **server-authoritative modular monolith** initially. Do not introduce micr
 5. Make deterministic turn resolution and explicit tie-breaking a design goal.
 6. Add tests and update docs with every gameplay-rule change.
 7. Preserve modular boundaries: modules communicate through explicit interfaces and events, not by mutating each other's internals.
+
+Issue #15 adds optional local test sign-in without OAuth credentials. It requires both auth flags, exact development/loopback settings and normal signed persisted sessions; production/remote/proxy use fails closed. It does not grant permission to connect to or migrate any existing development, test or sandbox database during implementation. The owner-only sandbox launch in [LOCAL_TEST_LOGIN.md](docs/LOCAL_TEST_LOGIN.md) explicitly verifies the selected target; inherited PowerShell variables override root `.env` and `.env.sandbox` file values.
 
 ## Getting started (Windows)
 
