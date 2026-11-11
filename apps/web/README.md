@@ -1,75 +1,17 @@
-# React + TypeScript + Vite
+# Strategy Game web client
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This React/Vite application currently provides Discord/Google login and the player profile page. PixiJS is installed for future map rendering; there is no playable map yet.
 
-Currently, two official plugins are available:
+Follow the [root Windows setup guide](../../README.md#getting-started-windows) to install dependencies and configure local services. Run commands from the repository root:
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```powershell
+pnpm dev
 ```
 
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
+This prepares internal workspace dependencies and Prisma Client, checks the backend environment, and starts both apps. Open **http://127.0.0.1:5173**. Vite proxies `/auth` to Fastify at `http://127.0.0.1:3001`. Real authentication also requires the [provider/environment setup](../../docs/AUTHENTICATION.md).
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+`pnpm dev:web` starts only Vite after dependency preparation; account requests still need a separately running backend (`pnpm dev:server`). React source edits hot reload. After editing shared workspace packages, stop and restart development to refresh compiled dependencies. Restart after `.env` changes too.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+For intentional port changes, keep the Vite proxy, `AUTH_ORIGIN`, and provider callbacks consistent. Use `127.0.0.1` consistently rather than alternating with `localhost`.
 
-```
+Run `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` from the root for the documented workspace checks. `pnpm --filter @strategy-game/web preview` previews an existing frontend production build; it does not provide the backend or development auth proxy.
