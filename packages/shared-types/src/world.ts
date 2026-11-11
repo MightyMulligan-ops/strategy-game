@@ -2,6 +2,8 @@
 // player-visible projection and does not extend empty-turn snapshots.
 import { z } from "zod";
 import { identifier, nonnegativeInteger, version } from "./primitives.js";
+import { WorldPointSchema, WorldTerrainSchema } from "./world-geometry.js";
+export { WorldPointSchema, WorldTerrainSchema } from "./world-geometry.js";
 
 export const WORLD_GENERATOR_VERSION = "territory-grid-v1";
 export const WORLD_MAX_TERRITORIES = 2_058; // 42 regions * 7 * 7 cells
@@ -19,10 +21,6 @@ export const WorldGenerationInputSchema = z.strictObject({
 }).readonly();
 export type WorldGenerationInput = z.infer<typeof WorldGenerationInputSchema>;
 
-export const WorldPointSchema = z.strictObject({
-  x: nonnegativeInteger.max(4_900), y: nonnegativeInteger.max(4_900)
-}).readonly();
-export const WorldTerrainSchema = z.enum(["PLAINS", "FOREST", "HILLS"]);
 export const WorldTerritorySchema = z.strictObject({
   territoryId: worldId, row: nonnegativeInteger.max(41), column: nonnegativeInteger.max(48),
   // Clockwise in map space (positive y points down); no duplicated closing point.

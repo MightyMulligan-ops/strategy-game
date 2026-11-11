@@ -6,7 +6,7 @@ Parent [Issue #19](https://github.com/MightyMulligan-ops/strategy-game/issues/19
 2. **005B.2:** additive persistence, atomic start initialization, participant-only API and minimal read-only map.
 3. **005B.3:** explicitly invoked legacy initialization and acceptance hardening.
 
-Only phase 1 is implemented. It adds no schema/migration, database access, HTTP route, renderer, match association, start wiring, runtime pin, snapshot, turn or deadline. Existing authentication, lobby readiness and host-controlled starts are unchanged. The next phases require separate authorization. Existing RUNNING lobbies remain valid without worlds; nothing initializes them on read.
+Phase 1 is merged in PR #21 (`e3e4a22`). The approved phase-2 integration is described in [INITIAL_WORLD.md](INITIAL_WORLD.md); the generator/output contract remain unchanged. Its public-safe geometry primitives are now shared separately from authoritative schemas. Phase 3 still requires separate authorization. Existing RUNNING lobbies remain valid without worlds; nothing initializes them on read.
 
 ## Boundaries and invocation
 
@@ -25,7 +25,7 @@ const result = generateWorld({
 // result.ok: true -> result.world; false -> result.error.code
 ```
 
-This call performs no I/O. No caller is integrated into the running apps yet. Seeds and player IDs must eventually come from authoritative orchestration; accepting them here is not authentication or authorization. Future API code must construct an explicitly permitted projection, enforce participant access and choose visibility rules; never broadcast this object, its seed, or future hidden state wholesale. Adjacency is geometric metadata, **not** a movement rule. Geographic unit positions and ownership stay separate concepts.
+The generator performs no I/O. Phase 005B.2 calls it from authoritative start orchestration using server-selected seeds and match-local IDs; accepting inputs here is not authentication or authorization. The world API uses a separate permitted projection and active-participant authorization; it never broadcasts this object or its seed. Adjacency is geometric metadata, **not** a movement rule. Geographic unit positions and ownership stay separate concepts.
 
 ## Contract and limits
 
@@ -100,4 +100,4 @@ Local verification uses `RUN_DATABASE_TESTS=0`, frozen install, build, TypeScrip
 
 No local database test, preflight, development server or migration command is appropriate for this phase. Existing development/test/sandbox databases, especially port 5435, must not be accessed. Unchanged CI may run existing integration tests only against its newly provisioned disposable PostgreSQL. There is no new SQL or database rollback: reverting this unintegrated library/docs change requires no database operation.
 
-Persistence-once semantics, concurrent start/rollback, authorization/visibility DTOs, actual renderer/inspector, owner-only sandbox acceptance and an explicit legacy initializer belong to phases 2–3. Until then, starting a match continues the merged 005A lifecycle-only behavior and no browser can display a generated world.
+Phase 005B.2 adds persistence-once semantics, concurrent start/rollback, explicit public projection, participant-only API and SVG inspector. Sandbox acceptance still requires separate owner approval, and phase 005B.3 owns an explicit legacy initializer. Existing RUNNING matches without worlds are never repaired on reads or host retries.

@@ -154,10 +154,10 @@ Account authentication is implemented independently of match authorization. Phas
 
 ## Milestone 005B — Procedural world and read-only map (parent Issue #19)
 
-The owner approved three smaller review phases. Only **005B.1 / Issue #20** is authorized in the current task. Its delivery stays unchecked until human merge; the parent milestone remains open.
+The owner approved three review phases. 005B.1 merged in PR #21 as `e3e4a22`. **005B.2 / Issue #22** is approved and implemented on its feature branch; delivery stays unchecked until human merge. Parent #19 remains open.
 
-- [ ] **005B.1:** Versioned authoritative world contracts and pure deterministic generator; seeded integer geometry, adjacency/terrain, separate starting fixtures and measurable local equality; tests for 2/4/10/40 players and all supported sizes. No database, API, UI or start wiring. See [WORLD_GENERATION.md](WORLD_GENERATION.md).
-- [ ] **005B.2:** Additive persistence, atomic world initialization on start, participant-only API and minimal read-only map/inspector; retry/concurrency/failure/reload tests. Separate owner authorization required.
+- [x] **005B.1:** Versioned authoritative world contracts and pure deterministic generator; seeded integer geometry, adjacency/terrain, separate starting fixtures and measurable local equality; tests for 2/4/10/40 players and all supported sizes. Merged without database/API/UI/start wiring. See [WORLD_GENERATION.md](WORLD_GENERATION.md).
+- [ ] **005B.2:** Immutable JSONB initial archive, guarded atomic initialization on start, participant-only allowlist API and minimal read-only SVG inspector; retry/concurrency/rollback/reload/legacy tests. In review after draft creation; see [INITIAL_WORLD.md](INITIAL_WORLD.md).
 - [ ] **005B.3:** Explicit idempotent legacy initialization and remaining map/acceptance hardening. Never silently initialize existing RUNNING matches on read; separate owner authorization required.
 
 No phase authorizes Codex to access an existing development/test/sandbox database. Any future migration must be reviewed and tested only in fresh disposable CI; manual sandbox application requires separate owner approval. World initialization does not resolve a simultaneous turn or imply gameplay execution.

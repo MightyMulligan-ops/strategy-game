@@ -5,9 +5,11 @@ import type { Authentication } from "./auth/routes.js";
 import { registerLobbyRoutes } from "./lobbies/routes.js";
 import type { LobbyPersistence } from "./lobbies/routes.js";
 import { restrictLocalTestServer } from "./auth/local-test.js";
+import { registerWorldRoutes } from "./worlds/routes.js";
+import type { WorldPersistence } from "./worlds/routes.js";
 
 export async function buildApp(options: {
-  auth?: Authentication; lobbies?: LobbyPersistence;
+  auth?: Authentication; lobbies?: LobbyPersistence; worlds?: WorldPersistence;
   logger?: FastifyServerOptions["logger"]; trustProxy?: FastifyServerOptions["trustProxy"]
 } = {}) {
   const app = Fastify({ logger: options.logger ?? false,
@@ -27,6 +29,7 @@ export async function buildApp(options: {
       restrictLocalTestServer(app, options.trustProxy);
     }
     await registerAuthentication(app, options.auth);
+    if (options.worlds) await registerWorldRoutes(app, { accounts: options.auth.persistence, worlds: options.worlds });
     if (options.lobbies) await registerLobbyRoutes(app, {
       origin: options.auth.config.origin, accounts: options.auth.persistence, lobbies: options.lobbies
     });

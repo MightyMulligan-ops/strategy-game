@@ -1,5 +1,13 @@
 # PostgreSQL persistence foundation
 
+## Initial world (005B.2 / Issue #22)
+
+`MatchWorld` stores one immutable validated JSONB initial archive per match, with pinned schema/generator metadata and uint32 seed as BIGINT. It keeps generated geometry/links/terrain/starting fixtures separate from existing configuration, turns and snapshots. `LobbyRepository.startLobby` inserts it under the existing parent lock and transitions OPEN→RUNNING in the same transaction. `WorldRepository` checks active session-derived membership before reading and explicitly projects public DTOs; no seed or raw JSONB is serialized.
+
+Reviewed additive migration `202611110003_initial_world` adds the table, uniqueness/FK/metadata/range/size checks, parent insertion lock, immutability and deferred guards for future OPEN→RUNNING transitions and world insertions. Existing RUNNING rows without worlds remain unchanged; no backfill. Code-only rollback to an older starter will fail the new world-required guard. Keep archives/history and use a separately reviewed forward/rollback plan; no reset/drop/automatic repair is supplied.
+
+SQL was generated/reviewed offline before CI application. Only fresh disposable CI may migrate/test; no existing development/test/sandbox DB (including port 5435) is accessed. Existing triggers/migrations, turns/deadlines/armies/simulation snapshots stay unchanged. Full contract, SQL review, privacy and test details: [INITIAL_WORLD.md](../docs/INITIAL_WORLD.md). Earlier sections describe the preceding milestones; 005B.2 supersedes their lifecycle-only start boundary.
+
 This package is server-only. It imports validated contracts and the pure game engine; neither browser nor engine imports Prisma. Fastify uses separate match, authentication and lobby repositories. Authentication, lobby metadata, readiness and lifecycle start have HTTP endpoints; game commands/world/turn initialization remain unimplemented.
 
 ## Lobby readiness migration (Issue #17)

@@ -25,6 +25,8 @@ The workflow uses fixed, public, **CI-only** credentials solely for that disposa
 
 ## Failure diagnostics and workflow validation
 
+005B.2 / Issue #22 adds a sixth discovered integration file for initial-world persistence, guards/rollback, retries/concurrency, legacy compatibility and authorization. The live total is 73 assertions; discovery remains dynamic and the report guard requires zero skips. SQL is reviewed offline and applies only to fresh disposable CI PostgreSQL. All local checks explicitly disable database suites; no existing development/test/sandbox DB is accessed. Existing workflow permissions and jobs remain unchanged.
+
 Issue #17's additive readiness migration is authorized for this fresh disposable CI service only, after offline SQL review. No existing development, test or sandbox database may be connected to, and manual sandbox migration remains separately unapproved. Local checks explicitly set `RUN_DATABASE_TESTS=0`; do not execute the generic local database commands below during this issue. The existing unchanged CI runner/report guard discovers all readiness/start tests and requires zero skipped assertions.
 
 Initial [PR #18 CI run 25](https://github.com/MightyMulligan-ops/strategy-game/actions/runs/43092036339) passed both jobs: migration applied to disposable PostgreSQL 17, **61 integration tests across five files with zero skips** verified by the report guard, plus build/typecheck/408 unit tests/lint. A subsequent UI test for Started-filter rediscovery brings the local unit count to 409; the PR checks track each new commit. No workflow or credentials changed for readiness/start; test discovery remains dynamic.

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { AuthRepository, createDatabaseClient, LobbyRepository, testDatabaseUrl } from "@strategy-game/database";
+import { AuthRepository, createDatabaseClient, LobbyRepository, WorldRepository, testDatabaseUrl } from "@strategy-game/database";
 import {
   CreateLobbyResponseSchema, JoinLobbyResponseSchema, LeaveLobbyResponseSchema,
   ListLobbiesResponseSchema, SetLobbyReadyResponseSchema, StartLobbyResponseSchema, ViewLobbyResponseSchema
@@ -34,7 +34,7 @@ describe.skipIf(process.env.RUN_DATABASE_TESTS !== "1")("authenticated lobby HTT
     client = createDatabaseClient(testDatabaseUrl(process.env.TEST_DATABASE_URL));
     await client.$connect();
   });
-  beforeEach(async () => { f = await lobbyFixture(new TrackedAccounts(client), new TrackedLobbies(client)); });
+  beforeEach(async () => { f = await lobbyFixture(new TrackedAccounts(client), new TrackedLobbies(client), new WorldRepository(client)); });
   afterEach(async () => {
     if (f) await f.app.close();
     // Delete only fixtures created by this test; never sweep names/prefixes or
@@ -57,6 +57,24 @@ describe.skipIf(process.env.RUN_DATABASE_TESTS !== "1")("authenticated lobby HTT
     const { lobby } = CreateLobbyResponseSchema.parse(response.json());
     return { host, lobby, id: lobby.lobbyId };
   }
+
+  it("serves the same persisted public world to two participants, denies outsiders and never writes on reload", async () => {
+    const { host, id } = await fresh(); const guest = await f.login(username()); const outsider = await f.login(username());
+    const path = `/api/matches/${id}/world`;
+    expect((await f.request(host, "GET", path)).json().state).toBe("NOT_STARTED");
+    expect((await f.request(outsider, "GET", path)).statusCode).toBe(404);
+    await f.request(guest, "POST", `/api/lobbies/${id}/join`, { schemaVersion: 1 });
+    for (const browser of [host, guest]) await f.request(browser, "POST", `/api/lobbies/${id}/ready`, { schemaVersion: 1, ready: true });
+    expect((await f.request(host, "POST", `/api/lobbies/${id}/start`, { schemaVersion: 1 })).statusCode).toBe(200);
+    const before = await client.matchWorld.findUniqueOrThrow({ where: { matchId: id } });
+    const a = await f.request(host, "GET", path); const b = await f.request(guest, "GET", path);
+    expect(a.statusCode).toBe(200); expect(a.json().state).toBe("READY"); expect(b.json()).toEqual(a.json());
+    for (const secret of ["seed", "payload", "identityId", "startingState", host.identityId, guest.identityId]) expect(a.body).not.toContain(secret);
+    expect((await f.request(outsider, "GET", path)).statusCode).toBe(404);
+    expect((await f.request(outsider, "GET", `/api/matches/${randomUUID()}/world`)).json()).toEqual((await f.request(outsider, "GET", path)).json());
+    await f.request(host, "GET", path); expect(await client.matchWorld.findUniqueOrThrow({ where: { matchId: id } })).toEqual(before);
+    await f.request(guest, "POST", "/auth/logout", {}); expect((await f.request(guest, "GET", path)).statusCode).toBe(401);
+  });
 
   it("authorizes readiness/start with real sessions and atomically starts once without any turn", async () => {
     const { host, id } = await fresh(); const guest = await f.login(username()); const outsider = await f.login(username());
@@ -140,9 +158,9 @@ describe.skipIf(process.env.RUN_DATABASE_TESTS !== "1")("authenticated lobby HTT
   it("rejects RUNNING mutations, including existing-member retries, without changing the roster", async () => {
     const { id, host } = await fresh(3); const guest = await f.login(username()); const outsider = await f.login(username());
     expect((await f.request(guest, "POST", `/api/lobbies/${id}/join`, { schemaVersion: 1 })).statusCode).toBe(200);
-    // Only our new fixture is changed to simulate a future start; no start API,
-    // world initialization or turn creation is implemented or executed.
-    await client.match.update({ where: { id }, data: { status: "RUNNING" } });
+    await f.request(host, "POST", `/api/lobbies/${id}/ready`, { schemaVersion: 1, ready: true });
+    await f.request(guest, "POST", `/api/lobbies/${id}/ready`, { schemaVersion: 1, ready: true });
+    expect((await f.request(host, "POST", `/api/lobbies/${id}/start`, { schemaVersion: 1 })).statusCode).toBe(200);
     const before = await client.matchParticipant.findMany({ where: { matchId: id }, orderBy: { playerId: "asc" } });
     for (const browser of [host, guest, outsider]) for (const action of ["join", "leave"]) {
       const response = await f.request(browser, "POST", `/api/lobbies/${id}/${action}`, { schemaVersion: 1 });

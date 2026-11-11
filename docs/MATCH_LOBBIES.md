@@ -1,6 +1,6 @@
 # Multiplayer lobby contracts (Assignment 004B.2A / Issue #7)
 
-**Scope:** Public lobby contracts, PostgreSQL persistence, authenticated REST endpoints, Sovereign UI, and player readiness/host-controlled lifecycle start (005A / Issue #17). WebSockets, matchmaking, Turn 1 and world initialization remain future work. See [LOBBY_API.md](LOBBY_API.md) for HTTP/security and [database documentation](../database/README.md) for migration safeguards. Existing auth behavior and deterministic turns are preserved.
+**Scope:** Public lobby contracts, persistence, authenticated REST/UI, readiness and host-controlled start. Approved 005B.2 adds atomic initial-world storage and a separate participant-only SVG map; see [INITIAL_WORLD.md](INITIAL_WORLD.md). WebSockets, matchmaking and Turn 1 remain future work. Existing auth behavior and deterministic turn contracts are preserved.
 
 ## Access and lifecycle
 
@@ -25,7 +25,7 @@
 
 Duplicate joining is idempotent while OPEN, including when full. **Issue #9 / owner clarification:** every RUNNING join is rejected, including duplicate retries. Contracts can structurally represent an acknowledgement; persistence enforces the stricter rule. Membership, readiness and start all lock the parent Match before reading lifecycle/roster in a ReadCommitted transaction. A waiter re-reads committed state. Start checks host, occupancy and all readiness under that lock, then conditionally updates only OPEN to RUNNING. Results follow commit. Concurrent starts yield one STARTED and subsequent ALREADY_STARTED results; non-host retries remain forbidden. No durable request receipt is added.
 
-Issue #17 authorizes the lifecycle transition only. It preserves configuration/duration/state version and creates no world, runtime pins, snapshot, turn or deadline. A RUNNING lobby is not a playable match yet. Future world/turn initialization requires its own approved design and atomic/idempotent boundary.
+Issue #17 originally added lifecycle-only start. Approved 005B.2 / Issue #22 now inserts one initial world in that same transaction before committing RUNNING, with database guards for new transitions. Configuration/duration/state version, runtime pins, snapshots, turns, deadlines and armies remain unchanged. Legacy RUNNING matches without worlds stay explicitly uninitialized, including after host retries. See [INITIAL_WORLD.md](INITIAL_WORLD.md). A read-only map is not playable turn execution.
 
 ## Fixed settings and timing
 

@@ -4,6 +4,7 @@ import { CreateLobbyResponseSchema, JoinLobbyResponseSchema, LeaveLobbyResponseS
 import { AuthRepository, createDatabaseClient, LobbyRepository } from "../src/index.js";
 import { Prisma } from "../src/generated/prisma/client.js";
 import { testDatabaseUrl } from "../src/environment.js";
+import { insertInitialWorld, makeInitialWorld } from "../src/world-repository.js";
 
 describe.skipIf(process.env.RUN_DATABASE_TESTS !== "1")("PostgreSQL lobbies (live database required)", () => {
   let client: ReturnType<typeof createDatabaseClient>;
@@ -162,8 +163,8 @@ describe.skipIf(process.env.RUN_DATABASE_TESTS !== "1")("PostgreSQL lobbies (liv
     const guest = await account();
     const outsider = await account();
     await repository.joinLobby(id, guest);
-    // Legacy RUNNING data need not have historic lobby readiness.
-    await client.match.update({ where: { id }, data: { status: "RUNNING" } });
+    await repository.setReady(id, host, true); await repository.setReady(id, guest, true);
+    await repository.startLobby(id, host);
     const before = await client.matchParticipant.findMany({ where: { matchId: id } });
     for (const identity of [host, guest, outsider]) {
       await expect(repository.joinLobby(id, identity)).rejects.toMatchObject({ code: "LOBBY_NOT_OPEN" });
@@ -317,6 +318,9 @@ describe.skipIf(process.env.RUN_DATABASE_TESTS !== "1")("PostgreSQL lobbies (liv
           if (!waiting) await new Promise((resolve) => setTimeout(resolve, 10));
         }
         expect(waiting).toBe(true);
+        const members = await tx.matchParticipant.findMany({ where: { matchId: id, active: true }, select: { playerId: true } });
+        const players = members.map((p) => p.playerId);
+        await insertInitialWorld(tx, id, makeInitialWorld(players), players);
         await tx.match.update({ where: { id }, data: { status: "RUNNING" } });
       });
       await expect(joining).rejects.toMatchObject({ code: "LOBBY_NOT_OPEN" });

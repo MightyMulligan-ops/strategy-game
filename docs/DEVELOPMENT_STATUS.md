@@ -1,6 +1,6 @@
 # Development status
 
-This is a short, evidence-based handoff, not a replacement for the rules or roadmap. Baseline: `main` at `280b7fa` (PR #18 squash merge). Feature work remains unmerged even when its tests pass.
+This is a short, evidence-based handoff, not a replacement for the rules or roadmap. Baseline: `main` at `e3e4a22` (PR #21 squash merge). Feature work remains unmerged even when its tests pass.
 
 | Area | State | Evidence / limitations |
 |---|---|---|
@@ -18,7 +18,8 @@ This is a short, evidence-based handoff, not a replacement for the rules or road
 | Sovereign account/lobby UI and proxy (004B.2D / Issue #13) | Merged | [PR #14](https://github.com/MightyMulligan-ops/strategy-game/pull/14), `9a45f27`; branded account/lobby UI, original assets and same-origin proxy |
 | Loopback local test sign-in (004B.2E / Issue #15) | Merged | [PR #16](https://github.com/MightyMulligan-ops/strategy-game/pull/16), `40c56a3`; explicit loopback/development gates, isolated fixtures and normal sessions/CSRF/lobby authorization |
 | Lobby readiness and host start (005A / Issue #17) | Merged | [PR #18](https://github.com/MightyMulligan-ops/strategy-game/pull/18), `280b7fa`; serialized readiness/host/count checks and lifecycle-only start, Open/Started discovery; no world or turn initialization |
-| Pure territory world foundation (005B.1 / Issue #20) | In review / unmerged | [Draft PR #21](https://github.com/MightyMulligan-ops/strategy-game/pull/21), `issue/20-deterministic-world-generator`, child of [#19](https://github.com/MightyMulligan-ops/strategy-game/issues/19); pure contracts/generator/docs only; 67 new focused tests and all 476 local unit tests passed, plus frozen install/build/typecheck/lint. The 61 live DB tests are intentionally skipped locally; PR checks provide disposable-CI regression evidence. Existing databases remain untouched. No persistence/API/UI/start integration |
+| Pure territory world foundation (005B.1 / Issue #20) | Merged | [PR #21](https://github.com/MightyMulligan-ops/strategy-game/pull/21), `e3e4a22`; approved generator/contracts and local balance guarantees, 67 generator tests |
+| Persisted initial world and SVG map (005B.2 / Issue #22) | In progress | `issue/22-persistent-world-map`; immutable JSONB archive, atomic guarded start, participant-only allowlist projection/API, accessible SVG inspector; 500 local tests passed, 73 DB assertions intentionally skipped locally. Two-context mock-backed Chromium smoke passed. No existing DB access; SQL generated/reviewed offline, disposable-CI verification pending |
 | Match authorization, command APIs, scheduler | Planned | Next Phase 0B work; account authentication does not grant match permissions |
 | Map, gameplay, leadership, Military Supplies | Planned | Rules remain in GAME_DESIGN.md; no claim of implemented gameplay |
 
@@ -33,4 +34,4 @@ This is a short, evidence-based handoff, not a replacement for the rules or road
 
 ## Next planned development slice
 
-Review the 005B.1 specification, seeded generator and precise local starting guarantees in [WORLD_GENERATION.md](WORLD_GENERATION.md). Parent Issue #19 remains open. 005B.2 (persistence/start/API/minimal map) and 005B.3 (explicit legacy initialization and acceptance hardening) require separate authorization. No existing database access is permitted. Runtime pins/Turn 1, turn execution, scheduling and gameplay remain future work; the pure generator is not integrated into match start or the browser.
+Review 005B.2's transaction/SQL, public projection and first SVG inspector in [INITIAL_WORLD.md](INITIAL_WORLD.md). Parent #19 remains open. 005B.3 (explicit legacy initialization and acceptance hardening) needs separate authorization; no existing database access or sandbox migration is permitted here. Turn initialization/deadlines, armies, snapshots/simulation, scheduling and gameplay remain unchanged.

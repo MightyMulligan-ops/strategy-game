@@ -4,7 +4,7 @@ A browser-based, multiplayer 2D grand strategy game inspired by the broad gamepl
 
 ## Project status
 
-**Pre-production / foundation.** The pnpm workspace has a Sovereign-branded account/lobby UI, player readiness and host-controlled OPEN→RUNNING start, React/Vite and Fastify, turn/order contracts, deterministic empty-turn resolution, movement planning and PostgreSQL/Prisma persistence. Authentication is disabled by default; enabled auth uses configured OAuth or the explicit loopback test-login mode. No playable game, world/Turn 1 initialization, scheduler or realtime transport exists. New readiness SQL remains unapplied to existing databases; only disposable CI migration testing is approved. Existing-database rollout and sandbox acceptance require owner review/approval.
+**Pre-production / foundation.** Sovereign has account/lobby UI, player readiness and atomic host-controlled start with a persisted initial world and participant-only read-only SVG map. The approved generator supplies terrain, adjacency, ownership and capital/supply fixtures; no armies, gameplay processing, Turn 1 initialization, scheduler or realtime transport exists. Authentication is disabled by default; enabled auth uses configured OAuth or explicit loopback test login. New world SQL is tested only in disposable CI; existing databases are untouched and sandbox migration requires separate approval. Legacy RUNNING matches without worlds remain explicitly uninitialized.
 
 ## Product direction
 
@@ -41,7 +41,8 @@ Use a **server-authoritative modular monolith** initially. Do not introduce micr
 - `docs/LOCAL_TEST_LOGIN.md` — opt-in loopback fixture login, isolation safeguards and owner-only sandbox/two-browser launch steps; no automatic database access or preparation.
 - `docs/CI.md` — GitHub Actions jobs, failure diagnostics, and recommended required checks for `main`.
 - `docs/MATCH_LOBBIES.md` — approved lobby rules, versioned contracts, and PostgreSQL lobby persistence.
-- `docs/WORLD_GENERATION.md` — 005B.1 pure seeded territory generator, versioned world specification, starting guarantees and deferred integration; no persisted or visible match world yet.
+- `docs/WORLD_GENERATION.md` — 005B.1 pure seeded territory generator, versioned specification and local starting guarantees.
+- `docs/INITIAL_WORLD.md` — 005B.2 JSONB storage, atomic start, participant-only projection/API, first SVG map, migration safeguards and acceptance tests.
 - `docs/LOBBY_API.md` — authenticated lobby endpoints, readiness/start rules, CSRF/origin safeguards and isolated test prerequisites.
 - `docs/LOBBY_UI.md` — Sovereign account/lobby screens, same-origin API integration, verified asset inventory, accessibility, tests and live-database limitations.
 - `docs/CODEX_WORKFLOW.md` — human-started Windows VS Code issue-to-draft-PR workflow and metadata labels.
