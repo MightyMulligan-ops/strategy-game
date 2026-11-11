@@ -159,7 +159,7 @@ The owner approved three review phases. 005B.1 merged in PR #21 as `e3e4a22`, an
 - [x] **005B.1:** Versioned authoritative world contracts and pure deterministic generator; seeded integer geometry, adjacency/terrain, separate starting fixtures and measurable local equality; tests for 2/4/10/40 players and all supported sizes. Merged without database/API/UI/start wiring. See [WORLD_GENERATION.md](WORLD_GENERATION.md).
 - [x] **005B.2:** Immutable JSONB initial archive, guarded atomic initialization on start, participant-only allowlist API and minimal read-only SVG inspector; retry/concurrency/rollback/reload/legacy tests. Merged in PR #23; see [INITIAL_WORLD.md](INITIAL_WORLD.md).
 - [ ] **005B.3A:** Accessible world-unavailable explanation for legacy RUNNING matches, preserving UNINITIALIZED and distinct not-started/error/READY handling. Frontend tests/docs only; no database, backend or contract changes.
-- [ ] **005B.3:** Explicit idempotent legacy initialization and remaining map/acceptance hardening. Never silently initialize existing RUNNING matches on read; separate owner authorization required.
+- [ ] **005B.3:** Accessibility, world-view error-state, and acceptance-test hardening. Legacy RUNNING matches remain UNINITIALIZED. No automatic or host-triggered world initialization is authorized.
 
 No phase authorizes Codex to access an existing development/test/sandbox database. Any future migration must be reviewed and tested only in fresh disposable CI; manual sandbox application requires separate owner approval. World initialization does not resolve a simultaneous turn or imply gameplay execution.
 
