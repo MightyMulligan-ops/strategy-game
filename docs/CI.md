@@ -60,6 +60,8 @@ Automation 008's separate **PR review summary** workflow consumes current-head C
 
 Automation 008A / Issue #34 recovers empty CI run association arrays only through a unique read-only commit-to-PR lookup, exact current-head/source-branch/repository/workflow validation and fresh attempt checks. Fork fallback, conflicting or ambiguous associations remain unavailable. It changes no workflow permissions, required checks, execution guard or database isolation. Post-merge owner validation for PR #33 is documented in [PR_REVIEW.md](PR_REVIEW.md#missing-run-associations-automation-008a--issue-34).
 
+Automation 009 / Issue #36 supplies [human-started structured review and a separate bounded repair handoff](PR_REVIEW.md#human-started-structured-review-automation-009). Reviews bind findings to current head/base and CI run/attempt/job evidence; missing evidence is UNKNOWN. They execute no PR code and authorize no edits. Each repair needs an owner request and fresh checks on the existing branch/PR, with at most two human-initiated attempts per failure. No Actions trigger, permission, required check, execution guard or database policy changes; local verification disables DB suites and existing hosted CI alone may run its disposable PostgreSQL tests.
+
 After this workflow has run, configure a branch ruleset for `main` under **Settings → Rules → Rulesets**, or a classic branch protection rule under **Settings → Branches**, as supported by the repository's plan:
 
 1. Require a pull request before merging.
