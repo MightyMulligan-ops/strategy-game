@@ -1,5 +1,5 @@
 import { readFileSync, existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { REVIEW_POLICY, list, object } from "../pr-review.ts";
@@ -10,6 +10,14 @@ const review = read(".github/CODEX_REVIEW_PROMPT.md").replace(/\s+/g, " ");
 const repair = read(".github/CODEX_REPAIR_PROMPT.md").replace(/\s+/g, " ");
 const guide = read("docs/PR_REVIEW.md");
 const handoff = object(JSON.parse(read(".github/PR_REVIEW_HANDOFF.template.json")));
+const allowedLinks = new Set([".github/CODEX_ISSUE_PROMPT.md", ".github/CODEX_REVIEW_PROMPT.md", ".github/CODEX_REPAIR_PROMPT.md",
+  ".github/PR_REVIEW_HANDOFF.template.json", "docs/PR_REVIEW.md", "docs/CI.md", "docs/CODEX_WORKFLOW.md"]);
+function localLink(source: string, target: string): string {
+  const path = resolve(root, dirname(source), target);
+  // Validate before any existence/content read; links cannot probe credentials or arbitrary files.
+  if (!allowedLinks.has(relative(root, path).replace(/\\/g, "/"))) throw new Error("Unexpected local documentation link target");
+  return path;
+}
 
 // Static document/template regression guards only. No runtime validator, model invocation,
 // authorization engine, command execution or guarantee of reviewer compliance is introduced.
@@ -96,7 +104,7 @@ describe("human-started review/repair templates", () => {
     for (const path of [".github/CODEX_REVIEW_PROMPT.md", ".github/CODEX_REPAIR_PROMPT.md", "docs/PR_REVIEW.md", "docs/CODEX_WORKFLOW.md"]) {
       for (const match of read(path).matchAll(/\]\(([^)]+)\)/g)) {
         const target = match[1]!; if (/^https?:/.test(target)) continue;
-        const [file, anchor] = target.split("#"); const linked = resolve(root, dirname(path), file!);
+        const [file, anchor] = target.split("#"); const linked = localLink(path, file!);
         expect(existsSync(linked), `${path} -> ${target}`).toBe(true);
         if (anchor) {
           const headings = readFileSync(linked, "utf8").split(/\r?\n/).filter((line) => /^#{1,6} /.test(line))
@@ -105,5 +113,8 @@ describe("human-started review/repair templates", () => {
         }
       }
     }
+  });
+  it.each(["../../.env", "../.git/config", "../scripts/development.ts"])("rejects out-of-scope documentation link %s before file access", (target) => {
+    expect(() => localLink("docs/PR_REVIEW.md", target)).toThrow("Unexpected local documentation link target");
   });
 });
