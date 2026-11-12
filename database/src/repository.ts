@@ -7,17 +7,12 @@ import { Prisma } from "./generated/prisma/client.js";
 import type { PrismaClient } from "./generated/prisma/client.js";
 import { PersistenceError } from "./errors.js";
 import { json, orderRows, safeNumber, turnFields } from "./mappings.js";
-import { storedTurnInclude, restoreStoredTurn, insertSnapshot, insertTurn, requireEmptyRuntime } from "./turn-storage.js";
+import { readStoredTurn as readTurn, insertSnapshot, insertTurn, requireEmptyRuntime } from "./turn-storage.js";
 import type { StoredTurn } from "./turn-storage.js";
 
 type Transaction = Prisma.TransactionClient;
 const same = (a: object, b: object) => JSON.stringify(a) === JSON.stringify(b);
 
-async function readTurn(tx: Transaction, matchId: string, turnNumber: number) {
-  const row = await tx.turn.findUnique({ where: { matchId_number: { matchId, number: BigInt(turnNumber) } }, include: storedTurnInclude });
-  if (!row) throw new PersistenceError("not_found", "Turn not found");
-  return restoreStoredTurn(row);
-}
 type Aggregate = Extract<StoredTurn, { kind: "empty" }>;
 
 async function persistLifecycle(tx: Transaction, previous: Aggregate, next: TurnState) {

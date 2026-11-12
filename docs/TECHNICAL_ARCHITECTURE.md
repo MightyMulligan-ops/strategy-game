@@ -292,6 +292,14 @@ New public lobbies pin the exact initialization-only profile at configuration IN
 
 `database/turn-storage.ts` shares transaction-scoped inserts and dispatches restoration explicitly between empty v1 and initial-world v2. Initial restoration validates the actual immutable archive and digest, row/configuration/profile, roster, clocks and initial history; it never drops world fields or repairs data. Every persistence mutation rejects initial aggregates before clocks or writes, preserving engine guards. A new additive SQL migration enforces null-safe profile shapes, atomic bundle completeness, exact participant sets and immutable initialization rows with parent-cascade compatibility. Existing migrations/schema/contracts are unchanged. See [TURN_SYSTEM.md](TURN_SYSTEM.md#atomic-initial-world-turn-1-persistence-006b2--issue-39) for limitations and CI-only verification.
 
+### 8.13 Production participant Turn 1 reader (006C.1 / Issue #42)
+
+Merged PR #40 (`5872e85`) supplies atomic initialization. A separate `TurnReadRepository` and GET-only router now expose the persisted initial-world Turn 1 using the existing strict version-1 envelope. Normal authenticated startup injects only the reader, never the fixture command service; simultaneous production/fixture readers are rejected and fixtures retain NODE_ENV=test gating. Ready/orders, closure and scheduling remain unavailable in production.
+
+One PostgreSQL read-only repeatable-read transaction checks registered account and exact active membership before private availability metadata, then reuses transaction-scoped strict archive/snapshot/turn restoration. An explicit own-player projection excludes all authoritative payloads, runtime pins, seeds/digests, identities and other-player state. OPEN/no turn is NOT_STARTED; all-null legacy RUNNING/no turn is UNINITIALIZED; corrupt/unsupported/pinned-missing states fail closed without repair. Reads never observe lifecycle time or mutate overdue OPEN turns. Concurrent starts are visible only before or after their atomic commit. See [TURN_SYSTEM.md](TURN_SYSTEM.md#production-read-only-turn-1-status-006c1--issue-42).
+
+No schema/migration/dependency/workflow or frontend change. Local verification is database-free; only unchanged hosted disposable PostgreSQL CI is approved. Snapshot-consistent authorization does not lock out concurrent writers, and no durable command acknowledgement or world-aware resolver is implied. Existing database access, backfill, merge and deployment require separate owner decisions.
+
 ## 9. Persistence and data
 
 PostgreSQL is the persistent store and Prisma is the schema/migration tool. Assignment 004A introduces the initial storage implementation; its follow-up passed the live PostgreSQL persistence suite.

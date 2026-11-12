@@ -1,0 +1,35 @@
+import { ReadTurnRequestSchema, ReadTurnResponseSchema, TurnErrorResponseSchema, UsernameSchema } from "@strategy-game/shared-types";
+import { TurnReadError } from "@strategy-game/database";
+import type { AuthPersistence, TurnReadRepository } from "@strategy-game/database";
+import type { FastifyInstance } from "fastify";
+import { privateResponseHeaders, sessionPlayer } from "../auth/security.js";
+
+export type TurnReadPersistence = Pick<TurnReadRepository, "getTurn">;
+/** Independent GET-only router; never registers the fixture command service. */
+export async function registerTurnReadRoutes(app: FastifyInstance, options: { accounts: AuthPersistence; turns: TurnReadPersistence }) {
+  await app.register(async (routes) => {
+    routes.setErrorHandler((error, _request, reply) => {
+      privateResponseHeaders(reply);
+      const code = error instanceof TurnReadError ? error.code : "INTERNAL_ERROR";
+      const rate = typeof error === "object" && error !== null && "statusCode" in error && error.statusCode === 429;
+      const status = rate ? 429 : code === "UNAUTHENTICATED" ? 401 : code === "USERNAME_REQUIRED" ? 403
+        : code === "NOT_FOUND" ? 404 : code === "INVALID_REQUEST" ? 400 : 500;
+      if (status === 500) routes.log.error("Turn read failed; check service availability and stored data");
+      return reply.code(status).send(TurnErrorResponseSchema.parse({ schemaVersion: 1, error: rate ? "RATE_LIMITED" : code }));
+    });
+    routes.addHook("onRequest", async (request, reply) => {
+      privateResponseHeaders(reply);
+      const user = await sessionPlayer(request, options.accounts);
+      if (!user) throw new TurnReadError("UNAUTHENTICATED");
+      if (!UsernameSchema.safeParse(user.username).success) throw new TurnReadError("USERNAME_REQUIRED");
+    });
+    routes.get("/api/matches/:matchId/turn", async (request) => {
+      const query = request.query as Record<string, unknown>;
+      const version = query.schemaVersion === undefined || query.schemaVersion === "1" ? 1 : query.schemaVersion;
+      if (request.body !== undefined || Object.keys(query).some((key) => key !== "schemaVersion")) throw new TurnReadError("INVALID_REQUEST");
+      const parsed = ReadTurnRequestSchema.safeParse({ schemaVersion: version, ...request.params as object });
+      if (!parsed.success) throw new TurnReadError("INVALID_REQUEST");
+      return ReadTurnResponseSchema.parse(await options.turns.getTurn(parsed.data.matchId, request.session.playerIdentityId!));
+    });
+  });
+}

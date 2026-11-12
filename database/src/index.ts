@@ -10,5 +10,6 @@ export type { AuthPersistence, OAuthAttemptData, SessionWrite } from "./auth-typ
 export { LobbyRepository, LobbyError } from "./lobby-repository.js";
 export type { LobbyErrorCode } from "./lobby-repository.js";
 export { WorldRepository, WorldError } from "./world-repository.js";
+export { TurnReadRepository, TurnReadError } from "./turn-read-repository.js";
 export { localTestIdentity, isLocalTestIdentity } from "./local-test-identities.js";
 export type { LocalTestPlayer, LocalTestLoginPersistence } from "./local-test-identities.js";

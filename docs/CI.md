@@ -11,6 +11,8 @@ The `CI` workflow in [ci.yml](../.github/workflows/ci.yml) runs for pull request
 
 Both jobs use GitHub-hosted Ubuntu 24.04, Node.js 24, and pnpm from the root `packageManager` field (currently 12.18.0). `pnpm/action-setup` reads that pin; `actions/setup-node` caches the pnpm store using `pnpm-lock.yaml`. They install with `pnpm install --frozen-lockfile`; neither `node_modules`, Prisma output, nor the development cache is shared between jobs. All actions are pinned to full commit SHAs with version comments; review action releases before updating those pins.
 
+006C.1 / Issue #42 adds the dynamically discovered `apps/server/tests/turn-read.integration.test.ts`: production GET with real sessions for 2/4/10/40 players, authorization, legacy states, digest rejection, unchanged overdue reads and concurrent start/read consistency. It requires both RUN_DATABASE_TESTS=1 and GITHUB_ACTIONS=true before client creation. Only the unchanged hosted job's fresh disposable service is approved; all local checks set RUN_DATABASE_TESTS=0. No workflow, dependency, migration/schema or provisioning changes, and no existing database access. Report actual execution/no-skip evidence in the PR and development status rather than inferring DB success from local tests.
+
 The quality job deliberately skips the live database suites in `pnpm test`. The database job starts a fresh, health-checked `postgres:17` service, creates `strategy_game_ci_test`, and runs:
 
 ```sh
