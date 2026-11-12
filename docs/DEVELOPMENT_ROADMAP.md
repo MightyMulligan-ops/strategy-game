@@ -189,10 +189,17 @@ No runtime assignment, lobby/startup modification, persistence adapter, database
 
 ## Milestone 006B.2 — Atomic initial-world Turn 1 persistence (Issue #39)
 
-- [ ] Creation-time immutable runtime pins, atomic host-start world/snapshot-v2/OPEN-Turn-1/zero-draft/INITIAL-history persistence, strict version-aware restoration and initialization-only mutation refusal. Implemented for owner review; remains unmerged.
-- [ ] One additive functions/triggers migration with null-safe profile/complete-bundle/roster and removal/cascade guards; verification only on unchanged hosted disposable PostgreSQL CI after offline SQL review.
+- [x] Creation-time immutable runtime pins, atomic host-start world/snapshot-v2/OPEN-Turn-1/zero-draft/INITIAL-history persistence, strict version-aware restoration and initialization-only mutation refusal. Merged in PR #40 as `5872e85`.
+- [x] One additive functions/triggers migration with null-safe profile/complete-bundle/roster and removal/cascade guards; verified on unchanged hosted disposable PostgreSQL CI after offline SQL review (107 assertions, no skips).
 
-Existing unpinned OPEN lobbies keep world-only start; existing RUNNING records are never initialized, backfilled or repaired. No existing database access, local DB testing, CI edit, new provisioning, gameplay, Turn 2, scheduler/recovery, frontend or production 006A wiring. See [TURN_SYSTEM.md](TURN_SYSTEM.md#atomic-initial-world-turn-1-persistence-006b2--issue-39) and development status for actual verification. These checklist items remain open until human merge.
+Existing unpinned OPEN lobbies keep world-only start; existing RUNNING records are never initialized, backfilled or repaired. No existing database access, local DB testing, CI edit, new provisioning, gameplay, Turn 2, scheduler/recovery, frontend or production 006A wiring was included. See [TURN_SYSTEM.md](TURN_SYSTEM.md#atomic-initial-world-turn-1-persistence-006b2--issue-39).
+
+## Milestone 006C.1 — Production read-only participant Turn 1 status (Issue #42)
+
+- [ ] Dedicated production GET only, strict existing versioned contracts and caller-only projection, session/username and exact active-match authorization before availability/private content, read-only repeatable-read restoration.
+- [ ] NOT_STARTED/legacy UNINITIALIZED and sanitized unsupported/corrupt-state handling, unchanged overdue OPEN state, fixture/production separation; database-free tests plus unchanged hosted disposable PostgreSQL CI evidence.
+
+Implemented for owner review on the Issue #42 branch; these items stay unchecked until human merge. No production Ready/orders, deadline observation/closure, world-aware resolution, scheduler, frontend, legacy initialization, schema/migration/dependency/CI changes or existing database access. See [TURN_SYSTEM.md](TURN_SYSTEM.md#production-read-only-turn-1-status-006c1--issue-42) and development status for actual verification.
 
 ## Phase 1 — Map and game shell
 

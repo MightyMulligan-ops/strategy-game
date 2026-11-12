@@ -9,12 +9,16 @@ import { registerWorldRoutes } from "./worlds/routes.js";
 import type { WorldPersistence } from "./worlds/routes.js";
 import { registerFixtureTurnRoutes } from "./turns/routes.js";
 import type { FixtureTurnService } from "./turns/service.js";
+import { registerTurnReadRoutes } from "./turns/read-routes.js";
+import type { TurnReadPersistence } from "./turns/read-routes.js";
 
 export async function buildApp(options: {
   auth?: Authentication; lobbies?: LobbyPersistence; worlds?: WorldPersistence;
   turnFixtures?: { service: FixtureTurnService };
+  turnReads?: TurnReadPersistence;
   logger?: FastifyServerOptions["logger"]; trustProxy?: FastifyServerOptions["trustProxy"]
 } = {}) {
+  if (options.turnFixtures && options.turnReads) throw new Error("Fixture and production turn readers are mutually exclusive");
   if (options.turnFixtures && process.env.NODE_ENV !== "test") throw new Error("Turn fixtures require NODE_ENV=test");
   const app = Fastify({ logger: options.logger ?? false,
     logController: new LogController({ disableRequestLogging: true }), trustProxy: options.trustProxy ?? false });
@@ -33,6 +37,7 @@ export async function buildApp(options: {
       restrictLocalTestServer(app, options.trustProxy);
     }
     await registerAuthentication(app, options.auth);
+    if (options.turnReads) await registerTurnReadRoutes(app, { accounts: options.auth.persistence, turns: options.turnReads });
     if (options.turnFixtures) await registerFixtureTurnRoutes(app, {
       origin: options.auth.config.origin, accounts: options.auth.persistence, service: options.turnFixtures.service
     });

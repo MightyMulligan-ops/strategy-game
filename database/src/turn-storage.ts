@@ -83,6 +83,12 @@ export function restoreStoredTurn(row: StoredTurnRow) {
   }
 }
 export type StoredTurn = ReturnType<typeof restoreStoredTurn>;
+/** Transaction-scoped restoration; callers own authorization and transaction policy. */
+export async function readStoredTurn(tx: Prisma.TransactionClient, matchId: string, turnNumber: number) {
+  const row = await tx.turn.findUnique({ where: { matchId_number: { matchId, number: BigInt(turnNumber) } }, include: storedTurnInclude });
+  if (!row) throw new PersistenceError("not_found", "Turn not found");
+  return restoreStoredTurn(row);
+}
 export function requireEmptyRuntime(aggregate: StoredTurn): asserts aggregate is Extract<StoredTurn, { kind: "empty" }> {
   if (aggregate.kind !== "empty") throw new PersistenceError("unsupported_runtime_operation", "Initial-world runtime supports initialization only");
 }
