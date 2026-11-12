@@ -1,6 +1,6 @@
 # Development status
 
-This is a short, evidence-based handoff, not a replacement for the rules or roadmap. Baseline: `main` at `a76be4b` (PR #25 squash merge). Feature work remains unmerged even when its tests pass.
+This is a short, evidence-based handoff, not a replacement for the rules or roadmap. Baseline: `main` at `17804c5` (PR #27 squash merge). Feature work remains unmerged even when its tests pass.
 
 | Area | State | Evidence / limitations |
 |---|---|---|
@@ -21,7 +21,8 @@ This is a short, evidence-based handoff, not a replacement for the rules or road
 | Pure territory world foundation (005B.1 / Issue #20) | Merged | [PR #21](https://github.com/MightyMulligan-ops/strategy-game/pull/21), `e3e4a22`; approved generator/contracts and local balance guarantees, 67 generator tests |
 | Persisted initial world and SVG map (005B.2 / Issue #22) | Merged | [PR #23](https://github.com/MightyMulligan-ops/strategy-game/pull/23), `432f37b`; immutable JSONB initial archive, atomic guarded start, participant-only projection/API and SVG inspector; legacy worldless matches remain UNINITIALIZED |
 | Legacy world-unavailable messaging (005B.3A / Issue #24) | Merged | [PR #25](https://github.com/MightyMulligan-ops/strategy-game/pull/25), `a76be4b`; frontend-only explanation for legacy RUNNING matches, which remain UNINITIALIZED; no automatic or host-triggered initialization is authorized |
-| Read-only map accessibility (005B.3B / Issue #26) | In review / unmerged | [Draft PR #27](https://github.com/MightyMulligan-ops/strategy-game/pull/27), `issue/26-map-accessibility`, based on clean `main` at `a76be4b`; six approved frontend/test/doc files only. One territory Tab stop, all arrow directions/boundaries and exit, concise announcements, inspector focus/return, terrain patterns/player IDs, forced colors and bounded scrolling. Frozen install/build/typecheck/lint, 26 focused and 515 workspace unit tests passed; 73 DB assertions deliberately skipped locally. Static-mock Chromium checks passed at 320/390/768/1440px for 50/1,050 cells, including keyboard escape, nearest scrolling, forced colors and world-state/error/reload regressions. NVDA/Edge speech, Windows contrast themes and 200% zoom remain manual checks; see INITIAL_WORLD.md. No database access or backend/contract/gameplay changes |
+| Read-only map accessibility (005B.3B / Issue #26) | Merged | [PR #27](https://github.com/MightyMulligan-ops/strategy-game/pull/27), `17804c5`; focused accessibility/state regressions and static-mock Chromium checks. Existing manual acceptance limitations remain in INITIAL_WORLD.md; no deferred accessibility enhancements are included in 006A |
+| Participant-authorized turn boundary (006A / Issue #28) | In review / unmerged | [Draft PR #29](https://github.com/MightyMulligan-ops/strategy-game/pull/29), `issue/28-participant-turn-boundary`, from clean `17804c5`; strict read/Ready contracts, session-based active match authorization, private own-player projection and deterministic serialized memory fixtures. Requires explicit fixture injection and NODE_ENV=test; normal startup unchanged. Frozen install/build/typecheck/lint and 575 unit/HTTP tests passed (60 new focused cases); 73 DB assertions deliberately skipped locally. Existing databases/persistence, lobby start, worlds and gameplay unchanged. No durable receipts, scheduler or production turn initialization; see TURN_SYSTEM.md |
 | Match authorization, command APIs, scheduler | Planned | Next Phase 0B work; account authentication does not grant match permissions |
 | Map, gameplay, leadership, Military Supplies | Planned | Rules remain in GAME_DESIGN.md; no claim of implemented gameplay |
 
@@ -36,4 +37,4 @@ This is a short, evidence-based handoff, not a replacement for the rules or road
 
 ## Next planned development slice
 
-Review 005B.3B's map accessibility implementation and perform the documented manual NVDA/Edge acceptance. Parent #19 and broader 005B.3 hardening remain open; this slice is not merged delivery. Legacy RUNNING matches remain UNINITIALIZED, with no automatic or host-triggered initialization authorized. Existing databases remain untouched. Turn initialization/deadlines, armies, snapshots/simulation, scheduling and gameplay remain unchanged.
+Review 006A's fixture-backed participant turn boundary. Production turn delivery remains pending separately approved runtime-pin/world-snapshot design, atomic Turn 1 initialization, persistence/acknowledgement wiring and offline recovery/scheduling. Parent #19 and broader 005B.3 hardening remain open; no deferred accessibility work is included. Legacy RUNNING worlds remain UNINITIALIZED, with no automatic or host-triggered initialization authorized. Existing databases, lobby start and gameplay remain unchanged.

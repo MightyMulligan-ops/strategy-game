@@ -4,24 +4,25 @@ import type { HTTPMethods } from "fastify";
 import type { AuthPersistence } from "@strategy-game/database";
 import type { LobbyPersistence } from "../src/lobbies/routes.js";
 import type { WorldPersistence } from "../src/worlds/routes.js";
+import type { FixtureTurnService } from "../src/turns/service.js";
 import { buildApp } from "../src/app.js";
 import { readAuthConfig } from "../src/auth/config.js";
 
 export const settings = { name: "Public lobby", playerCapacity: 2, turnDurationMs: 300_000, visibility: "PUBLIC" as const };
 export const origin = "http://127.0.0.1:5173";
-export type Browser = { cookie: string; csrf: string };
+export type Browser = { cookie: string; csrf: string; remoteAddress?: string };
 
 /** Real cookie/session/CSRF plugins; only the external OAuth provider is mocked. */
-export async function lobbyFixture(persistence: AuthPersistence, lobbies: LobbyPersistence, worlds?: WorldPersistence) {
+export async function lobbyFixture(persistence: AuthPersistence, lobbies: LobbyPersistence, worlds?: WorldPersistence, turnFixtures?: { service: FixtureTurnService }) {
   const config = readAuthConfig({ AUTH_ENABLED: "true", AUTH_ORIGIN: origin,
     SESSION_SECRET: "isolated-http-tests-session-signing-secret", GOOGLE_CLIENT_ID: "fixture-client", GOOGLE_CLIENT_SECRET: "fixture-secret" })!;
   const logs: string[] = [];
   const app = await buildApp({ auth: { config, persistence, oauth: {
     async begin() { const state = randomUUID(); return { state, authorizationUrl: `https://provider.example/authorize?state=${state}`, codeVerifier: "p".repeat(43), nonce: "fixture-nonce" }; },
     async complete(_provider, callback) { return callback.searchParams.get("code")!; }
-  } }, lobbies, ...(worlds ? { worlds } : {}), logger: { stream: new Writable({ write(chunk, _encoding, done) { logs.push(String(chunk)); done(); } }) } });
+  } }, lobbies, ...(worlds ? { worlds } : {}), ...(turnFixtures ? { turnFixtures } : {}), logger: { stream: new Writable({ write(chunk, _encoding, done) { logs.push(String(chunk)); done(); } }) } });
   async function request(browser: Browser, method: HTTPMethods, url: string, payload?: object) {
-    const response = await app.inject({ method, url, headers: { cookie: browser.cookie, origin, "x-csrf-token": browser.csrf }, ...(payload ? { payload } : {}) });
+    const response = await app.inject({ method, url, ...(browser.remoteAddress ? { remoteAddress: browser.remoteAddress } : {}), headers: { cookie: browser.cookie, origin, "x-csrf-token": browser.csrf }, ...(payload ? { payload } : {}) });
     const cookies = response.headers["set-cookie"];
     const cookie = Array.isArray(cookies) ? cookies.at(-1) : cookies;
     if (cookie) browser.cookie = cookie.split(";")[0]!;
@@ -32,8 +33,8 @@ export async function lobbyFixture(persistence: AuthPersistence, lobbies: LobbyP
     if (response.statusCode !== 200) throw new Error("Fixture CSRF initialization failed");
     browser.csrf = response.json().csrfToken;
   }
-  async function login(username: string | null = "Captain_1", subject: string = randomUUID()) {
-    const browser: Browser = { cookie: "", csrf: "" };
+  async function login(username: string | null = "Captain_1", subject: string = randomUUID(), remoteAddress?: string) {
+    const browser: Browser = { cookie: "", csrf: "", ...(remoteAddress ? { remoteAddress } : {}) };
     await csrf(browser);
     const start = await request(browser, "POST", "/auth/login/google", {});
     if (start.statusCode !== 200) throw new Error("Fixture OAuth initiation failed");

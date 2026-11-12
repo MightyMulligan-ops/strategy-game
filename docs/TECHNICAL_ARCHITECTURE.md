@@ -210,6 +210,12 @@ Likewise, no gameplay phase order, movement path/leader validation, attack legal
 
 The later 004B.2A lobby specification in section 10.1 defines pre-start public joining/leaving separately. It adds contracts only and does not change this fixed-roster turn engine or implement in-match joins, surrender, or elimination.
 
+### 8.6.1 Participant-authorized fixture boundary (006A / Issue #28)
+
+006A adds strict public turn-read/Ready envelopes, an own-player projection and a server application boundary over the existing lifecycle/repository interfaces. Match-specific active membership is checked from the normal session account inside an injected serialized fixture transaction. The test-only memory adapter uses the unchanged turn engine and trusted injected clock; closure/frozen inputs commit together, including when a late request returns a rejection. GET is observational and never initializes or closes anything. Lobby Ready and per-turn Ready remain independent.
+
+The two routes require explicit `turnFixtures` injection, normal authentication and NODE_ENV=test. Normal `index.ts` startup never registers them. No production adapter, durable acknowledgement, request-replay receipt, turn initialization, scheduler, gameplay or database change is introduced. Public responses contain only lifecycle metadata and the actor's own submission, never authoritative snapshots/frozen inputs/seeds or another player's draft. NOT_STARTED/UNINITIALIZED turn responses do not alter the existing world contract. See [TURN_SYSTEM.md](TURN_SYSTEM.md) for endpoints, security, concurrency, tests and subsequent owner approval gates. Phase 0B's production integration remains incomplete.
+
 ### 8.7 Empty-turn resolution foundation (Assignment 003)
 
 The server-only schema version 1 contracts are:
