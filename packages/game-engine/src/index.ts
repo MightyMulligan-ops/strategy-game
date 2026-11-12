@@ -6,8 +6,10 @@ export {
   transitionResolution
 } from "./turn.js";
 export type { PlayerTurnDraft, TurnCommandResult, TurnState } from "./turn.js";
-export { freezeTurnInput, resolveTurn, SIMULATION_VERSION } from "./resolution.js";
+export { freezeTurnInput, resolveTurn, SIMULATION_VERSION, UnsupportedInitialWorldOperationError } from "./resolution.js";
 export type { TurnResolution } from "./resolution.js";
 export { groupMovementOrders, SEEDED_MOVEMENT_POLICY, seededSequentialPrecedence } from "./movement-queue.js";
 export type { MovementOrderGroup, MovementTieBreaker } from "./movement-queue.js";
 export { generateWorld } from "./world-generation.js";
+export { initializeTurnOne, createInitialWorldReference, validateInitialWorldSnapshot } from "./turn-initialization.js";
+export type { InitialTurnInitialization } from "./turn-initialization.js";

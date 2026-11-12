@@ -216,6 +216,14 @@ The later 004B.2A lobby specification in section 10.1 defines pre-start public j
 
 The two routes require explicit `turnFixtures` injection, normal authentication and NODE_ENV=test. Normal `index.ts` startup never registers them. No production adapter, durable acknowledgement, request-replay receipt, turn initialization, scheduler, gameplay or database change is introduced. Public responses contain only lifecycle metadata and the actor's own submission, never authoritative snapshots/frozen inputs/seeds or another player's draft. NOT_STARTED/UNINITIALIZED turn responses do not alter the existing world contract. See [TURN_SYSTEM.md](TURN_SYSTEM.md) for endpoints, security, concurrency, tests and subsequent owner approval gates. Phase 0B's production integration remains incomplete.
 
+### 8.6.2 Pure initial-world Turn 1 foundation (006B.1 / Issue #30)
+
+`initial-world-v1` is an explicit initialization-only profile, not an executable gameplay simulation. The server-only `InitialWorldSnapshotSchema` uses schemaVersion=2 and kind=initial_world; existing configuration/runtime schemas remain version 1. Its reference identifies the immutable world archive by match ID, archive/generator versions and SHA-256 of the complete validated payload using the existing canonical JSON algorithm. No world fields are removed to fit the empty-world snapshot. New authoritative schemas/constants remain absent from the public transport entry point.
+
+The pure engine initializer validates configuration, 2–40 unique active same-match players, the archive envelope and trusted opening time. It canonicalizes the roster, computes/validates archive and snapshot identity, and returns deeply immutable metadata plus OPEN Turn 1 with revision-zero, unready, empty-order drafts. It reads no clock/RNG/storage and neither mutates nor freezes caller-owned inputs. The archive is referenced without copying it into an incomplete mutable simulation state.
+
+The existing freeze entry point explicitly throws `UnsupportedInitialWorldOperationError` for this profile; resolution returns the existing version_mismatch error without a result. Empty-turn-v1 contracts/behavior remain unchanged. No world-aware freezing/resolution, Turn 2, persistence adapter, schema/migration, lobby/startup wiring, production 006A route or worker is added. Runtime assignment, immutable-configuration policy and atomic persisted start remain separately approved follow-up work. See [TURN_SYSTEM.md](TURN_SYSTEM.md#pure-turn-1-initialization-foundation-006b1--issue-30).
+
 ### 8.7 Empty-turn resolution foundation (Assignment 003)
 
 The server-only schema version 1 contracts are:
