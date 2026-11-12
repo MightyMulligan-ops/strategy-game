@@ -59,6 +59,8 @@ The metadata workflow becomes live only after human merge into `main`; the draft
 
 ## GitHub owner settings
 
+Automation 008 adds a separate read-only PR summary and bounded CI-diagnostics workflow. It runs after CI or by maintainer dispatch, uses trusted main code, and publishes only a run summary/handoff artifact. It never launches Codex, writes PR comments or initiates repairs. Use [.github/CODEX_REVIEW_PROMPT.md](../.github/CODEX_REVIEW_PROMPT.md) for a separately human-started review/repair session; see [PR_REVIEW.md](PR_REVIEW.md) for evidence, protected-scope, two-attempt and multi-PC rules. Existing issue approval/status automation remains unchanged.
+
 - Allow the pinned `actions/github-script` action in addition to existing CI actions. Keep default Actions permissions read-only; only this metadata job requests the scoped issue-write permission.
 - Keep **Allow GitHub Actions to create and approve pull requests** disabled. A local authenticated user creates draft PRs; the workflow never does.
 - Preserve the required **Application checks** and **PostgreSQL integration tests** and human branch-protection policy from [CI.md](CI.md). Do not make metadata synchronization a required code-quality check; it does not run against unmerged workflow changes.

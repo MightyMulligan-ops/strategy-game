@@ -56,6 +56,8 @@ Use your local ignored `.env` for the local test database; do not replace it wit
 
 ## Recommended GitHub configuration (owner action)
 
+Automation 008's separate **PR review summary** workflow consumes current-head CI metadata/log evidence after completion without modifying these jobs. It emits allowlisted failure signals and explicitly CI-reported numeric test summaries; missing/ambiguous evidence stays unknown. It executes no PR code, downloads no artifacts and starts no repair. See [PR_REVIEW.md](PR_REVIEW.md). Keep the two existing required checks unchanged; this advisory report is not an execution guard, semantic review or proof of passing tests.
+
 After this workflow has run, configure a branch ruleset for `main` under **Settings → Rules → Rulesets**, or a classic branch protection rule under **Settings → Branches**, as supported by the repository's plan:
 
 1. Require a pull request before merging.
