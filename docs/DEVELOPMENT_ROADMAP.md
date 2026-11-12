@@ -24,6 +24,7 @@ The first playable prototype should demonstrate the strategy-game loop and inclu
 - [ ] Complete an atWar reference audit for mechanics that will be reproduced.
 - [ ] Record open decisions rather than inventing formulas.
 - [x] Establish GitHub Issues/PR workflow and branch conventions (Assignment 007 / PR #5, merged as `963869a`).
+- [ ] Automation 008 / Issue #32: deterministic read-only PR summaries, bounded sanitized CI diagnostics and human-started review/repair handoff. Keep unmerged work in review; no autonomous execution or repository-write automation. See [PR_REVIEW.md](PR_REVIEW.md).
 
 Assignment 007 / Issue #2 is merged: issue templates, status labels, a human-started local VS Code Codex workflow, and metadata-only synchronization. No unattended agent execution is planned. Ongoing delivery state is tracked in `DEVELOPMENT_STATUS.md`.
 
@@ -176,9 +177,11 @@ This is a fixture-backed boundary, not production turn delivery. Phase 0B's prod
 
 ## Milestone 006B.1 — Pure Turn 1 initialization foundation (Issue #30)
 
-- [ ] Distinct server-only initial-world snapshot v2, initialization-only initial-world-v1 profile and canonical SHA-256 archive reference.
-- [ ] Pure deterministic initializer and semantic snapshot/archive validator; 2–40 active players, OPEN Turn 1, empty/unready revision-zero drafts, safe clocks and immutable results.
-- [ ] Database-free contracts/initializer/regression tests, including explicit unsupported freezing/resolution rejection while preserving empty-turn-v1. Delivery remains unchecked until human merge.
+Merged in PR #31 as `a63dae7`; confirmed from GitHub before Automation 008. No further gameplay implementation is included in that automation task.
+
+- [x] Distinct server-only initial-world snapshot v2, initialization-only initial-world-v1 profile and canonical SHA-256 archive reference.
+- [x] Pure deterministic initializer and semantic snapshot/archive validator; 2–40 active players, OPEN Turn 1, empty/unready revision-zero drafts, safe clocks and immutable results.
+- [x] Database-free contracts/initializer/regression tests, including explicit unsupported freezing/resolution rejection while preserving empty-turn-v1.
 
 No runtime assignment, lobby/startup modification, persistence adapter, database/schema/migration, gameplay, Turn 2, scheduler or production 006A wiring. Atomic persisted initialization remains a later approval; this pure foundation alone cannot establish transaction/rollback guarantees. Existing databases and legacy RUNNING matches remain untouched. See [TURN_SYSTEM.md](TURN_SYSTEM.md#pure-turn-1-initialization-foundation-006b1--issue-30).
 

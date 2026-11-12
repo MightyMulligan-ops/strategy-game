@@ -1,0 +1,54 @@
+name: PR review summary
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: PR number to inspect (maintainer only; no repair execution)
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: pr-review-${{ github.event.workflow_run.id || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  summary:
+    if: github.repository == 'MightyMulligan-ops/strategy-game' && github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.event == 'pull_request')
+    name: Read-only PR diagnostics
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+      actions: read
+    steps:
+      # github.sha is trusted main for these gated events. Never checkout PR code.
+      - name: Check out trusted report implementation
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - name: Read GitHub evidence and write run summary
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node --experimental-strip-types scripts/pr-review-github.ts
+      - name: Upload bounded review handoff
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: pr-review-summary
+          path: |
+            .cache/pr-review/report.md
+            .cache/pr-review/handoff.md
+          if-no-files-found: error
+          retention-days: 7
