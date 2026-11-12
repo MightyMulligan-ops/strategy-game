@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { GameConfigSchema, GamePlayerSchema, OrderListSchema, TurnRecordSchema } from "./index.js";
 import { identifier, nonnegativeInteger, positiveInteger, version } from "./primitives.js";
+import { GeneratedWorldSchema } from "./world.js";
 export {
   WORLD_GENERATOR_VERSION, WORLD_MAX_TERRITORIES, WorldSeedSchema, WorldGenerationSettingsSchema,
   WorldGenerationInputSchema, WorldPointSchema, WorldTerrainSchema, WorldTerritorySchema,
@@ -120,3 +121,55 @@ export const ResolutionErrorSchema = z.discriminatedUnion("code", [
   })
 ]).readonly();
 export type ResolutionError = z.infer<typeof ResolutionErrorSchema>;
+
+// Initialization only. This profile does not authorize freezing or resolution.
+export const INITIAL_WORLD_SIMULATION_VERSION = "initial-world-v1";
+export const InitialWorldRuntimeProfileSchema = z.strictObject({
+  schemaVersion: version,
+  ruleset: z.strictObject({ rulesetId: z.literal("initial-world"), version: z.literal("1") }).readonly(),
+  simulationVersion: z.literal(INITIAL_WORLD_SIMULATION_VERSION),
+  movementTieBreakPolicy: z.literal("seeded-shuffle-v1")
+}).readonly();
+export type InitialWorldRuntimeProfile = z.infer<typeof InitialWorldRuntimeProfileSchema>;
+export const INITIAL_WORLD_RUNTIME_PROFILE = InitialWorldRuntimeProfileSchema.parse({
+  schemaVersion: 1, ruleset: { rulesetId: "initial-world", version: "1" },
+  simulationVersion: INITIAL_WORLD_SIMULATION_VERSION, movementTieBreakPolicy: "seeded-shuffle-v1"
+});
+
+// Pure archive envelope, not a Prisma row or a public transport contract.
+// Pin this profile to v1 rather than following a future generator default.
+const initialWorldGeneratorVersion = z.literal("territory-grid-v1");
+export const InitialWorldArchiveSchema = z.strictObject({
+  matchId: identifier.max(128), schemaVersion: version,
+  generatorVersion: initialWorldGeneratorVersion, payload: GeneratedWorldSchema
+}).superRefine((archive, context) => {
+  if (archive.schemaVersion !== archive.payload.schemaVersion || archive.generatorVersion !== archive.payload.generatorVersion) {
+    context.addIssue({ code: "custom", message: "Archive metadata must match its payload" });
+  }
+}).readonly();
+export type InitialWorldArchive = z.infer<typeof InitialWorldArchiveSchema>;
+export const InitialWorldReferenceSchema = z.strictObject({
+  matchId: identifier.max(128), archiveSchemaVersion: version,
+  generatorVersion: initialWorldGeneratorVersion, digest: z.string().regex(/^sha256:[a-f0-9]{64}$/)
+}).readonly();
+export type InitialWorldReference = z.infer<typeof InitialWorldReferenceSchema>;
+export const InitialWorldRosterSchema = z.array(GamePlayerSchema.refine(
+  (player) => player.active && player.playerId.length <= 128, "Initial roster must contain active world players"
+)).min(2).max(40).refine((players) => new Set(players.map((p) => p.playerId)).size === players.length,
+  "Initial player IDs must be unique").readonly();
+
+// A separate v2 contract: never parse/drop its world reference as an empty v1.
+export const InitialWorldSnapshotSchema = z.strictObject({
+  schemaVersion: z.literal(2), kind: z.literal("initial_world"),
+  snapshotId: z.string().regex(/^initial-world:[a-f0-9]{64}$/),
+  ruleset: InitialWorldRuntimeProfileSchema.unwrap().shape.ruleset,
+  simulationVersion: z.literal(INITIAL_WORLD_SIMULATION_VERSION),
+  config: GameConfigSchema, completedTurnNumber: z.literal(0), stateVersion: z.literal(0),
+  players: InitialWorldRosterSchema, worldRef: InitialWorldReferenceSchema
+}).superRefine((snapshot, context) => {
+  if (snapshot.worldRef.matchId !== snapshot.config.gameId || snapshot.players.some((p) => p.gameId !== snapshot.config.gameId) ||
+      snapshot.players.some((p, i) => i > 0 && snapshot.players[i - 1]!.playerId >= p.playerId)) {
+    context.addIssue({ code: "custom", message: "Initial snapshot needs matching match IDs and a canonical active roster" });
+  }
+}).readonly();
+export type InitialWorldSnapshot = z.infer<typeof InitialWorldSnapshotSchema>;

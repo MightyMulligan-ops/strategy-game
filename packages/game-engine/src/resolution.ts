@@ -7,6 +7,7 @@ import {
   SeedSchema,
   TurnResultSchema
 } from "@strategy-game/shared-types/server";
+import { INITIAL_WORLD_SIMULATION_VERSION } from "@strategy-game/shared-types/server";
 import type {
   FrozenTurnInput, GameSnapshot, ResolutionError, TurnResult
 } from "@strategy-game/shared-types/server";
@@ -18,6 +19,21 @@ export const SIMULATION_VERSION = "empty-turn-v1";
 export type TurnResolution =
   | Readonly<{ ok: true; result: TurnResult }>
   | Readonly<{ ok: false; error: ResolutionError }>;
+
+function claimsInitialWorld(value: unknown): boolean {
+  return value !== null && typeof value === "object" && (
+    "kind" in value && value.kind === "initial_world" ||
+    "simulationVersion" in value && value.simulationVersion === INITIAL_WORLD_SIMULATION_VERSION
+  );
+}
+
+export class UnsupportedInitialWorldOperationError extends Error {
+  readonly code = "unsupported_initial_world_operation";
+  constructor() {
+    super("initial-world-v1 supports initialization only; freezing is not supported");
+    this.name = "UnsupportedInitialWorldOperationError";
+  }
+}
 
 function failure(
   code: Exclude<ResolutionError["code"], "unsupported_orders">,
@@ -44,6 +60,7 @@ function pairMismatch(snapshot: GameSnapshot, frozen: FrozenTurnInput): string |
 // Capture the final revisions and their intentional array order only after
 // closure. Parsing copies/freezes data; neither lifecycle nor snapshot changes.
 export function freezeTurnInput(state: TurnState, startingSnapshotInput: unknown): FrozenTurnInput {
+  if (claimsInitialWorld(startingSnapshotInput)) throw new UnsupportedInitialWorldOperationError();
   const snapshot = GameSnapshotSchema.parse(startingSnapshotInput);
   const byPlayer = (a: { playerId: string }, b: { playerId: string }) => compareIds(a.playerId, b.playerId);
   if (canonicalJson(state.config) !== canonicalJson(snapshot.config) ||
@@ -71,6 +88,9 @@ export function resolveTurn(
   pinnedRulesetInput: unknown,
   seedInput: unknown
 ): TurnResolution {
+  if ([startingSnapshotInput, frozenOrdersInput, pinnedRulesetInput].some(claimsInitialWorld)) {
+    return failure("version_mismatch", "initial-world-v1 supports initialization only; resolution is not supported");
+  }
   // Phase 1: validate_inputs. No world/order data is silently discarded.
   const snapshotParse = GameSnapshotSchema.safeParse(startingSnapshotInput);
   const frozenParse = FrozenTurnInputSchema.safeParse(frozenOrdersInput);

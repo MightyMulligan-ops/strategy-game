@@ -166,11 +166,21 @@ No phase authorizes Codex to access an existing development/test/sandbox databas
 
 ## Milestone 006A — Participant-authorized turn boundary (Issue #28)
 
-- [ ] Strict versioned current-turn read and per-turn Ready/unready APIs with session/onboarding/active-participant checks, private own-player projection and existing Origin/CSRF/error conventions.
-- [ ] Explicit fixture injection plus NODE_ENV=test only; deterministic clock and serialized in-memory commit/rollback, preserving deadline/final-Ready closure and lobby/turn Ready separation.
-- [ ] Database-free contract/HTTP regressions for 2/4/10/40 players, concurrency, privacy, rollback, unavailable states and absent production registration; reviewed draft PR remains unmerged.
+Merged in PR #29 as `324b11b`; this delivers the fixture boundary only.
+
+- [x] Strict versioned current-turn read and per-turn Ready/unready APIs with session/onboarding/active-participant checks, private own-player projection and existing Origin/CSRF/error conventions.
+- [x] Explicit fixture injection plus NODE_ENV=test only; deterministic clock and serialized in-memory commit/rollback, preserving deadline/final-Ready closure and lobby/turn Ready separation.
+- [x] Database-free contract/HTTP regressions for 2/4/10/40 players, concurrency, privacy, rollback, unavailable states and absent production registration.
 
 This is a fixture-backed boundary, not production turn delivery. Phase 0B's production command handling, durable acknowledgement/retry and offline scheduling items stay unchecked. See [TURN_SYSTEM.md](TURN_SYSTEM.md). Subsequent atomic Turn 1 initialization, runtime pinning/world-snapshot design, production storage and any migrations require separate approval. No existing database access, legacy initialization, gameplay, merge or deployment is authorized by 006A.
+
+## Milestone 006B.1 — Pure Turn 1 initialization foundation (Issue #30)
+
+- [ ] Distinct server-only initial-world snapshot v2, initialization-only initial-world-v1 profile and canonical SHA-256 archive reference.
+- [ ] Pure deterministic initializer and semantic snapshot/archive validator; 2–40 active players, OPEN Turn 1, empty/unready revision-zero drafts, safe clocks and immutable results.
+- [ ] Database-free contracts/initializer/regression tests, including explicit unsupported freezing/resolution rejection while preserving empty-turn-v1. Delivery remains unchecked until human merge.
+
+No runtime assignment, lobby/startup modification, persistence adapter, database/schema/migration, gameplay, Turn 2, scheduler or production 006A wiring. Atomic persisted initialization remains a later approval; this pure foundation alone cannot establish transaction/rollback guarantees. Existing databases and legacy RUNNING matches remain untouched. See [TURN_SYSTEM.md](TURN_SYSTEM.md#pure-turn-1-initialization-foundation-006b1--issue-30).
 
 ## Phase 1 — Map and game shell
 

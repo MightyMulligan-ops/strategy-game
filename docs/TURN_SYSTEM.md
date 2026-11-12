@@ -1,6 +1,6 @@
 # Participant-authorized turn boundary (006A / Issue #28)
 
-006A adds a fixture-backed HTTP/application boundary over the existing turn contracts and engine. It does not enable turns in normal Sovereign startup. There is no production turn storage adapter, Turn 1 initialization, gameplay command, scheduler, frontend turn UI or database change. Authentication, lobby start, world generation/projection and legacy world UNINITIALIZED behavior remain unchanged.
+006A adds a fixture-backed HTTP/application boundary over the existing turn contracts and engine. It does not enable turns in normal Sovereign startup. There is no production turn storage adapter, persisted Turn 1 initialization, gameplay command, scheduler, frontend turn UI or database change. Authentication, lobby start, world generation/projection and legacy world UNINITIALIZED behavior remain unchanged. The separate 006B.1 pure initialization foundation is described below.
 
 ## Explicit fixture registration
 
@@ -65,3 +65,42 @@ The new contract/HTTP suites cover strict versions/fields and matched projection
 All local checks explicitly set `RUN_DATABASE_TESTS=0`. Frozen install, build, TypeScript, lint and **575 workspace unit/HTTP tests** passed, including **60 new focused contract/HTTP cases**. The **73 existing DB assertions are intentionally skipped locally**; no database, server/preflight, Docker, migration, schema validation or backfill command was run. Existing CI remains unchanged and runs its established regression job only in fresh disposable PostgreSQL. No new DB suite or migration is added.
 
 Further owner approval is needed for production adapter/wiring and atomic Turn 1 initialization, runtime pinning and world/snapshot association, durable retry receipts, retry-safe following-turn creation, deadline/restart/downtime policies and any schema/migration. Existing configuration immutability must not be weakened to fill null lobby runtime pins. Existing `GameSnapshot`/`empty-turn-v1` supports an empty world only; a generated-world-aware simulation needs an explicit versioned design. None of these decisions is implied by this fixture boundary. Movement semantics, attack rules, economy, diplomacy, research, visibility and logistics remain separate design/gameplay work.
+
+## Pure Turn 1 initialization foundation (006B.1 / Issue #30)
+
+This database-free slice defines contracts and pure functions only. It assigns no runtime to a real lobby, inserts no snapshot/turn and changes no startup, repository, API or database behavior. Existing legacy RUNNING worlds remain UNINITIALIZED, and no GET initializes anything. The existing approved generator is unchanged.
+
+### Contracts and supported profile
+
+All new contracts/constants are exported only by `@strategy-game/shared-types/server`:
+
+- `InitialWorldRuntimeProfileSchema` / `INITIAL_WORLD_RUNTIME_PROFILE`: schemaVersion=1, ruleset `{rulesetId:"initial-world",version:"1"}`, simulationVersion=`initial-world-v1`, movementTieBreakPolicy=`seeded-shuffle-v1`. This profile authorizes initialization only. The existing provisional tie policy is metadata; initialization executes no movement ordering or gameplay.
+- `InitialWorldArchiveSchema`: strict `{matchId, schemaVersion:1, generatorVersion:"territory-grid-v1", payload:GeneratedWorld}`. This is a pure envelope, not a Prisma row. Match metadata is required because the generated payload itself has no match ID. Extra fields, unsupported versions/generators and malformed payloads are rejected.
+- `InitialWorldReferenceSchema`: strict `{matchId, archiveSchemaVersion:1, generatorVersion, digest}`. Digest format is `sha256:` followed by 64 lowercase hexadecimal characters.
+- `InitialWorldSnapshotSchema`: a distinct schemaVersion=2, kind=`initial_world` contract with snapshot ID, ruleset/simulation metadata, version-1 configuration, canonical active roster, completedTurnNumber=0, stateVersion=0 and `worldRef`. Version 2 does not widen or replace the empty-world version-1 snapshot. The reference preserves access to the complete immutable initial archive; no partial empty-world representation is substituted.
+
+The roster must contain 2–40 unique active players in this exact match. Player IDs match the archive's full roster. Initialization rejects inactive entries rather than silently filtering them. Snapshot player order is ascending JavaScript string/code-unit order, independent of locale, submission time or gameplay precedence. All approved archive region sizes remain accepted; this pure function does not choose or alter generation settings.
+
+### Pure engine functions and identity
+
+`initializeTurnOne(config, activePlayers, archive, openedAtMs, runtimeProfile?)` validates its inputs and returns `{runtimeProfile, snapshot, state}`. The optional runtime defaults to the one supported immutable profile; arbitrary or executable profiles are rejected. `state` is the existing server-private lifecycle `TurnState`: OPEN Turn 1, fixed duration, explicit opening/deadline, revision-zero/unready/empty drafts. No armies, resources, closure, frozen input, resolution or next turn is produced.
+
+`createInitialWorldReference(archive)` hashes the complete validated archive payload, including seed, settings and all initial-world data. It reuses the engine's SHA-256 and canonical JSON helpers: object keys sort recursively; JSON primitive encoding and array order are preserved. A reordered roster input yields the same snapshot, but changing archive array order changes the reference digest. This is the existing engine encoding, not a new cross-language canonicalization standard.
+
+Snapshot ID is `initial-world:` plus SHA-256 over canonical `{snapshot:<metadata without snapshotId>, runtimeProfile}`. It binds configuration, roster, archive reference and supported profile. Opening time belongs to the lifecycle record rather than the world-state snapshot identity: changing only the opening time changes Turn 1's clock, not the identical initial-world snapshot. Digests are content identities, not signatures or proof that a database archive exists.
+
+`validateInitialWorldSnapshot(snapshot, archive, runtimeProfile?)` checks strict shape, roster/match/reference equality, recomputed archive digest and recomputed snapshot ID. Merely passing the reference schema proves digest syntax, not content binding. Future restoration must use the semantic validator with the actual archive. No seed/raw world payload is embedded in the snapshot or exposed by a public projection; the reference and these authoritative schemas are also server-private.
+
+Successful outputs are deeply immutable copies. Caller-owned configuration, roster and archive objects are neither mutated nor frozen. The functions read no clock, randomness, file, environment, network or database. The trusted caller supplies integer milliseconds; safe deadline arithmetic is delegated to the existing turn constructor. Overflow, negative/fractional/nonfinite opening times and unsupported inputs fail without output. A 1ms duration remains valid; no minimum or clamp is invented.
+
+### Unsupported operations and integration limits
+
+`freezeTurnInput` explicitly rejects an initial-world kind/profile with `UnsupportedInitialWorldOperationError` (`code: unsupported_initial_world_operation`) before parsing/freezing input. `resolveTurn` detects that profile in snapshot, frozen input or runtime metadata and returns existing `version_mismatch` with no next state/events/result. The version-1 error/result contracts remain unchanged. Stripping the kind does not bypass the runtime-profile guard. Generic lifecycle helpers remain lifecycle operations, not evidence of world-aware resolution.
+
+The current persistence repository still supports the old snapshot contract only. Do not persist or feed the new snapshot into it as a version-1 empty world. Later integration needs separately approved version-aware restoration and fail-closed write/resolution paths, runtime assignment without changing immutable configuration, one locked start transaction for world/snapshot/Turn 1/player states/revisions, SQL completeness/rollback constraints and disposable PostgreSQL CI verification. Existing RUNNING records must never be initialized or repaired. Production 006A wiring, world-aware freezing/resolution, scheduler/recovery and Turn 2 remain separate approvals.
+
+### Verification
+
+With `RUN_DATABASE_TESTS=0`, build, TypeScript, lint and **640 workspace unit/HTTP tests** passed; all **73 DB assertions were skipped locally**. The focused contracts/initializer/empty-resolution run passed **86 cases**, including **65 new cases**. Coverage includes 2/4/10/40 players, supported region sizes, canonical replay, full-payload SHA-256 and digest/identity tampering, malformed inputs/versions, match/roster mismatch, deadline bounds/overflow, immutable outputs and unchanged mutable inputs, no clock/RNG reads, explicit unsupported-operation rejection and preserved empty-turn-v1 behavior.
+
+No local database command, server/preflight or Docker startup ran. Existing Prisma Client generation during workspace checks is offline. The owner separately permitted the unchanged hosted CI database regression job against fresh disposable PostgreSQL only; no workflow, database tests, schema or migration is changed. This does not authorize access to any existing database or prove atomic persisted initialization.
