@@ -76,10 +76,26 @@
 /* Initial map: bounded SVG geometry with text ownership and keyboard selection. */
 .world-workspace { min-width: 0; }
 .world-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 300px); gap: 1rem; align-items: start; }
-.world-map { overflow: auto; min-width: 0; padding: 8px; background: #0A0F16; border: 1px solid #C9CDD640; }
-.world-map svg { display: block; width: 100%; max-height: 75vh; }
-.world-map polygon { cursor: pointer; }
-.world-map polygon:focus-visible { outline: 3px solid #D4AF37; }
+.world-map { overflow: auto; min-width: 0; max-height: 65vh; padding: 10px; scroll-padding: 10px; background: #0A0F16; border: 1px solid #C9CDD640; }
+.world-map svg { display: block; width: 100%; height: auto; }
+.world-territory { cursor: pointer; }
+.world-territory:focus-visible { outline: 3px dashed #F4F1E8; outline-offset: -8px; }
+.world-terrain-mark { fill: none; stroke: #C9CDD6; stroke-width: 1.5; opacity: .35; }
+.world-owner-marker { fill: #F4F1E8; stroke: #0A0F16; stroke-width: 3px; paint-order: stroke; font-size: 22px; font-weight: 700; }
+.world-details-control { margin-bottom: 1rem; }
 .world-legend { display: flex; flex-wrap: wrap; gap: .6rem 1rem; padding: 0; list-style: none; }
+.world-legend li { overflow-wrap: anywhere; }
 .territory-inspector { overflow-wrap: anywhere; }
+.territory-inspector h2:focus { outline: 3px dashed #F4F1E8; outline-offset: 4px; }
+.territory-inspector button { max-width: 100%; }
 @media (max-width: 900px) { .world-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (forced-colors: active) {
+  .world-map { background: Canvas; border-color: CanvasText; }
+  .world-map svg { forced-color-adjust: none; }
+  .world-terrain-base { fill: Canvas; }
+  .world-terrain-mark { stroke: CanvasText; opacity: .65; }
+  .world-territory { stroke: CanvasText; }
+  .world-territory[aria-pressed="true"] { stroke: Highlight; }
+  .world-territory:focus-visible, .territory-inspector h2:focus { outline-color: CanvasText; }
+  .world-owner-marker { fill: CanvasText; stroke: Canvas; }
+}

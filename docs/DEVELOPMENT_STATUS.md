@@ -1,6 +1,6 @@
 # Development status
 
-This is a short, evidence-based handoff, not a replacement for the rules or roadmap. Baseline: `main` at `432f37b` (PR #23 squash merge). Feature work remains unmerged even when its tests pass.
+This is a short, evidence-based handoff, not a replacement for the rules or roadmap. Baseline: `main` at `a76be4b` (PR #25 squash merge). Feature work remains unmerged even when its tests pass.
 
 | Area | State | Evidence / limitations |
 |---|---|---|
@@ -20,7 +20,8 @@ This is a short, evidence-based handoff, not a replacement for the rules or road
 | Lobby readiness and host start (005A / Issue #17) | Merged | [PR #18](https://github.com/MightyMulligan-ops/strategy-game/pull/18), `280b7fa`; serialized readiness/host/count checks and lifecycle-only start, Open/Started discovery; no world or turn initialization |
 | Pure territory world foundation (005B.1 / Issue #20) | Merged | [PR #21](https://github.com/MightyMulligan-ops/strategy-game/pull/21), `e3e4a22`; approved generator/contracts and local balance guarantees, 67 generator tests |
 | Persisted initial world and SVG map (005B.2 / Issue #22) | Merged | [PR #23](https://github.com/MightyMulligan-ops/strategy-game/pull/23), `432f37b`; immutable JSONB initial archive, atomic guarded start, participant-only projection/API and SVG inspector; legacy worldless matches remain UNINITIALIZED |
-| Legacy world-unavailable messaging (005B.3A / Issue #24) | In review / unmerged | [Draft PR #25](https://github.com/MightyMulligan-ops/strategy-game/pull/25), `issue/24-legacy-world-unavailable`; frontend status explanation and focused regressions only; 13 focused and 502 workspace unit tests passed, with frozen install/build/typecheck/lint and static-mock Chromium checks. The 73 DB assertions are skipped locally; PR checks track hosted regressions. No API/contract/database changes or existing database access |
+| Legacy world-unavailable messaging (005B.3A / Issue #24) | Merged | [PR #25](https://github.com/MightyMulligan-ops/strategy-game/pull/25), `a76be4b`; frontend-only explanation for legacy RUNNING matches, which remain UNINITIALIZED; no automatic or host-triggered initialization is authorized |
+| Read-only map accessibility (005B.3B / Issue #26) | In review / unmerged | [Draft PR #27](https://github.com/MightyMulligan-ops/strategy-game/pull/27), `issue/26-map-accessibility`, based on clean `main` at `a76be4b`; six approved frontend/test/doc files only. One territory Tab stop, all arrow directions/boundaries and exit, concise announcements, inspector focus/return, terrain patterns/player IDs, forced colors and bounded scrolling. Frozen install/build/typecheck/lint, 26 focused and 515 workspace unit tests passed; 73 DB assertions deliberately skipped locally. Static-mock Chromium checks passed at 320/390/768/1440px for 50/1,050 cells, including keyboard escape, nearest scrolling, forced colors and world-state/error/reload regressions. NVDA/Edge speech, Windows contrast themes and 200% zoom remain manual checks; see INITIAL_WORLD.md. No database access or backend/contract/gameplay changes |
 | Match authorization, command APIs, scheduler | Planned | Next Phase 0B work; account authentication does not grant match permissions |
 | Map, gameplay, leadership, Military Supplies | Planned | Rules remain in GAME_DESIGN.md; no claim of implemented gameplay |
 
@@ -35,4 +36,4 @@ This is a short, evidence-based handoff, not a replacement for the rules or road
 
 ## Next planned development slice
 
-Review 005B.3A's accessible legacy-map explanation and state regressions. Parent #19 remains open. Any explicit legacy initialization still needs separate authorization; this messaging change never creates a world or changes a match. Existing databases remain untouched. Turn initialization/deadlines, armies, snapshots/simulation, scheduling and gameplay remain unchanged.
+Review 005B.3B's map accessibility implementation and perform the documented manual NVDA/Edge acceptance. Parent #19 and broader 005B.3 hardening remain open; this slice is not merged delivery. Legacy RUNNING matches remain UNINITIALIZED, with no automatic or host-triggered initialization authorized. Existing databases remain untouched. Turn initialization/deadlines, armies, snapshots/simulation, scheduling and gameplay remain unchanged.
