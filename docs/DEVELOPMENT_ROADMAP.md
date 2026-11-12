@@ -25,7 +25,8 @@ The first playable prototype should demonstrate the strategy-game loop and inclu
 - [ ] Record open decisions rather than inventing formulas.
 - [x] Establish GitHub Issues/PR workflow and branch conventions (Assignment 007 / PR #5, merged as `963869a`).
 - [x] Automation 008 / Issue #32: deterministic read-only PR summaries, bounded sanitized CI diagnostics and human-started review/repair handoff (PR #33, merged as `ad1a3ff`). No autonomous execution or repository-write automation. See [PR_REVIEW.md](PR_REVIEW.md).
-- [ ] Automation 008A / Issue #34: safely recover missing CI-to-PR associations with unique commit lookup and strict repository/workflow/head/branch/attempt validation. In review after draft PR creation; trusted-main live recovery validation requires owner merge and manual dispatch for PR #33.
+- [x] Automation 008A / Issue #34: safely recover missing CI-to-PR associations with unique commit lookup and strict repository/workflow/head/branch/attempt validation (PR #35, merged as `2224ba0`). Live recovery for PR #33 still needs separately observed owner dispatch evidence.
+- [ ] Automation 009 / Issue #36: structured human-started review, advisory evidence handoff and separate owner-controlled repair on the existing branch/PR, with two human-initiated attempts per failure and safe multi-PC transfer. Unmerged prompt/documentation work; no model integration, runtime service or workflow changes.
 
 Assignment 007 / Issue #2 is merged: issue templates, status labels, a human-started local VS Code Codex workflow, and metadata-only synchronization. No unattended agent execution is planned. Ongoing delivery state is tracked in `DEVELOPMENT_STATUS.md`.
 

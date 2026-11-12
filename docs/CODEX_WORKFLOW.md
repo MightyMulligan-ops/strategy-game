@@ -45,6 +45,14 @@ When switching PCs, stop the old local session, commit/push its branch, and expl
 
 The reusable prompt grants feature-branch commit/push and draft PR creation when the owner invokes it. GitHub access still requires the user's normal account/app authorization. If connected tools are unavailable, the user may complete the GitHub handoff in VS Code/GitHub CLI; report exactly what is blocked instead of inventing an unsupported remote control path.
 
+## Structured review and bounded repair (Automation 009)
+
+After a draft PR exists, a person starts a review using [.github/CODEX_REVIEW_PROMPT.md](../.github/CODEX_REVIEW_PROMPT.md) in ChatGPT or the already-open local VS Code chat. It verifies issue scope, head/base, complete diff and current-head CI, then returns severity/evidence-based findings and [.github/PR_REVIEW_HANDOFF.template.json](../.github/PR_REVIEW_HANDOFF.template.json). It makes no edits, runs no PR code/tests and writes no GitHub review/approval. Missing/ambiguous evidence is UNKNOWN; READY is only advice. Use the [outcome and field guide](PR_REVIEW.md#human-started-structured-review-automation-009).
+
+The owner separately selects finding IDs/scope and invokes [.github/CODEX_REPAIR_PROMPT.md](../.github/CODEX_REPAIR_PROMPT.md) for attempt 1 or 2 of a stable failure ID. The local session rechecks identity, expected head/base, CI, clean worktree and existing claim/branch/PR before editing. Prior authorization covers only its stated scope; protected work outside that scope requires an owner decision. Delivery needs explicit commit/push/PR-update authorization. No report, label or failed job starts a repair or retry, and the repair author does not supply independent approval of its own work. After two unsuccessful human-started attempts, stop and escalate.
+
+For PC transfer, stop the previous session, preserve/push only authorized work and carry the sanitized identity/evidence/attempt record. On the next PC verify GitHub, local cleanliness and the same branch/head/base/CI before resuming. Stale SHAs or conflicting review/history require a refreshed handoff; changing PCs does not reset attempts. Never synchronize `.env`, tokens, credentials or Codex authentication files through Git. See [the full transfer procedure](PR_REVIEW.md#moving-review-and-repair-between-windows-pcs). Existing workflows and security settings are unchanged; no API key, new billing, remote task or new plugin is needed.
+
 ## Metadata automation and security
 
 `issue-status.yml` handles selected issue events, PR metadata events, and a maintainer-only manual reconciliation. It runs only for this repository on `refs/heads/main`. The pinned `actions/github-script` executes the inline trusted base workflow. It has **issues: write** and **pull-requests: read**, no contents write, and no checkout, shell, package installation, PR-code import, external model call, or secret input. The inline script is ordinary JavaScript required by GitHub Script; application and local test code remain TypeScript.
@@ -59,7 +67,7 @@ The metadata workflow becomes live only after human merge into `main`; the draft
 
 ## GitHub owner settings
 
-Automation 008 adds a separate read-only PR summary and bounded CI-diagnostics workflow. It runs after CI or by maintainer dispatch, uses trusted main code, and publishes only a run summary/handoff artifact. It never launches Codex, writes PR comments or initiates repairs. Use [.github/CODEX_REVIEW_PROMPT.md](../.github/CODEX_REVIEW_PROMPT.md) for a separately human-started review/repair session; see [PR_REVIEW.md](PR_REVIEW.md) for evidence, protected-scope, two-attempt and multi-PC rules. Existing issue approval/status automation remains unchanged.
+Automation 008 adds a separate read-only PR summary and bounded CI-diagnostics workflow. It runs after CI or by maintainer dispatch, uses trusted main code, and publishes only a run summary/handoff artifact. It never launches Codex, writes PR comments or initiates repairs. Automation 009 separates the human-started [review prompt](../.github/CODEX_REVIEW_PROMPT.md) from the explicitly owner-authorized [repair prompt](../.github/CODEX_REPAIR_PROMPT.md); see [PR_REVIEW.md](PR_REVIEW.md) for evidence, protected-scope, two-attempt and multi-PC rules. Existing issue approval/status automation remains unchanged.
 
 - Allow the pinned `actions/github-script` action in addition to existing CI actions. Keep default Actions permissions read-only; only this metadata job requests the scoped issue-write permission.
 - Keep **Allow GitHub Actions to create and approve pull requests** disabled. A local authenticated user creates draft PRs; the workflow never does.

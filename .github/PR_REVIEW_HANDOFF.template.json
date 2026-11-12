@@ -1,0 +1,74 @@
+{
+  "format": "sovereign-pr-review-v1",
+  "advisoryOnly": true,
+  "repairAuthorization": "NOT_GRANTED",
+  "repository": "MightyMulligan-ops/strategy-game",
+  "identity": {
+    "issueNumber": null,
+    "prNumber": null,
+    "branch": null,
+    "expectedHeadSha": null,
+    "expectedBaseSha": null,
+    "observedHeadSha": null,
+    "observedBaseSha": null,
+    "verifiedAt": null,
+    "sources": []
+  },
+  "approvedScope": {
+    "summary": null,
+    "ownerApprovalSource": null,
+    "limitations": []
+  },
+  "ci": {
+    "workflowId": null,
+    "workflowPath": ".github/workflows/ci.yml",
+    "event": "pull_request",
+    "repository": null,
+    "headSha": null,
+    "headRepository": null,
+    "headBranch": null,
+    "runId": null,
+    "attempt": null,
+    "conclusion": "UNKNOWN",
+    "runUrl": null,
+    "association": { "method": "UNKNOWN", "verified": false, "sources": [] },
+    "jobs": [
+      { "name": "Application checks", "id": null, "runId": null, "attempt": null, "conclusion": "UNKNOWN", "evidenceUrl": null,
+        "tests": { "passed": null, "failed": null, "skipped": null, "pending": null, "todo": null, "sourceUrl": null, "trust": "UNTRUSTED_RUNNER_REPORT" } },
+      { "name": "PostgreSQL integration tests", "id": null, "runId": null, "attempt": null, "conclusion": "UNKNOWN", "evidenceUrl": null,
+        "tests": { "passed": null, "failed": null, "skipped": null, "pending": null, "todo": null, "sourceUrl": null, "trust": "UNTRUSTED_RUNNER_REPORT" } }
+    ],
+    "limitations": []
+  },
+  "diff": {
+    "headSha": null,
+    "baseSha": null,
+    "fileCount": null,
+    "fetchedCount": 0,
+    "inventoryComplete": false,
+    "diffReviewed": false,
+    "files": [],
+    "protectedFiles": [],
+    "limitations": []
+  },
+  "checks": {
+    "scope": "UNKNOWN",
+    "functionalCorrectness": "UNKNOWN",
+    "security": "UNKNOWN",
+    "authorization": "UNKNOWN",
+    "regressions": "UNKNOWN",
+    "tests": "UNKNOWN",
+    "documentation": "UNKNOWN"
+  },
+  "findings": [],
+  "protectedScopeDecisions": [],
+  "missingEvidence": [],
+  "conflictingFeedback": [],
+  "repairHistory": [],
+  "outcome": {
+    "decision": "UNKNOWN",
+    "reason": "Unfilled template; evidence has not been verified.",
+    "remainingLimitations": [],
+    "nextOwnerAction": "Provide target identity and request a read-only review."
+  }
+}
