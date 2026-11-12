@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { generateWorld } from "@strategy-game/game-engine";
 import { PublicWorldSchema, ReadWorldRequestSchema, ReadWorldResponseSchema, UsernameSchema } from "@strategy-game/shared-types";
 import type { PublicWorld, ReadWorldResponse } from "@strategy-game/shared-types";
-import { GeneratedWorldSchema, WORLD_GENERATOR_VERSION } from "@strategy-game/shared-types/server";
+import { GeneratedWorldSchema, InitialWorldArchiveSchema, WORLD_GENERATOR_VERSION } from "@strategy-game/shared-types/server";
 import type { GeneratedWorld } from "@strategy-game/shared-types/server";
 import type { MatchWorld, Prisma, PrismaClient } from "./generated/prisma/client.js";
 import { json } from "./mappings.js";
@@ -26,6 +26,13 @@ export async function insertInitialWorld(tx: Prisma.TransactionClient, matchId: 
   bounded(parsed);
   await tx.matchWorld.create({ data: { matchId, schemaVersion: parsed.schemaVersion,
     generatorVersion: parsed.generatorVersion, seed: BigInt(parsed.seed), payload: json(parsed) } });
+  return InitialWorldArchiveSchema.parse({ matchId, schemaVersion: parsed.schemaVersion, generatorVersion: parsed.generatorVersion, payload: parsed });
+}
+export function restoreWorldArchive(stored: MatchWorld) {
+  const archive = InitialWorldArchiveSchema.parse({ matchId: stored.matchId, schemaVersion: stored.schemaVersion,
+    generatorVersion: stored.generatorVersion, payload: stored.payload });
+  if (stored.seed !== BigInt(archive.payload.seed) || archive.payload.settings.regionSide !== 5) throw new WorldError("INTERNAL_ERROR");
+  bounded(archive.payload); return archive;
 }
 type Player = { playerId: string; username: string | null };
 /** Allowlist projection. No seed, raw payload, generation settings or units. */

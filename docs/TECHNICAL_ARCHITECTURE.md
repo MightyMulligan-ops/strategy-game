@@ -276,7 +276,7 @@ The owner split milestone 005B (parent Issue #19) into three phases. Phase 1 add
 
 `territory-grid-v1` pins integer geometry, seeded stream/draw order, canonical IDs/output, and reproducible local starting equality; it makes no full strategic-balance claim. Geometry, ownership and future geographic unit positions remain separate. Graph adjacency confers no movement permission. See [WORLD_GENERATION.md](WORLD_GENERATION.md) for exact algorithms, bounds, tradeoffs, failures and tests.
 
-This data is not a public DTO and does not widen the empty-world `GameSnapshot` or `empty-turn-v1` resolver. Existing match-start/readiness/authentication behavior remains unchanged. Phase 2 separately adds persistence, atomic start integration, authorized world projections and a minimal renderer; phase 3 handles explicitly invoked legacy initialization and acceptance hardening. No migration, database access, HTTP endpoint, UI or turn initialization occurs in phase 1.
+This data is not a public DTO and does not widen the empty-world `GameSnapshot` or `empty-turn-v1` resolver. Phase 1 adds no migration, database access, HTTP endpoint, UI or turn initialization. Phase 2 adds persistence, atomic start integration, authorized world projections and a minimal renderer; phase 3 concerns accessibility/error-state/acceptance hardening. Legacy RUNNING matches remain UNINITIALIZED; no automatic or host-triggered legacy initialization is authorized.
 
 ### 8.11 Persistent initial world and public map (005B.2 / Issue #22)
 
@@ -284,7 +284,13 @@ The owner approved JSONB initial archives, server-selected regionSide=5 and comp
 
 `WorldRepository` authorizes active membership before loading the archive in a consistent transaction. Its explicit bounded public projection exposes geometry/terrain/initial fixtures and public roster only, never seed/raw JSONB/account IDs. Fastify retains session/onboarding/private headers/rate controls. React uses public contracts for the first responsive, keyboard-accessible SVG inspector and hash-based reload navigation; no public generator or gameplay controls. Geometry/terrain primitives are shared without importing authoritative schemas into the browser graph. No new dependencies or remote execution.
 
-See [INITIAL_WORLD.md](INITIAL_WORLD.md) for storage/rollback tradeoffs, endpoint states, SQL safeguards, visibility and CI-only acceptance. The 005B.1 generator and its golden outputs remain unchanged; future gameplay and legacy initialization still require separate design/authorization.
+See [INITIAL_WORLD.md](INITIAL_WORLD.md) for storage/rollback tradeoffs, endpoint states, SQL safeguards, visibility and CI-only acceptance. The 005B.1 generator and its golden outputs remain unchanged. Future gameplay requires separate approval; legacy RUNNING initialization remains prohibited.
+
+### 8.12 Atomic initial-world Turn 1 (006B.2 / Issue #39)
+
+New public lobbies pin the exact initialization-only profile at configuration INSERT. The existing Match parent lock serializes host/readiness/roster validation, world generation, one trusted clock sample and the world/snapshot-v2/OPEN-Turn-1/zero-draft/INITIAL-history/status writes in one transaction. Runtime pins and lobby Ready never change on start. A RUNNING retry returns ALREADY_STARTED before generation/time; all-null legacy OPEN configurations still take world-only start. Partial or unsupported pins fail closed. No starting armies, gameplay or production 006A wiring is added.
+
+`database/turn-storage.ts` shares transaction-scoped inserts and dispatches restoration explicitly between empty v1 and initial-world v2. Initial restoration validates the actual immutable archive and digest, row/configuration/profile, roster, clocks and initial history; it never drops world fields or repairs data. Every persistence mutation rejects initial aggregates before clocks or writes, preserving engine guards. A new additive SQL migration enforces null-safe profile shapes, atomic bundle completeness, exact participant sets and immutable initialization rows with parent-cascade compatibility. Existing migrations/schema/contracts are unchanged. See [TURN_SYSTEM.md](TURN_SYSTEM.md#atomic-initial-world-turn-1-persistence-006b2--issue-39) for limitations and CI-only verification.
 
 ## 9. Persistence and data
 

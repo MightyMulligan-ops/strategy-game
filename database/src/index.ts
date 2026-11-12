@@ -2,6 +2,7 @@
 export { createDatabaseClient } from "./client.js";
 export { testDatabaseUrl } from "./environment.js";
 export { MatchRepository } from "./repository.js";
+export type { StoredTurn } from "./turn-storage.js";
 export { PersistenceError } from "./errors.js";
 export { AuthRepository } from "./auth-repository.js";
 export { AuthError } from "./auth-types.js";

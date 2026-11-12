@@ -38,7 +38,7 @@ describe.skipIf(process.env.RUN_DATABASE_TESTS !== "1")("authenticated lobby HTT
   afterEach(async () => {
     if (f) await f.app.close();
     // Delete only fixtures created by this test; never sweep names/prefixes or
-    // touch pre-existing records. These matches have no world/turn children.
+    // touch pre-existing records. Initialized children use parent-match cascade.
     await client.$transaction(async (tx) => {
       await tx.match.deleteMany({ where: { id: { in: [...matches] } } });
       await tx.oAuthAttempt.deleteMany({ where: { state: { in: [...attempts] } } });
@@ -97,8 +97,8 @@ describe.skipIf(process.env.RUN_DATABASE_TESTS !== "1")("authenticated lobby HTT
     expect((await f.request(guest, "POST", `${path}/leave`, { schemaVersion: 1 })).json().error).toBe("LOBBY_NOT_OPEN");
     expect((await f.request(guest, "POST", `${path}/start`, { schemaVersion: 1 })).json().error).toBe("HOST_REQUIRED");
     expect(ViewLobbyResponseSchema.parse((await f.request(host, "GET", path)).json()).lobby.settings.turnDurationMs).toBe(settings.turnDurationMs);
-    expect(await client.turn.count({ where: { matchId: id } })).toBe(0);
-    expect(await client.gameSnapshotRecord.count({ where: { matchId: id } })).toBe(0);
+    expect(await client.turn.count({ where: { matchId: id } })).toBe(1);
+    expect(await client.gameSnapshotRecord.count({ where: { matchId: id } })).toBe(1);
   });
 
   it("persists creation and safe list/view responses without world state, Turn 1 or a deadline", async () => {

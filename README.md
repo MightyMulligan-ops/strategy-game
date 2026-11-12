@@ -4,7 +4,7 @@ A browser-based, multiplayer 2D grand strategy game inspired by the broad gamepl
 
 ## Project status
 
-**Pre-production / foundation.** Sovereign has account/lobby UI, player readiness and atomic host-controlled start with a persisted initial world and participant-only read-only SVG map. The approved generator supplies terrain, adjacency, ownership and capital/supply fixtures; no armies, gameplay processing, Turn 1 initialization, scheduler or realtime transport exists. Authentication is disabled by default; enabled auth uses configured OAuth or explicit loopback test login. New world SQL is tested only in disposable CI; existing databases are untouched and sandbox migration requires separate approval. Legacy RUNNING matches without worlds remain explicitly uninitialized.
+**Pre-production / foundation.** Sovereign has account/lobby UI, player readiness and atomic host-controlled start with a persisted initial world and participant-only read-only SVG map. 006B.2 adds creation-time runtime pins and atomic initial-world Turn 1 persistence for newly created lobbies; existing unpinned OPEN lobbies retain world-only start and existing RUNNING matches are never initialized. The initialization-only runtime supports no orders, Ready mutations, closure or resolution through persistence yet; 006A turn routes remain fixture-only. No armies, gameplay processing, scheduler or realtime transport exists. Authentication is disabled by default; enabled auth uses configured OAuth or explicit loopback test login. The new additive SQL is approved for fresh hosted disposable CI only; no existing database or sandbox migration is authorized. See [TURN_SYSTEM.md](docs/TURN_SYSTEM.md#atomic-initial-world-turn-1-persistence-006b2--issue-39).
 
 ## Product direction
 

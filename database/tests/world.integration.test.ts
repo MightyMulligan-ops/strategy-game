@@ -42,7 +42,7 @@ describe.skipIf(process.env.RUN_DATABASE_TESTS !== "1")("persistent initial worl
     } }); return { id, host, guest };
   }
 
-  it.each([2, 4, 10, 40])("persists the exact seeded %i-player result once and restores it without turn changes", async (count) => {
+  it.each([2, 4, 10, 40])("persists the exact seeded %i-player result once with one initial turn", async (count) => {
     let calls = 0; const repository = new LobbyRepository(client, (players) => { calls++; return generated(players); });
     const { id, host, members } = await fresh(count, repository);
     const before = await client.matchConfiguration.findUniqueOrThrow({ where: { matchId: id } });
@@ -59,8 +59,8 @@ describe.skipIf(process.env.RUN_DATABASE_TESTS !== "1")("persistent initial worl
     } finally { await other.$disconnect(); }
     expect(await client.matchConfiguration.findUniqueOrThrow({ where: { matchId: id } })).toEqual(before);
     expect((await client.match.findUniqueOrThrow({ where: { id } })).currentStateVersion).toBe(0n);
-    expect(await client.turn.count({ where: { matchId: id } })).toBe(0);
-    expect(await client.gameSnapshotRecord.count({ where: { matchId: id } })).toBe(0);
+    expect(await client.turn.count({ where: { matchId: id } })).toBe(1);
+    expect(await client.gameSnapshotRecord.count({ where: { matchId: id } })).toBe(1);
   }, 20000);
 
   it("serializes starts across clients and never calls generation after the committed start", async () => {
