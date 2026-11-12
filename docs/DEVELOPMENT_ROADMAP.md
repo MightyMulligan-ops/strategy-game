@@ -187,6 +187,13 @@ Merged in PR #31 as `a63dae7`; confirmed from GitHub before Automation 008. No f
 
 No runtime assignment, lobby/startup modification, persistence adapter, database/schema/migration, gameplay, Turn 2, scheduler or production 006A wiring. Atomic persisted initialization remains a later approval; this pure foundation alone cannot establish transaction/rollback guarantees. Existing databases and legacy RUNNING matches remain untouched. See [TURN_SYSTEM.md](TURN_SYSTEM.md#pure-turn-1-initialization-foundation-006b1--issue-30).
 
+## Milestone 006B.2 — Atomic initial-world Turn 1 persistence (Issue #39)
+
+- [ ] Creation-time immutable runtime pins, atomic host-start world/snapshot-v2/OPEN-Turn-1/zero-draft/INITIAL-history persistence, strict version-aware restoration and initialization-only mutation refusal. Implemented for owner review; remains unmerged.
+- [ ] One additive functions/triggers migration with null-safe profile/complete-bundle/roster and removal/cascade guards; verification only on unchanged hosted disposable PostgreSQL CI after offline SQL review.
+
+Existing unpinned OPEN lobbies keep world-only start; existing RUNNING records are never initialized, backfilled or repaired. No existing database access, local DB testing, CI edit, new provisioning, gameplay, Turn 2, scheduler/recovery, frontend or production 006A wiring. See [TURN_SYSTEM.md](TURN_SYSTEM.md#atomic-initial-world-turn-1-persistence-006b2--issue-39) and development status for actual verification. These checklist items remain open until human merge.
+
 ## Phase 1 — Map and game shell
 
 **Goal:** Render a navigable 2D map and establish a game session.

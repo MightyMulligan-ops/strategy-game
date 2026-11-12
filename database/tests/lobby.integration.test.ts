@@ -5,6 +5,8 @@ import { AuthRepository, createDatabaseClient, LobbyRepository } from "../src/in
 import { Prisma } from "../src/generated/prisma/client.js";
 import { testDatabaseUrl } from "../src/environment.js";
 import { insertInitialWorld, makeInitialWorld } from "../src/world-repository.js";
+import { initializeTurnOne } from "@strategy-game/game-engine";
+import { insertSnapshot, insertTurn } from "../src/turn-storage.js";
 
 describe.skipIf(process.env.RUN_DATABASE_TESTS !== "1")("PostgreSQL lobbies (live database required)", () => {
   let client: ReturnType<typeof createDatabaseClient>;
@@ -18,7 +20,7 @@ describe.skipIf(process.env.RUN_DATABASE_TESTS !== "1")("PostgreSQL lobbies (liv
     await client.$connect();
   });
   afterEach(async () => {
-    // Only this test's newly created IDs. These fixtures never contain turns.
+    // Only this test's newly created IDs; initialized children use parent cascade.
     await client.$transaction(async (tx) => {
       await tx.match.deleteMany({ where: { id: { in: [...matches] } } });
       await tx.oAuthAccount.deleteMany({ where: { identityId: { in: [...identities] } } });
@@ -50,7 +52,7 @@ describe.skipIf(process.env.RUN_DATABASE_TESTS !== "1")("PostgreSQL lobbies (liv
     expect(lobby.viewer).toMatchObject({ role: "HOST", canLeave: false, canStart: false });
     expect(lobby.host.playerId).not.toBe(host);
     expect(await client.match.findUniqueOrThrow({ where: { id } })).toMatchObject({ status: "OPEN", hostIdentityId: host, createdAt: expect.any(Date), currentStateVersion: 0n });
-    expect(await client.matchConfiguration.findUniqueOrThrow({ where: { matchId: id } })).toMatchObject({ name: lobby.settings.name, playerCapacity: 2, turnDurationMs: 300_000n, pinnedRuleset: null, simulationVersion: null });
+    expect(await client.matchConfiguration.findUniqueOrThrow({ where: { matchId: id } })).toMatchObject({ name: lobby.settings.name, playerCapacity: 2, turnDurationMs: 300_000n, rulesetId: "initial-world", rulesetVersion: "1", simulationVersion: "initial-world-v1" });
     expect(await client.turn.count({ where: { matchId: id } })).toBe(0);
     expect(await client.gameSnapshotRecord.count({ where: { matchId: id } })).toBe(0);
     await expect(client.matchConfiguration.update({ where: { matchId: id }, data: { name: "Changed" } })).rejects.toThrow();
@@ -225,7 +227,7 @@ describe.skipIf(process.env.RUN_DATABASE_TESTS !== "1")("PostgreSQL lobbies (liv
     await expect(repository.startLobby(id, host)).rejects.toMatchObject({ code: "NOT_ENOUGH_PARTICIPANTS" });
   });
 
-  it("starts once across clients, survives refresh/retry and preserves configuration without advancing a turn", async () => {
+  it("starts once across clients, survives refresh/retry and preserves configuration with one initial turn", async () => {
     const { host, id, guest } = await readyPair();
     const config = await client.matchConfiguration.findUniqueOrThrow({ where: { matchId: id } });
     const other = createDatabaseClient(testDatabaseUrl(process.env.TEST_DATABASE_URL));
@@ -241,8 +243,8 @@ describe.skipIf(process.env.RUN_DATABASE_TESTS !== "1")("PostgreSQL lobbies (liv
       for (const identity of [host, guest]) await expect(restored.setReady(id, identity, false)).rejects.toMatchObject({ code: "LOBBY_NOT_OPEN" });
       expect(await client.matchConfiguration.findUniqueOrThrow({ where: { matchId: id } })).toEqual(config);
       expect(await client.match.findUniqueOrThrow({ where: { id } })).toMatchObject({ currentStateVersion: 0n });
-      expect(await client.turn.count({ where: { matchId: id } })).toBe(0);
-      expect(await client.gameSnapshotRecord.count({ where: { matchId: id } })).toBe(0);
+      expect(await client.turn.count({ where: { matchId: id } })).toBe(1);
+      expect(await client.gameSnapshotRecord.count({ where: { matchId: id } })).toBe(1);
     } finally { await other.$disconnect(); }
   });
 
@@ -320,7 +322,10 @@ describe.skipIf(process.env.RUN_DATABASE_TESTS !== "1")("PostgreSQL lobbies (liv
         expect(waiting).toBe(true);
         const members = await tx.matchParticipant.findMany({ where: { matchId: id, active: true }, select: { playerId: true } });
         const players = members.map((p) => p.playerId);
-        await insertInitialWorld(tx, id, makeInitialWorld(players), players);
+        const archive = await insertInitialWorld(tx, id, makeInitialWorld(players), players);
+        const config = await tx.matchConfiguration.findUniqueOrThrow({ where: { matchId: id } });
+        const plan = initializeTurnOne(config.config, players.map((playerId) => ({ schemaVersion: 1, gameId: id, playerId, active: true })), archive, 10_000);
+        await insertSnapshot(tx, plan.snapshot); await insertTurn(tx, plan.state, plan.snapshot);
         await tx.match.update({ where: { id }, data: { status: "RUNNING" } });
       });
       await expect(joining).rejects.toMatchObject({ code: "LOBBY_NOT_OPEN" });

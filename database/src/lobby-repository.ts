@@ -8,6 +8,9 @@ import { Prisma } from "./generated/prisma/client.js";
 import type { PrismaClient } from "./generated/prisma/client.js";
 import { json, safeNumber } from "./mappings.js";
 import { makeInitialWorld, insertInitialWorld } from "./world-repository.js";
+import { INITIAL_WORLD_RUNTIME_PROFILE } from "@strategy-game/shared-types/server";
+import { initializeTurnOne } from "@strategy-game/game-engine";
+import { configurationRuntime, insertSnapshot, insertTurn } from "./turn-storage.js";
 
 export type LobbyErrorCode = "UNAUTHENTICATED" | "USERNAME_REQUIRED" | "INVALID_INPUT" | "NOT_FOUND"
   | "LOBBY_NOT_OPEN" | "LOBBY_FULL" | "HOST_CANNOT_LEAVE" | "NOT_A_PARTICIPANT" | "INVALID_STORAGE"
@@ -86,10 +89,11 @@ function detail(row: LobbyRow, identityId: string, username: string): LobbyDetai
 }
 
 /** Server-only. Identity IDs must come from trusted authentication, never request bodies.
- * Starting atomically persists an initial world; no method creates a turn or authenticates HTTP.
+ * Starting atomically persists the initial world and, for pinned new lobbies, Turn 1.
  */
 export class LobbyRepository {
-  constructor(private readonly client: PrismaClient, private readonly worldFactory: typeof makeInitialWorld = makeInitialWorld) {}
+  constructor(private readonly client: PrismaClient, private readonly worldFactory: typeof makeInitialWorld = makeInitialWorld,
+    private readonly clock: () => number = Date.now) {}
 
   private async withLobby<T>(id: string, identityId: string,
     work: (tx: Transaction, row: LobbyRow, username: string) => Promise<T>): Promise<T> {
@@ -117,6 +121,8 @@ export class LobbyRepository {
       await tx.matchConfiguration.create({ data: {
         matchId: id, schemaVersion: 1, name: settings.name, playerCapacity: settings.playerCapacity,
         turnDurationMs: BigInt(settings.turnDurationMs),
+        rulesetId: INITIAL_WORLD_RUNTIME_PROFILE.ruleset.rulesetId, rulesetVersion: INITIAL_WORLD_RUNTIME_PROFILE.ruleset.version,
+        simulationVersion: INITIAL_WORLD_RUNTIME_PROFILE.simulationVersion, pinnedRuleset: json(INITIAL_WORLD_RUNTIME_PROFILE),
         config: json({ schemaVersion: 1, gameId: id, turnDurationMs: settings.turnDurationMs })
       } });
       await tx.matchParticipant.create({ data: { matchId: id, playerId: randomUUID(), identityId, active: true } });
@@ -171,11 +177,25 @@ export class LobbyRepository {
       if (row.status === "RUNNING") return Object.freeze({ lobby: detail(row, identityId, username), outcome: "ALREADY_STARTED" as const });
       if (row.participants.length < 2) throw new LobbyError("NOT_ENOUGH_PARTICIPANTS");
       if (row.participants.some((participant) => !participant.lobbyReady)) throw new LobbyError("NOT_ALL_READY");
+      summary(row); // Validate host, capacity and fixed public metadata before generation.
+      if (!row.configuration) throw new LobbyError("INVALID_STORAGE");
+      const mode = configurationRuntime(row.configuration);
+      if (mode === "empty") throw new LobbyError("INVALID_STORAGE");
+      if (mode === "initial_world" && (row.currentStateVersion !== 0n ||
+          await tx.gameSnapshotRecord.count({ where: { matchId: row.id } }) !== 0 ||
+          await tx.turn.count({ where: { matchId: row.id } }) !== 0)) throw new LobbyError("INVALID_STORAGE");
       const players = row.participants.map((p) => p.playerId);
-      await insertInitialWorld(tx, row.id, this.worldFactory(players), players);
+      const archive = await insertInitialWorld(tx, row.id, this.worldFactory(players), players);
+      if (mode === "initial_world") {
+        // One trusted sample after lock/generation. Any failure rolls the entire transaction back.
+        const plan = initializeTurnOne(row.configuration.config,
+          players.map((playerId) => ({ schemaVersion: 1, gameId: row.id, playerId, active: true })), archive, this.clock(), row.configuration.pinnedRuleset);
+        await insertSnapshot(tx, plan.snapshot);
+        await insertTurn(tx, plan.state, plan.snapshot);
+      }
       const updated = await tx.match.updateMany({ where: { id: row.id, status: "OPEN" }, data: { status: "RUNNING" } });
       if (updated.count !== 1) throw new LobbyError("LOBBY_NOT_OPEN");
-      // No configuration change, runtime pin, snapshot, Turn 1 or deadline.
+      // Configuration and lobby Ready remain unchanged; retries never initialize anything.
       return Object.freeze({ lobby: detail(await readLobby(tx, row.id), identityId, username), outcome: "STARTED" as const });
     });
   }

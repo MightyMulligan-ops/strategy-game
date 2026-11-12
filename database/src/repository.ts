@@ -1,76 +1,24 @@
-import { GameConfigSchema, TurnCommandSchema } from "@strategy-game/shared-types";
+import { TurnCommandSchema } from "@strategy-game/shared-types";
 import { FrozenTurnInputSchema, GameSnapshotSchema, PinnedRulesetSchema, SeedSchema, TurnResultSchema } from "@strategy-game/shared-types/server";
-import type { GameSnapshot, TurnResult } from "@strategy-game/shared-types/server";
+import type { TurnResult } from "@strategy-game/shared-types/server";
 import { applyTurnCommand, createTurn, freezeTurnInput, observeDeadline, openNextTurn, resolveTurn } from "@strategy-game/game-engine";
 import type { TurnState } from "@strategy-game/game-engine";
 import { Prisma } from "./generated/prisma/client.js";
 import type { PrismaClient } from "./generated/prisma/client.js";
 import { PersistenceError } from "./errors.js";
-import { json, orderRows, restoreDraft, restoreTurnRecord, safeNumber, turnFields } from "./mappings.js";
+import { json, orderRows, safeNumber, turnFields } from "./mappings.js";
+import { storedTurnInclude, restoreStoredTurn, insertSnapshot, insertTurn, requireEmptyRuntime } from "./turn-storage.js";
+import type { StoredTurn } from "./turn-storage.js";
 
-const turnInclude = {
-  match: { include: { configuration: true } }, startingSnapshot: true,
-  players: { include: { orders: true } },
-  frozenInput: true, resolution: true
-} as const;
-type TurnRow = Prisma.TurnGetPayload<{ include: typeof turnInclude }>;
 type Transaction = Prisma.TransactionClient;
 const same = (a: object, b: object) => JSON.stringify(a) === JSON.stringify(b);
 
-function restore(row: TurnRow) {
-  if (!row.match.configuration) throw new PersistenceError("invalid_storage", "Match has no configuration");
-  const configuration = row.match.configuration;
-  const config = GameConfigSchema.parse(configuration.config);
-  const pinned = PinnedRulesetSchema.parse(configuration.pinnedRuleset);
-  const snapshot = GameSnapshotSchema.parse(row.startingSnapshot.payload);
-  if (!same(snapshot.config, config) || !same(snapshot.ruleset, pinned.ruleset) ||
-      snapshot.simulationVersion !== pinned.simulationVersion ||
-      snapshot.snapshotId !== row.startingSnapshot.snapshotId ||
-      snapshot.stateVersion !== safeNumber(row.startingStateVersion) ||
-      snapshot.completedTurnNumber + 1 !== safeNumber(row.number)) {
-    throw new PersistenceError("invalid_storage", "Snapshot and persisted turn metadata disagree");
-  }
-  const byId = (a: { playerId: string }, b: { playerId: string }) => a.playerId < b.playerId ? -1 : a.playerId > b.playerId ? 1 : 0;
-  const playerRows = [...row.players].sort(byId);
-  const roster = playerRows.map((player) => ({
-    schemaVersion: 1 as const, gameId: row.matchId, playerId: player.playerId, active: player.active
-  }));
-  if (!same([...snapshot.players].sort(byId), roster)) {
-    throw new PersistenceError("invalid_storage", "Turn roster differs from its starting snapshot");
-  }
-  const state: TurnState = Object.freeze({
-    ...createTurn(config, roster, safeNumber(row.openedAtMs)),
-    turn: restoreTurnRecord(row),
-    drafts: Object.freeze(playerRows.map(restoreDraft).filter((_, index) => playerRows[index]?.active)),
-    lastObservedAtMs: safeNumber(row.lastObservedAtMs)
-  });
-  return { row, state, snapshot, pinned };
-}
-
 async function readTurn(tx: Transaction, matchId: string, turnNumber: number) {
-  const row = await tx.turn.findUnique({ where: { matchId_number: { matchId, number: BigInt(turnNumber) } }, include: turnInclude });
+  const row = await tx.turn.findUnique({ where: { matchId_number: { matchId, number: BigInt(turnNumber) } }, include: storedTurnInclude });
   if (!row) throw new PersistenceError("not_found", "Turn not found");
-  return restore(row);
+  return restoreStoredTurn(row);
 }
-type Aggregate = Awaited<ReturnType<typeof readTurn>>;
-
-async function insertSnapshot(tx: Transaction, snapshot: GameSnapshot) {
-  await tx.gameSnapshotRecord.create({ data: {
-    matchId: snapshot.config.gameId, stateVersion: BigInt(snapshot.stateVersion),
-    snapshotId: snapshot.snapshotId, completedTurnNumber: BigInt(snapshot.completedTurnNumber), payload: json(snapshot)
-  } });
-}
-
-async function insertTurn(tx: Transaction, state: TurnState, snapshot: GameSnapshot) {
-  const matchId = state.config.gameId;
-  const turnNumber = BigInt(state.turn.turnNumber);
-  await tx.turn.create({ data: { matchId, number: turnNumber, startingStateVersion: BigInt(snapshot.stateVersion), ...turnFields(state) } });
-  for (const player of state.players) {
-    const scope = { matchId, turnNumber, playerId: player.playerId };
-    await tx.playerTurnState.create({ data: { ...scope, active: player.active, revision: 0n, ready: false } });
-    await tx.playerSubmissionRevision.create({ data: { ...scope, revision: 0n, kind: "INITIAL", ready: false, orders: [] } });
-  }
-}
+type Aggregate = Extract<StoredTurn, { kind: "empty" }>;
 
 async function persistLifecycle(tx: Transaction, previous: Aggregate, next: TurnState) {
   await tx.turn.update({
@@ -116,7 +64,8 @@ async function persistCommand(tx: Transaction, aggregate: Aggregate, next: TurnS
   await persistLifecycle(tx, aggregate, next);
 }
 
-function prepared(aggregate: Aggregate) {
+function prepared(aggregate: StoredTurn) {
+  requireEmptyRuntime(aggregate);
   const stored = aggregate.row.frozenInput;
   if (!stored || stored.seed === null) throw new PersistenceError("seed_required", "Prepare a closed turn with an explicit seed first");
   return {
@@ -137,7 +86,9 @@ export class MatchRepository {
         SELECT "matchId" FROM "Turn" WHERE "matchId" = ${matchId} AND "number" = ${BigInt(turnNumber)} FOR UPDATE
       `);
       if (rows.length === 0) throw new PersistenceError("not_found", "Turn not found");
-      return work(tx, await readTurn(tx, matchId, turnNumber));
+      const aggregate = await readTurn(tx, matchId, turnNumber);
+      requireEmptyRuntime(aggregate); // Before callback clocks, seed pinning or any writes.
+      return work(tx, aggregate);
     }, { timeout: 15_000, maxWait: 10_000 });
   }
 
@@ -145,6 +96,7 @@ export class MatchRepository {
     identities: readonly { playerId: string; identityId: string }[], openedAtMs: number): Promise<TurnState> {
     const snapshot = GameSnapshotSchema.parse(snapshotInput);
     const pinned = PinnedRulesetSchema.parse(pinnedInput);
+    if (pinned.simulationVersion !== "empty-turn-v1") throw new PersistenceError("unsupported_runtime_operation", "Only empty runtime creation is supported here");
     if (snapshot.completedTurnNumber !== 0 || snapshot.stateVersion !== 0 ||
         !same(snapshot.ruleset, pinned.ruleset) || snapshot.simulationVersion !== pinned.simulationVersion ||
         identities.length !== snapshot.players.length || new Set(identities.map((item) => item.playerId)).size !== identities.length ||
@@ -175,7 +127,7 @@ export class MatchRepository {
   async loadTurn(matchId: string, turnNumber: number) {
     return this.client.$transaction(async (tx) => {
       const aggregate = await readTurn(tx, matchId, turnNumber);
-      return { state: aggregate.state, snapshot: aggregate.snapshot, pinned: aggregate.pinned };
+      return { kind: aggregate.kind, state: aggregate.state, snapshot: aggregate.snapshot, pinned: aggregate.pinned };
     }, { isolationLevel: "RepeatableRead" });
   }
 
@@ -220,8 +172,8 @@ export class MatchRepository {
   }
 
   async commitResolution(matchId: string, turnNumber: number, resultInput: unknown): Promise<TurnResult> {
-    const result = TurnResultSchema.parse(resultInput);
     const context = await this.client.$transaction(async (tx) => prepared(await readTurn(tx, matchId, turnNumber)), { isolationLevel: "RepeatableRead" });
+    const result = TurnResultSchema.parse(resultInput);
     // Execute/revalidate the existing pure empty-turn resolver outside the write
     // transaction. Immutable frozen data and a pinned seed make retries stable.
     const expected = resolveTurn(context.snapshot, context.frozen, context.pinned, context.seed);
