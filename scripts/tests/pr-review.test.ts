@@ -54,7 +54,7 @@ describe("read-only PR review report", () => {
     const f = reviewFixture();
     if (kind === "workflow") f.run.workflow_id = 999;
     if (kind === "event") f.run.event = "push";
-    if (kind === "association") f.run.pull_requests = [];
+    if (kind === "association") f.run.pull_requests = [{ number: 99 }];
     if (kind === "base") f.pr.base.ref = "other";
     if (kind === "repository") f.run.repository.full_name = "other/repo";
     if (kind === "attempt") f.quality.run_attempt = 2;

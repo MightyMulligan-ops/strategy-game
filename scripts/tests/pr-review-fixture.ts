@@ -9,7 +9,7 @@ export function reviewFixture() {
     head: { sha: "a".repeat(40), ref: "issue/32-pr-review-diagnostics", repo: { full_name: repo } }, base: { ref: "main", sha: "c".repeat(40), repo: { full_name: repo } } };
   const workflow = { id: 1, path: REVIEW_POLICY.workflow };
   const run = { id: 100, run_attempt: 1, workflow_id: 1, path: REVIEW_POLICY.workflow, event: "pull_request", status: "completed", conclusion: "failure",
-    repository: { full_name: repo }, head_repository: { full_name: repo }, head_sha: pr.head.sha, pull_requests: [{ number: 33 }] };
+    repository: { full_name: repo }, head_repository: { full_name: repo }, head_sha: pr.head.sha, head_branch: pr.head.ref, pull_requests: [{ number: 33 }] };
   const quality = { id: 201, run_id: 100, run_attempt: 1, name: "Application checks", status: "completed", conclusion: "failure",
     steps: [{ name: "TypeScript checks", conclusion: "failure" }] };
   const database = { id: 202, run_id: 100, run_attempt: 1, name: "PostgreSQL integration tests", status: "completed", conclusion: "success", steps: [] };
@@ -27,22 +27,24 @@ export function reviewFixture() {
     [202, "Tests 73 passed (73)\nVerified 73 passed integration tests across 6 files, with no skips."]
   ]);
   const calls: string[] = [];
+  const commitPRs = [{ number: 33 }];
   const api: ReadGitHub = {
     async get(path) {
       calls.push(path);
       if (path === `${prefix}/collaborators/owner/permission`) return { permission: "admin" };
       if (path === `${prefix}/actions/workflows/ci.yml`) return structuredClone(workflow);
       if (path === `${prefix}/pulls/33`) return structuredClone(pr);
+      if (path === `${prefix}/commits/${pr.head.sha}/pulls?per_page=2`) return structuredClone(commitPRs);
       if (path === `${prefix}/issues/32`) return structuredClone(issue);
       if (path === `${prefix}/pulls/33/files?per_page=100&page=1`) return structuredClone(files);
       if (path.includes("/actions/workflows/1/runs?")) return structuredClone(runs);
-      if (path === `${prefix}/actions/runs/100`) return structuredClone(run);
-      if (path === `${prefix}/actions/runs/100/jobs?filter=latest&per_page=100`) return structuredClone(jobs);
-      if (path === `${prefix}/actions/runs/100/artifacts?per_page=100`) return structuredClone(artifacts);
+      if (path === `${prefix}/actions/runs/${run.id}`) return structuredClone(run);
+      if (path === `${prefix}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`) return structuredClone(jobs);
+      if (path === `${prefix}/actions/runs/${run.id}/artifacts?per_page=100`) return structuredClone(artifacts);
       throw new Error("untrusted API failure should not be echoed");
     },
     async log(id) { calls.push(`log:${id}`); const value = logs.get(id); if (value === undefined) throw new Error("log unavailable"); return value; }
   };
   const request: ReviewRequest = { repository: repo, ref: "refs/heads/main", event: "workflow_dispatch", actor: "owner", pr: "33" };
-  return { api, request, pr, workflow, run, runs, quality, database, jobs, files, issue, artifacts, logs, calls };
+  return { api, request, pr, workflow, run, runs, quality, database, jobs, files, issue, artifacts, logs, calls, commitPRs };
 }

@@ -11,6 +11,8 @@ export interface ReadGitHub { get(path: string): Promise<unknown>; log(jobId: nu
 export type ReviewRequest = { repository: string; ref: string; event: string; actor: string; pr?: unknown; run?: unknown };
 const repoPath = `/repos/${REVIEW_POLICY.repository}`;
 const managed = new Set(["agent-ready", "in-progress", "review-needed", "blocked"]);
+const associationUnavailable = "CI association unavailable: verify the PR/run manually. Recovery requires one same-repository commit-to-PR candidate with the exact current head and source branch; missing, forked, stale or ambiguous evidence is not success.";
+class AssociationUnavailable extends Error { constructor() { super(associationUnavailable); } }
 function count(value: unknown): number {
   if (!Number.isSafeInteger(value) || (value as number) < 0 || (value as number) > 10_000_000) throw new Error("Invalid count");
   return value as number;
@@ -21,12 +23,38 @@ function validPR(value: unknown, number: number): Json {
       !["open", "closed"].includes(String(pr.state)) || typeof pr.merged !== "boolean" || typeof pr.draft !== "boolean") throw new Error("PR scope unavailable");
   sha(object(pr.head).sha); sha(base.sha); return pr;
 }
-function eligibleRun(value: unknown, workflowId: number, pr: Json): boolean {
-  const run = object(value); const head = object(pr.head);
+function trustedRun(run: Json, workflowId: number): boolean {
   return run.workflow_id === workflowId && run.path === REVIEW_POLICY.workflow && run.event === "pull_request" &&
-    object(run.repository).full_name === REVIEW_POLICY.repository && run.head_sha === head.sha &&
-    object(run.head_repository).full_name === object(head.repo).full_name &&
-    list(run.pull_requests).some((p) => object(p).number === pr.number);
+    object(run.repository).full_name === REVIEW_POLICY.repository;
+}
+function sameSource(run: Json, pr: Json): boolean {
+  const head = object(pr.head); const source = object(head.repo).full_name;
+  return typeof source === "string" && source.length > 0 && typeof head.ref === "string" && head.ref.length > 0 &&
+    run.head_branch === head.ref && object(run.head_repository).full_name === source;
+}
+function matchesRun(run: Json, workflowId: number, pr: Json): boolean {
+  return trustedRun(run, workflowId) && run.head_sha === object(pr.head).sha && sameSource(run, pr);
+}
+async function recoverPR(api: ReadGitHub, run: Json, workflowId: number): Promise<Json> {
+  try {
+    if (!trustedRun(run, workflowId) || list(run.pull_requests).length !== 0 ||
+        object(run.head_repository).full_name !== REVIEW_POLICY.repository ||
+        typeof run.head_branch !== "string" || run.head_branch.length === 0) throw new AssociationUnavailable();
+    // Two results are already ambiguous. Never pick a plausible candidate or search by branch alone.
+    const candidates = list(await api.get(`${repoPath}/commits/${sha(run.head_sha)}/pulls?per_page=2`));
+    if (candidates.length !== 1) throw new AssociationUnavailable();
+    const number = positive(object(candidates[0]).number);
+    const pr = validPR(await api.get(`${repoPath}/pulls/${number}`), number);
+    if (!matchesRun(run, workflowId, pr)) throw new AssociationUnavailable();
+    return pr;
+  } catch { throw new AssociationUnavailable(); }
+}
+async function attributedRun(api: ReadGitHub, run: Json, workflowId: number, pr: Json): Promise<boolean> {
+  if (!matchesRun(run, workflowId, pr)) return false;
+  const associated = list(run.pull_requests);
+  if (associated.length !== 0) return associated.length === 1 && object(associated[0]).number === pr.number;
+  try { return (await recoverPR(api, run, workflowId)).number === pr.number; }
+  catch { return false; }
 }
 
 export async function collectReview(api: ReadGitHub, request: ReviewRequest): Promise<ReviewReport> {
@@ -45,14 +73,17 @@ export async function collectReview(api: ReadGitHub, request: ReviewRequest): Pr
     if (typeof request.pr !== "string" || !/^[1-9]\d*$/.test(request.pr)) throw new Error("PR number rejected");
     number = positive(Number(request.pr));
   } else {
-    trigger = object(await api.get(`${repoPath}/actions/runs/${positive(request.run)}`));
-    if (trigger.workflow_id !== workflowId || trigger.path !== REVIEW_POLICY.workflow || trigger.event !== "pull_request" ||
-        trigger.status !== "completed" || object(trigger.repository).full_name !== REVIEW_POLICY.repository || list(trigger.pull_requests).length !== 1) throw new Error("CI trigger scope rejected");
-    number = positive(object(list(trigger.pull_requests)[0]).number);
+    const id = positive(request.run);
+    trigger = object(await api.get(`${repoPath}/actions/runs/${id}`));
+    if (trigger.id !== id || !trustedRun(trigger, workflowId) || trigger.status !== "completed") throw new Error("CI trigger scope rejected");
+    const associated = list(trigger.pull_requests);
+    if (associated.length > 1) throw new AssociationUnavailable();
+    number = associated.length === 1 ? positive(object(associated[0]).number) : positive((await recoverPR(api, trigger, workflowId)).number);
   }
   const pr = validPR(await api.get(`${repoPath}/pulls/${number}`), number);
   const head = sha(object(pr.head).sha); const base = sha(object(pr.base).sha); const notes: string[] = [];
   const fork = object(object(pr.head).repo).full_name !== REVIEW_POLICY.repository;
+  if (trigger && !sameSource(trigger, pr)) throw new Error("CI trigger source rejected");
   const report: ReviewReport = { number, head, base, fork,
     state: pr.merged ? "merged" : pr.state === "closed" ? "closed/unmerged" : pr.draft ? "draft/unmerged" : "open/unmerged",
     issue: null, files: [], fileCount: count(pr.changed_files), filesComplete: false, flags: [], ci: null, notes };
@@ -88,12 +119,17 @@ export async function collectReview(api: ReadGitHub, request: ReviewRequest): Pr
   report.filesComplete = report.files.length === report.fileCount && report.fileCount <= LIMITS.files;
   report.flags = [...flags].sort();
   const runs = object(await api.get(`${repoPath}/actions/workflows/${workflowId}/runs?event=pull_request&head_sha=${head}&per_page=100`));
-  const matching = list(runs.workflow_runs).filter((r) => eligibleRun(r, workflowId, pr)).map(object)
+  const values = list(runs.workflow_runs);
+  if (values.length > 100) throw new Error("CI run inventory exceeds limit");
+  const matching = values.map(object).filter((run) => matchesRun(run, workflowId, pr))
     .sort((a, b) => positive(b.id) - positive(a.id));
   if (count(runs.total_count) > 100) notes.push("CI discovery limited to the newest 100 runs; older evidence was not searched.");
-  if (matching[0]) {
+  // Do not fall back to an older success when the newest same-source run cannot be attributed.
+  if (matching[0] && !await attributedRun(api, matching[0], workflowId, pr)) notes.push(associationUnavailable);
+  else if (matching[0]) {
     const run = object(await api.get(`${repoPath}/actions/runs/${positive(matching[0].id)}`));
-    if (run.id !== matching[0].id || !eligibleRun(run, workflowId, pr)) throw new Error("CI changed scope");
+    if (run.id !== matching[0].id || !await attributedRun(api, run, workflowId, pr)) throw new Error("CI changed scope");
+    if (list(run.pull_requests).length === 0) notes.push("CI association recovered through a unique commit-to-PR lookup; exact repository, workflow, current head and source branch verified.");
     const id = positive(run.id); const attempt = positive(run.run_attempt);
     const jobs = object(await api.get(`${repoPath}/actions/runs/${id}/jobs?filter=latest&per_page=100`));
     const values = list(jobs.jobs).map(object);
@@ -120,10 +156,12 @@ export async function collectReview(api: ReadGitHub, request: ReviewRequest): Pr
         ["application-failure-logs", "database-failure-logs"].includes(String(a.name))).map((a) => String(a.name)).filter((v, i, all) => all.indexOf(v) === i).sort();
     } catch { notes.push("Failure artifact inventory unavailable; use the CI run link."); }
     const finalRun = object(await api.get(`${repoPath}/actions/runs/${id}`));
-    if (finalRun.id !== id || !eligibleRun(finalRun, workflowId, pr) || finalRun.run_attempt !== attempt || finalRun.status !== run.status || finalRun.conclusion !== run.conclusion) throw new Error("CI changed during report");
+    if (finalRun.id !== id || !await attributedRun(api, finalRun, workflowId, pr) || finalRun.run_attempt !== attempt || finalRun.status !== run.status || finalRun.conclusion !== run.conclusion) throw new Error("CI changed during report");
   }
   const finalPR = validPR(await api.get(`${repoPath}/pulls/${number}`), number);
-  if (object(finalPR.head).sha !== head || object(finalPR.base).sha !== base || finalPR.state !== pr.state || finalPR.merged !== pr.merged || finalPR.draft !== pr.draft) throw new Error("PR changed during report");
+  if (object(finalPR.head).sha !== head || object(finalPR.head).ref !== object(pr.head).ref ||
+      object(object(finalPR.head).repo).full_name !== object(object(pr.head).repo).full_name || object(finalPR.base).sha !== base ||
+      finalPR.state !== pr.state || finalPR.merged !== pr.merged || finalPR.draft !== pr.draft) throw new Error("PR changed during report");
   return report;
 }
 
@@ -173,8 +211,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     writeFileSync(".cache/pr-review/report.md", markdown); writeFileSync(".cache/pr-review/handoff.md", renderHandoff(report));
     if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown);
     console.log("Read-only PR summary generated. No repository writes or repair execution.");
-  } catch {
-    const message = "PR summary unavailable: scope, authorization, API data or evidence changed/failed. No repair was started. Inspect trusted workflow configuration and rerun manually after verification.\n";
+  } catch (error) {
+    const message = error instanceof AssociationUnavailable ? `${associationUnavailable} No repair was started.\n` :
+      "PR summary unavailable: scope, authorization, API data or evidence changed/failed. No repair was started. Inspect trusted workflow configuration and rerun manually after verification.\n";
     // Replace a previous local preview instead of leaving an apparently current success.
     try {
       mkdirSync(".cache/pr-review", { recursive: true }); writeFileSync(".cache/pr-review/report.md", message);
