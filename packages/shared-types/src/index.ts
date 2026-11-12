@@ -150,3 +150,33 @@ export const OwnTurnSubmissionSchema = z.strictObject({
   orders: OrderListSchema
 }).readonly();
 export type OwnTurnSubmission = z.infer<typeof OwnTurnSubmissionSchema>;
+
+// 006A transport envelopes reuse the lifecycle schemas above. No server-only
+// snapshot, roster, seed or frozen input belongs in this own-player view.
+export const ReadTurnRequestSchema = z.strictObject({ schemaVersion: version, matchId: identifier.max(128) }).readonly();
+export const SetTurnReadyRequestSchema = z.strictObject({
+  schemaVersion: version, expectedRevision: nonnegativeInteger, ready: z.boolean()
+}).readonly();
+export type SetTurnReadyRequest = z.infer<typeof SetTurnReadyRequestSchema>;
+export const TurnReadyPathSchema = z.strictObject({ matchId: identifier.max(128), turnNumber: positiveInteger }).readonly();
+
+export const SetTurnReadyResponseSchema = z.strictObject({
+  schemaVersion: version, matchId: identifier.max(128), state: z.literal("READY"),
+  turn: TurnRecordSchema, own: OwnTurnSubmissionSchema
+}).superRefine((view, context) => {
+  if (view.turn.gameId !== view.matchId || view.own.gameId !== view.matchId || view.own.turnNumber !== view.turn.turnNumber) {
+    context.addIssue({ code: "custom", message: "Turn and own submission must describe the requested match/turn" });
+  }
+}).readonly();
+export type SetTurnReadyResponse = z.infer<typeof SetTurnReadyResponseSchema>;
+export const ReadTurnResponseSchema = z.discriminatedUnion("state", [
+  SetTurnReadyResponseSchema,
+  z.strictObject({ schemaVersion: version, matchId: identifier.max(128), state: z.enum(["NOT_STARTED", "UNINITIALIZED"]) }).readonly()
+]);
+export type ReadTurnResponse = z.infer<typeof ReadTurnResponseSchema>;
+export const TurnErrorResponseSchema = z.strictObject({
+  schemaVersion: version,
+  error: z.enum(["UNAUTHENTICATED", "USERNAME_REQUIRED", "NOT_FOUND", "INVALID_REQUEST", "INVALID_ORIGIN", "CSRF_REJECTED",
+    "RATE_LIMITED", "INTERNAL_ERROR", "TURN_UNINITIALIZED", "TURN_CLOSED", "WRONG_TURN", "STALE_REVISION", "REVISION_EXHAUSTED"])
+}).readonly();
+export type TurnErrorResponse = z.infer<typeof TurnErrorResponseSchema>;

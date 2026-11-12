@@ -154,15 +154,23 @@ Account authentication is implemented independently of match authorization. Phas
 
 ## Milestone 005B — Procedural world and read-only map (parent Issue #19)
 
-The owner approved three review phases. 005B.1 merged in PR #21 as `e3e4a22`, 005B.2 in PR #23 as `432f37b`, and 005B.3A in PR #25 as `a76be4b`. **005B.3B / Issue #26** is the approved map-accessibility slice; delivery stays unchecked until human merge. Parent #19 remains open.
+The owner approved three review phases. 005B.1 merged in PR #21 as `e3e4a22`, 005B.2 in PR #23 as `432f37b`, 005B.3A in PR #25 as `a76be4b`, and 005B.3B in PR #27 as `17804c5`. Parent #19 remains open; broader 005B.3 hardening is not completed by those slices.
 
 - [x] **005B.1:** Versioned authoritative world contracts and pure deterministic generator; seeded integer geometry, adjacency/terrain, separate starting fixtures and measurable local equality; tests for 2/4/10/40 players and all supported sizes. Merged without database/API/UI/start wiring. See [WORLD_GENERATION.md](WORLD_GENERATION.md).
 - [x] **005B.2:** Immutable JSONB initial archive, guarded atomic initialization on start, participant-only allowlist API and minimal read-only SVG inspector; retry/concurrency/rollback/reload/legacy tests. Merged in PR #23; see [INITIAL_WORLD.md](INITIAL_WORLD.md).
 - [x] **005B.3A:** Accessible world-unavailable explanation for legacy RUNNING matches, preserving UNINITIALIZED and distinct not-started/error/READY handling. Merged in PR #25; frontend tests/docs only, no database, backend or contract changes.
-- [ ] **005B.3B:** Map accessibility hardening: one territory Tab stop, four-direction non-wrapping navigation and keyboard exit, concise selection announcements, separate inspector focus/return, distinct focus/selection, terrain patterns/player IDs, forced colors and bounded dense-map scrolling. Focused regressions and static-mock Chromium checks; manual NVDA/Edge acceptance remains documented in [INITIAL_WORLD.md](INITIAL_WORLD.md). In review work is not merged delivery.
+- [x] **005B.3B:** Map accessibility hardening merged in PR #27 (`17804c5`): one territory Tab stop, four-direction non-wrapping navigation and keyboard exit, concise announcements, separate inspector focus/return, distinct focus/selection, patterns/player IDs, forced colors and bounded scrolling. Manual acceptance limitations remain documented in [INITIAL_WORLD.md](INITIAL_WORLD.md); no deferred accessibility work is added here.
 - [ ] **005B.3:** Accessibility, world-view error-state, and acceptance-test hardening. Legacy RUNNING matches remain UNINITIALIZED. No automatic or host-triggered world initialization is authorized.
 
 No phase authorizes Codex to access an existing development/test/sandbox database. Any future migration must be reviewed and tested only in fresh disposable CI; manual sandbox application requires separate owner approval. World initialization does not resolve a simultaneous turn or imply gameplay execution.
+
+## Milestone 006A — Participant-authorized turn boundary (Issue #28)
+
+- [ ] Strict versioned current-turn read and per-turn Ready/unready APIs with session/onboarding/active-participant checks, private own-player projection and existing Origin/CSRF/error conventions.
+- [ ] Explicit fixture injection plus NODE_ENV=test only; deterministic clock and serialized in-memory commit/rollback, preserving deadline/final-Ready closure and lobby/turn Ready separation.
+- [ ] Database-free contract/HTTP regressions for 2/4/10/40 players, concurrency, privacy, rollback, unavailable states and absent production registration; reviewed draft PR remains unmerged.
+
+This is a fixture-backed boundary, not production turn delivery. Phase 0B's production command handling, durable acknowledgement/retry and offline scheduling items stay unchecked. See [TURN_SYSTEM.md](TURN_SYSTEM.md). Subsequent atomic Turn 1 initialization, runtime pinning/world-snapshot design, production storage and any migrations require separate approval. No existing database access, legacy initialization, gameplay, merge or deployment is authorized by 006A.
 
 ## Phase 1 — Map and game shell
 

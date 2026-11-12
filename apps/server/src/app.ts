@@ -7,11 +7,15 @@ import type { LobbyPersistence } from "./lobbies/routes.js";
 import { restrictLocalTestServer } from "./auth/local-test.js";
 import { registerWorldRoutes } from "./worlds/routes.js";
 import type { WorldPersistence } from "./worlds/routes.js";
+import { registerFixtureTurnRoutes } from "./turns/routes.js";
+import type { FixtureTurnService } from "./turns/service.js";
 
 export async function buildApp(options: {
   auth?: Authentication; lobbies?: LobbyPersistence; worlds?: WorldPersistence;
+  turnFixtures?: { service: FixtureTurnService };
   logger?: FastifyServerOptions["logger"]; trustProxy?: FastifyServerOptions["trustProxy"]
 } = {}) {
+  if (options.turnFixtures && process.env.NODE_ENV !== "test") throw new Error("Turn fixtures require NODE_ENV=test");
   const app = Fastify({ logger: options.logger ?? false,
     logController: new LogController({ disableRequestLogging: true }), trustProxy: options.trustProxy ?? false });
   app.setErrorHandler((error, _request, reply) => {
@@ -29,6 +33,9 @@ export async function buildApp(options: {
       restrictLocalTestServer(app, options.trustProxy);
     }
     await registerAuthentication(app, options.auth);
+    if (options.turnFixtures) await registerFixtureTurnRoutes(app, {
+      origin: options.auth.config.origin, accounts: options.auth.persistence, service: options.turnFixtures.service
+    });
     if (options.worlds) await registerWorldRoutes(app, { accounts: options.auth.persistence, worlds: options.worlds });
     if (options.lobbies) await registerLobbyRoutes(app, {
       origin: options.auth.config.origin, accounts: options.auth.persistence, lobbies: options.lobbies
