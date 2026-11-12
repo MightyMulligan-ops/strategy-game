@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
 import { ReadWorldResponseSchema } from '@strategy-game/shared-types'
 import type { PublicWorld, ReadWorldResponse } from '@strategy-game/shared-types'
@@ -6,11 +6,26 @@ import { lobbyRequest, LobbyRequestError } from './lobby-api'
 
 function MapView({ world }: { world: PublicWorld }) {
   const [selection, setSelection] = useState(0)
+  const mapId = useId()
   const refs = useRef(new Map<string, SVGPolygonElement>())
+  const inspector = useRef<HTMLHeadingElement>(null)
   const selected = world.territories[selection] ?? world.territories[0]!
   const owner = (id: string | null) => world.players.find((p) => p.playerId === id)?.username ?? 'Neutral'
+  const ownerId = (id: string | null) => id === null ? 'Neutral' : `P${world.players.findIndex((p) => p.playerId === id) + 1}`
   const color = (id: string | null) => id === null ? '#C9CDD6' : `hsl(${(40 + world.players.findIndex((p) => p.playerId === id) * 137.508) % 360} 65% 65%)`
   const terrain = { PLAINS: '#243d30', FOREST: '#163025', HILLS: '#544b38' }
+  // Preserve the public geometry while keeping even the narrowest cell readable.
+  const smallestEdge = Math.min(...world.territories.flatMap((t) => [
+    Math.max(...t.polygon.map((p) => p.x)) - Math.min(...t.polygon.map((p) => p.x)),
+    Math.max(...t.polygon.map((p) => p.y)) - Math.min(...t.polygon.map((p) => p.y)),
+  ]))
+  const minimumWidth = Math.ceil(world.bounds.width * 48 / Math.max(1, smallestEdge))
+  function keepVisible(node: SVGPolygonElement) {
+    node.scrollIntoView?.({ block: 'nearest', inline: 'nearest', behavior: 'auto' })
+  }
+  function focusTerritory(index: number) {
+    refs.current.get(world.territories[index]!.territoryId)?.focus({ preventScroll: true })
+  }
   function navigate(event: KeyboardEvent<SVGPolygonElement>, index: number) {
     const current = world.territories[index]!
     const directions: Record<string, [number, number]> = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }
@@ -19,27 +34,42 @@ function MapView({ world }: { world: PublicWorld }) {
     if (!step) return
     event.preventDefault()
     const next = world.territories.findIndex((t) => t.row === current.row + step[0] && t.column === current.column + step[1])
-    if (next >= 0) { setSelection(next); refs.current.get(world.territories[next]!.territoryId)?.focus() }
+    if (next >= 0) focusTerritory(next)
   }
   const adjacent = world.links.filter((e) => e.a === selected.territoryId || e.b === selected.territoryId).map((e) => e.a === selected.territoryId ? e.b : e.a)
   return <>
-    <p className="muted">Initial map shared with active participants. Select a territory, or use Tab and arrow keys. Borders show adjacency; movement is not implemented.</p>
-    <ul className="world-legend" aria-label="Player colors">{world.players.map((p) => <li key={p.playerId}><span aria-hidden="true" style={{ color: color(p.playerId) }}>■</span> {p.username}</li>)}<li>★ Capital · Neutral territories have silver borders</li></ul>
+    <p className="muted" id={`${mapId}-instructions`}>Initial map shared with active participants. Tab enters the map at the selected territory. Arrow keys select neighboring territories without wrapping; Enter or Space selects. Tab or Shift+Tab leaves the map. Scroll to explore. Borders show adjacency; movement is not implemented.</p>
+    <ul className="world-legend" aria-label="Player identifiers">{world.players.map((p) => <li key={p.playerId}><span aria-hidden="true" style={{ color: color(p.playerId) }}>■</span> {ownerId(p.playerId)}: {p.username}</li>)}<li>★ Capital · Unmarked territories are neutral</li></ul>
+    <p className="small muted">Terrain patterns: dots = plains, diagonal lines = forest, peaks = hills. Selection has a solid gold border; keyboard focus has an inset dashed outline.</p>
+    <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">Selected {selected.territoryId}.</p>
+    <button type="button" className="world-details-control" onClick={() => inspector.current?.focus()}>Inspect selected territory</button>
     <div className="world-grid"><div className="world-map">
-      <svg viewBox={`0 0 ${world.bounds.width} ${world.bounds.height}`} role="group" aria-label="Initial territory map">
+      <svg viewBox={`0 0 ${world.bounds.width} ${world.bounds.height}`} width={world.bounds.width} height={world.bounds.height}
+        style={{ minWidth: minimumWidth }} role="group" aria-label="Initial territory map" aria-describedby={`${mapId}-instructions`}>
+        <defs>{Object.entries(terrain).map(([kind, fill]) => <pattern key={kind} id={`${mapId}-${kind}`} width="20" height="20" patternUnits="userSpaceOnUse">
+          <rect className="world-terrain-base" width="20" height="20" fill={fill} />
+          {kind === 'PLAINS' ? <circle className="world-terrain-mark" cx="10" cy="10" r="1" />
+            : <path className="world-terrain-mark" d={kind === 'FOREST' ? 'M-5 5L5 -5M0 20L20 0M15 25L25 15' : 'M3 14L10 6L17 14'} />}
+        </pattern>)}</defs>
         {world.territories.map((t, index) => <g key={t.territoryId}>
           <polygon ref={(node) => { if (node) refs.current.set(t.territoryId, node); else refs.current.delete(t.territoryId) }}
-            points={t.polygon.map((p) => `${p.x},${p.y}`).join(' ')} fill={terrain[t.terrain]}
+            className="world-territory" points={t.polygon.map((p) => `${p.x},${p.y}`).join(' ')} fill={`url(#${mapId}-${t.terrain})`}
             stroke={index === selection ? '#D4AF37' : color(t.ownerPlayerId)} strokeWidth={index === selection ? 5 : 2} vectorEffect="non-scaling-stroke"
             role="button" tabIndex={index === selection ? 0 : -1} aria-pressed={index === selection}
-            aria-label={`Territory ${t.territoryId}, ${t.terrain}, ${owner(t.ownerPlayerId)}${t.capital ? ', capital' : ''}`}
-            onFocus={() => setSelection(index)} onClick={() => setSelection(index)} onKeyDown={(event) => navigate(event, index)} />
-          {t.capital && <text x={t.center.x} y={t.center.y} fontSize="40" fill={color(t.ownerPlayerId)} textAnchor="middle" dominantBaseline="central" pointerEvents="none" aria-hidden="true">★</text>}
+            aria-label={`Territory ${t.territoryId}, row ${t.row + 1}, column ${t.column + 1}, ${t.terrain.toLowerCase()}, ${ownerId(t.ownerPlayerId)}${t.ownerPlayerId === null ? '' : `: ${owner(t.ownerPlayerId)}`}${t.capital ? ', capital' : ''}`}
+            onFocus={(event) => { setSelection(index); keepVisible(event.currentTarget) }}
+            onClick={() => focusTerritory(index)} onKeyDown={(event) => navigate(event, index)} />
+          {(t.capital || t.ownerPlayerId !== null) && <text className="world-owner-marker" x={t.center.x} y={t.center.y}
+            textAnchor="middle" pointerEvents="none" aria-hidden="true">
+            {t.capital && <tspan x={t.center.x} dy="-6">★</tspan>}
+            {t.ownerPlayerId !== null && <tspan x={t.center.x} dy={t.capital ? 26 : 7}>{ownerId(t.ownerPlayerId)}</tspan>}
+          </text>}
         </g>)}
       </svg></div>
-      <section className="panel territory-inspector" aria-label="Territory inspector" aria-live="polite">
-        <h2>Territory inspector</h2><h3>{selected.territoryId}</h3>
-        <dl><dt>Terrain</dt><dd>{selected.terrain}</dd><dt>Owner</dt><dd>{owner(selected.ownerPlayerId)}</dd>
+      <section className="panel territory-inspector" aria-label="Territory inspector">
+        <h2 ref={inspector} tabIndex={-1}>Territory inspector</h2><h3>{selected.territoryId}</h3>
+        <button type="button" onClick={() => focusTerritory(selection)}>Return to selected territory</button>
+        <dl><dt>Terrain</dt><dd>{selected.terrain}</dd><dt>Owner</dt><dd>{ownerId(selected.ownerPlayerId)}{selected.ownerPlayerId === null ? '' : `: ${owner(selected.ownerPlayerId)}`}</dd>
           <dt>City</dt><dd>{selected.city ? 'Capital' : 'None'}</dd><dt>Position</dt><dd>{selected.center.x}, {selected.center.y}</dd>
           <dt>Resources</dt><dd>{selected.resources.length ? 'Military Supplies: 0 (initial fixture)' : 'None'}</dd>
           <dt>Adjacent territories</dt><dd>{adjacent.join(', ')}</dd></dl>
