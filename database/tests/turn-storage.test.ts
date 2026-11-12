@@ -7,8 +7,8 @@ import { initialTurnMigration } from "./initial-turn-migration.js";
 
 describe("version-aware initial turn storage (database-free)", () => {
   it("recognizes every additive migration statement without executing SQL", () => {
-    const ddl = initialTurnMigration(); expect(ddl.functions).toHaveLength(5); expect(ddl.triggers).toHaveLength(16);
-    expect(ddl.statements).toHaveLength(21); expect(new Set(ddl.triggers.map((t) => t.name)).size).toBe(16);
+    const ddl = initialTurnMigration(); expect(ddl.functions).toHaveLength(6); expect(ddl.triggers).toHaveLength(17);
+    expect(ddl.statements).toHaveLength(23); expect(new Set(ddl.triggers.map((t) => t.name)).size).toBe(17);
   });
   it.each([2, 4, 10, 40])("restores immutable exact %i-player state from the real archive", (count) => {
     const f = initialTurnFixture(count); const before = structuredClone(f.row);

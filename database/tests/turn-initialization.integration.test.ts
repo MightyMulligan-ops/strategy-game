@@ -185,7 +185,7 @@ describe.skipIf(process.env.RUN_DATABASE_TESTS !== "1")("atomic initial-world Tu
         await client.$transaction(async (tx) => {
           await tx.$executeRawUnsafe('LOCK TABLE "Match", "MatchConfiguration", "MatchParticipant", "MatchWorld", "GameSnapshotRecord", "Turn", "PlayerTurnState", "PlayerSubmissionRevision", "PlayerOrder", "OrderDependency", "FrozenTurnInputRecord", "ResolutionResult" IN ACCESS EXCLUSIVE MODE NOWAIT');
           acquired = true;
-          for (const t of ddl.triggers) await tx.$executeRawUnsafe(`DROP TRIGGER ${t.name} ON "${t.table}"`);
+          for (const t of ddl.triggers) await tx.$executeRawUnsafe(`DROP TRIGGER "${t.name}" ON "${t.table}"`);
           for (const f of [...ddl.functions].reverse()) await tx.$executeRawUnsafe(`DROP FUNCTION ${f.name}(${f.signature})`);
           for (const [id, status] of [[openId, "OPEN"], [runningId, "RUNNING"]] as const) await tx.match.create({ data: { id, status, hostIdentityId: host, createdAt: new Date(0),
             configuration: { create: { schemaVersion: 1, name: "Pre-migration", playerCapacity: 2, turnDurationMs: 1000n, config: { schemaVersion: 1, gameId: id, turnDurationMs: 1000 } } },

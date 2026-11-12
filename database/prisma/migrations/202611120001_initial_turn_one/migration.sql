@@ -210,4 +210,21 @@ CREATE CONSTRAINT TRIGGER initial_turn_record_complete AFTER INSERT ON "Turn" DE
 -- their required Turn/Snapshot and OPEN->RUNNING events. Those events check the
 -- whole bundle, avoiding O(players) repeated completeness scans at commit.
 
+-- Keep all existing immediate NO ACTION foreign keys. Match's participant cascade
+-- can otherwise run before Turn's player-state cascade. This AFTER DELETE trigger
+-- runs before PostgreSQL's RI_ConstraintTrigger_* actions (quoted A sorts first),
+-- only after the parent is absent, so immutable-child guards permit this cascade.
+CREATE FUNCTION delete_initial_turn_children() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM "MatchConfiguration" WHERE "matchId" = OLD."id" AND "simulationVersion" = 'initial-world-v1') THEN
+    DELETE FROM "PlayerSubmissionRevision" WHERE "matchId" = OLD."id";
+    DELETE FROM "PlayerTurnState" WHERE "matchId" = OLD."id";
+    DELETE FROM "Turn" WHERE "matchId" = OLD."id";
+    DELETE FROM "GameSnapshotRecord" WHERE "matchId" = OLD."id";
+  END IF;
+  RETURN OLD;
+END;
+$$;
+CREATE TRIGGER "A_initial_turn_cascade" AFTER DELETE ON "Match" FOR EACH ROW EXECUTE FUNCTION delete_initial_turn_children();
+
 COMMIT;
