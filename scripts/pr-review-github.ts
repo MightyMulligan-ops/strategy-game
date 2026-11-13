@@ -58,6 +58,13 @@ async function attributedRun(api: ReadGitHub, run: Json, workflowId: number, pr:
   catch { return false; }
 }
 
+function approvalCandidate(body: string): boolean {
+  // Observe a recognizable record line; mere mentions and explicit denials are not candidates.
+  // This does not authenticate its author, interpret operations or establish a grant.
+  return body.split(/\r?\n/).some((line) => /^(?:#{1,6}\s*)?(?:owner[- ]approved\b|(?:approval|authorization)(?: status)?\s*[:—-]|(?:the )?owner\s+(?:explicitly\s+)?(?:approves|authorizes)\b)/i.test(line.trim()) &&
+    !/\b(?:NOT_GRANTED|not granted|not approved|denied|revoked|planning only)\b/i.test(line));
+}
+
 export async function collectReview(api: ReadGitHub, request: ReviewRequest): Promise<ReviewReport> {
   if (request.repository !== REVIEW_POLICY.repository || request.ref !== "refs/heads/main") throw new Error("Review scope rejected");
   if (!["workflow_dispatch", "workflow_run"].includes(request.event)) throw new Error("Review event rejected");
@@ -92,7 +99,7 @@ export async function collectReview(api: ReadGitHub, request: ReviewRequest): Pr
   let baseTip: string | null = null;
   try { baseTip = await mainTip(); } catch { notes.push("Current main tip unavailable; current-base evidence remains UNKNOWN."); }
   report.evidence = { workflowId, branch: displayPath(object(pr.head).ref), sourceRepository: displayPath(object(object(pr.head).repo).full_name),
-    baseTip, issueDigest: null, approvalSources: [], runInventoryComplete: false, jobInventoryComplete: false };
+    baseTip, issueDigest: null, approvalSources: [], approvalCandidateObserved: null, runInventoryComplete: false, jobInventoryComplete: false };
   if (trigger && trigger.head_sha !== head) notes.push("Trigger run is obsolete; this report uses only the current PR head.");
   const issueNumber = fork ? null : linkedIssue(object(pr.head).ref, pr.body);
   if (issueNumber !== null) {
@@ -103,7 +110,11 @@ export async function collectReview(api: ReadGitHub, request: ReviewRequest): Pr
       };
       if (report.issue) {
         report.evidence.approvalSources.push(`https://github.com/${REVIEW_POLICY.repository}/issues/${issueNumber}`);
-        if (typeof issue.body === "string" && Buffer.byteLength(issue.body, "utf8") <= 65_536) report.evidence.issueDigest = `sha256:${createHash("sha256").update(issue.body).digest("hex")}`;
+        if (typeof issue.body === "string" && Buffer.byteLength(issue.body, "utf8") <= 65_536) {
+          report.evidence.issueDigest = `sha256:${createHash("sha256").update(issue.body).digest("hex")}`;
+          // Availability of a candidate record only, never owner authentication or a grant.
+          report.evidence.approvalCandidateObserved = approvalCandidate(issue.body);
+        }
         if (typeof issue.comments === "number" && issue.comments > 0) {
           try {
             const comments = list(await api.get(`${repoPath}/issues/${issueNumber}/comments?per_page=100`));
@@ -113,10 +124,14 @@ export async function collectReview(api: ReadGitHub, request: ReviewRequest): Pr
               if (report.evidence.approvalSources.length >= 11) break;
               if (typeof comment.body === "string" && Buffer.byteLength(comment.body, "utf8") <= 65_536 && /\b(?:approv(?:al|ed)|authoriz(?:ation|ed))\b/i.test(comment.body)) {
                 report.evidence.approvalSources.push(`https://github.com/${REVIEW_POLICY.repository}/issues/${issueNumber}#issuecomment-${positive(comment.id)}`);
+                if (approvalCandidate(comment.body)) report.evidence.approvalCandidateObserved = true;
               }
             }
             if (issue.comments > comments.length || comments.length === 100) notes.push("Approval source discovery bounded to 100 comments/10 candidate links; authorization is unverified.");
-          } catch { notes.push("Approval comment sources unavailable; no authority inferred."); }
+          } catch {
+            if (report.evidence.approvalCandidateObserved !== true) report.evidence.approvalCandidateObserved = null;
+            notes.push("Approval comment sources unavailable; no authority inferred.");
+          }
         }
       }
     } catch { notes.push("Linked issue metadata unavailable; no issue state was inferred."); }

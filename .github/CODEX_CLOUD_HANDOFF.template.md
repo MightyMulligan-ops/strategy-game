@@ -54,6 +54,10 @@ identity and freshness; do not duplicate the reporter or treat its summary as au
   HEAD versus synthetic checkout/parents/current-main evidence and each
   PASS / FAIL / UNKNOWN / NEEDS_OWNER_REVIEW check; no overall acceptance is granted.
   Approval links remain UNVERIFIED; inspect the frozen scope and relevant diff.
+- Automation 013 triage: record category, reason codes/links and exact-head review
+  text from handoff.md. REVIEW_READY_EVIDENCE means enough evidence for manual review,
+  never acceptance or authority. Record invalidation on changed head/base/run/attempt,
+  missing/truncated evidence or DB skips, and Automation 012 live validation/PENDING.
 
 ## Correction and transfer history
 
