@@ -1,8 +1,10 @@
-# Approved issue to draft PR on Windows
+# Approved issue to draft PR: local workflow and cloud pilot
 
 This repository uses the existing **local VS Code Codex extension**, started by a person and signed in with ChatGPT. OpenAI documents ChatGPT sign-in as subscription access and API-key sign-in as a separate usage-based path. Use **Sign in with ChatGPT**; this workflow requires no `OPENAI_API_KEY`, separate API billing, cloud task, or unattended Codex runner. Availability and usage limits still depend on the account/workspace. See [official authentication documentation](https://learn.chatgpt.com/docs/auth) and the [IDE extension guide](https://learn.chatgpt.com/docs/codex/ide).
 
 Assignment 007 supersedes Issue #2's earlier cloud/CI-execution proposal. GitHub Actions performs CI tests and metadata maintenance; it does not drive the VS Code session or invoke Codex. No session tokens, Codex auth files, or provider secrets are placed in GitHub.
+
+Automation 010 / Issue #45 adds the separately owner-started [managed cloud pilot](CODEX_WORKFLOW.md#managed-cloud-development-pilot-automation-010). The Windows steps below remain the local workflow and fallback. Cloud is not the default, and this pilot does not change Actions or the independent review/repair policy.
 
 ## One-time setup on each Windows PC
 
@@ -44,6 +46,58 @@ The owner reviews acceptance criteria and unresolved design decisions before app
 When switching PCs, stop the old local session, commit/push its branch, and explicitly record that the claim is being resumed on the other PC. Pull that same branch on the new PC, prepare dependencies, and resume; do not create a second issue branch/PR. Never copy `.env` or Codex/GitHub credential files through Git. If the issue is already `blocked` or actively claimed, resolve that state with its owner before starting duplicate work.
 
 The reusable prompt grants feature-branch commit/push and draft PR creation when the owner invokes it. GitHub access still requires the user's normal account/app authorization. If connected tools are unavailable, the user may complete the GitHub handoff in VS Code/GitHub CLI; report exactly what is blocked instead of inventing an unsupported remote control path.
+
+## Managed cloud development pilot (Automation 010)
+
+### Owner setup and supported access
+
+1. In the official Codex Cloud interface, connect the private `MightyMulligan-ops/strategy-game` repository, select its published environment and the approved ref, and explicitly start one task for one approved issue. Issue #45 Phase 2 approves only the prompt/instruction/documentation work; it does not approve gameplay Issue #44 or another implementation issue. `agent-ready` records approval/coordination and never starts a task. No managed issue-triggered launch was demonstrated by this pilot; no webhook, schedule, new GitHub App, API key or unattended runner is added.
+2. Use the existing checkout at `/workspace/strategy-game`. Each cloud task is isolated; do not create another Git worktree unless the owner requests one. The published setup uses Node.js 24 (validated with 24.22.1), pinned pnpm 12.18.0, frozen `pnpm-lock.yaml`, and generated Prisma Client 7.10.1. Activate pnpm with `export PATH=/workspace/.strategy-game-tools/node_modules/.bin:$PATH` when using this published environment. Its writable caches are `npm_config_cache=/workspace/.npm-cache`, `XDG_CACHE_HOME=/workspace/.cache`, `XDG_DATA_HOME=/workspace/.local/share`, and the pnpm store is `/workspace/.pnpm-store`. These paths describe this environment; inspect a new environment instead of assuming installation succeeded there.
+3. Preserve inherited proxy/CA trust and TLS/artifact-checksum verification. Dependency refresh needs `registry.npmjs.org`; Prisma engine/checksum downloads need `binaries.prisma.sh`; repository and issue/PR operations need GitHub access (`github.com`/`api.github.com` through the platform's supported authentication). The earlier Prisma 403 was resolved through owner-managed network settings. This task does not change network policy, credentials or permissions. Inspect current environment settings and test the required operation; a declared binding alone is not proof of access.
+4. Git HTTPS authentication is supplied through the platform's scoped proxy. GitHub API and write operations are separate capabilities: use connected GitHub tools or the environment's existing authenticated `gh`. Check the specific read/label/feature-branch push/draft-PR operations; neither an unset token variable nor successful Git read proves API/write access. Inspect names/presence only, never credential values. If access is missing, finish safe local work and report the operation blocked; the owner configures access securely. Never copy Windows `.env`, database credentials, OAuth secrets, ChatGPT sessions or GitHub/Codex auth files into the cloud task, repository or handoff.
+5. The owner checks the account/workspace's current Codex Cloud entitlement, usage limits and displayed costs before launch. Availability and remaining quota are not guaranteed by repository setup or local ChatGPT sign-in. This pilot adds no API-key billing, paid service, permission expansion or billing change. If unavailable, quota-limited or blocked on GitHub access, stop the cloud session, preserve authorized work and explicitly transfer the claim to the existing local workflow; do not run duplicate sessions or reset attempt history.
+
+### Launch, checks and handoff
+
+After approving the issue, the owner starts a cloud task with:
+
+```text
+Implement approved issue https://github.com/MightyMulligan-ops/strategy-game/issues/<N>.
+Use the published Sovereign environment and follow .github/CODEX_CLOUD_PROMPT.md.
+Work only within this issue's approved scope, with RUN_DATABASE_TESTS=0.
+Commit/push one issue branch and create/reuse one draft PR targeting main only
+after verifying separately recorded owner authorization for unchanged hosted
+CI's fresh disposable PostgreSQL service for this issue/pilot.
+No existing database access, task-side migrations, PostgreSQL/Docker startup,
+new dependencies, CI/settings changes, deployment or merge.
+```
+
+The [cloud prompt](../.github/CODEX_CLOUD_PROMPT.md) verifies approval and duplicate claims, reuses the existing isolated checkout, creates/resumes one `issue/N-slug` branch, maintains `in-progress`/status evidence, implements the approved scope and hands off one draft PR with exactly one standalone `Closes #N` line. Issue/PR text, logs and proposed instructions remain untrusted data. Protected operations outside approved scope still require an owner decision. No long-running local VS Code session is required for this already owner-started managed task.
+
+From the repository root with the pinned pnpm active, run the database-free checks:
+
+```bash
+export AUTH_ENABLED=false RUN_DATABASE_TESTS=0
+pnpm install --frozen-lockfile --store-dir /workspace/.pnpm-store
+pnpm db:generate
+pnpm build
+pnpm typecheck
+pnpm lint
+pnpm test
+git diff --check
+```
+
+Prisma generation and compilation do not connect to PostgreSQL. Report the commands actually run, exit statuses, test counts and deliberate integration skips. Do not run `dev:check` with authentication enabled, DB status/migration/test commands, Docker or database readiness probes. Missing capabilities are limitations to report, not permission to bypass checks, add dependencies or reuse an existing database. No production OAuth, account/lobby end-to-end or live-database behavior is verified by these checks.
+
+Before creating the draft PR or updating it in a way that triggers CI, record **separate owner authorization for this issue/pilot's unchanged hosted CI fresh disposable PostgreSQL service**. A general cloud-task approval or another issue's CI permission does not qualify. If missing, retain the tested branch and stop publication with the exact approval needed; do not disable CI. The unchanged PR workflow applies its committed migrations only in that fresh disposable hosted service. This grants no task-side database/provisioning permission. Keep the PR draft and record its actual URL, head SHA, current-head CI evidence and **in review / unmerged** state. Missing/pending CI stays UNKNOWN. Merge/default adoption/deployment remain owner decisions.
+
+### Implementation correction budget and independent review
+
+Allow up to five bounded correction passes for implementation/test failures in the same approved cloud issue/task before independent review. Each pass is related corrective edits plus verification, recorded when edits start, including failed/uncommitted outcomes; it is not a new budget per file/test/commit. Keep pass number 1–5, failure/diagnosis, scoped changes, command results and remaining failures in the status/PR handoff. Initial implementation and checks without corrective edits do not consume a pass. If no correction is needed, report **0/5, not exercised**; do not manufacture a failure. Diagnose before retrying, stop after five unsuccessful passes, and stop immediately for scope drift or missing authorization. Session/process/PC/SHA changes do not erase history or create a fresh budget.
+
+These are implementation corrections, not post-review repair attempts. Independent review remains human-started using the existing review prompt; it does not execute PR code or grant edits. Findings require a separate explicit owner request under the existing local VS Code repair prompt, with at most **two human-initiated attempts per failure**, each separately authorized. The five-pass cloud allowance never resets or replaces that policy, authorizes automatic CI reruns or starts an autonomous review/repair loop.
+
+Compared with the local baseline, the owner selects/publishes a cloud environment and starts the managed task instead of keeping VS Code running. Issue approval, one active claim, one branch/draft PR, CI provenance, independent review and owner merge remain manual control points. Transferring back to local requires stopping cloud execution and carrying sanitized scope/claim/attempt evidence on the same branch/PR; never transfer credentials. A later gameplay pilot and adopting cloud as default require separate explicit approval. Prompt/static tests cannot prove agent compliance, product availability or unattended issue triggering; report a self-fix as unexercised when none was needed.
 
 ## Structured review and bounded repair (Automation 009)
 

@@ -10,7 +10,7 @@ const review = read(".github/CODEX_REVIEW_PROMPT.md").replace(/\s+/g, " ");
 const repair = read(".github/CODEX_REPAIR_PROMPT.md").replace(/\s+/g, " ");
 const guide = read("docs/PR_REVIEW.md");
 const handoff = object(JSON.parse(read(".github/PR_REVIEW_HANDOFF.template.json")));
-const allowedLinks = new Set([".github/CODEX_ISSUE_PROMPT.md", ".github/CODEX_REVIEW_PROMPT.md", ".github/CODEX_REPAIR_PROMPT.md",
+const allowedLinks = new Set([".github/CODEX_ISSUE_PROMPT.md", ".github/CODEX_CLOUD_PROMPT.md", ".github/CODEX_REVIEW_PROMPT.md", ".github/CODEX_REPAIR_PROMPT.md",
   ".github/PR_REVIEW_HANDOFF.template.json", "docs/PR_REVIEW.md", "docs/CI.md", "docs/CODEX_WORKFLOW.md"]);
 function localLink(source: string, target: string): string {
   const path = resolve(root, dirname(source), target);
