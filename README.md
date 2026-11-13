@@ -47,6 +47,7 @@ Use a **server-authoritative modular monolith** initially. Do not introduce micr
 - `docs/LOBBY_UI.md` — Sovereign account/lobby screens, same-origin API integration, verified asset inventory, accessibility, tests and live-database limitations.
 - `docs/CODEX_WORKFLOW.md` — human-started Windows VS Code issue-to-draft-PR workflow and metadata labels.
 - `.github/CODEX_CLOUD_PROMPT.md` — opt-in, explicitly owner-started Automation 010 cloud pilot; database-free task checks, five bounded implementation correction passes and a separate hosted disposable-CI approval gate. The local VS Code workflow and two-attempt owner-controlled post-review repair policy remain unchanged.
+- `docs/CODEX_PIPELINE.md` — Automation 011 short cloud launch, issue-specific B/C+D+P owner approval bundle and standard completion handoff; advisory records, default-deny protected operations and separate ready/merge/deployment decisions.
 - `docs/DEVELOPMENT_STATUS.md` — evidence-based progress handoff and update policy.
 - `AGENTS.md` — instructions for AI coding agents and contributors.
 - `packages/shared-types/` — strict, versioned runtime schemas and transport types.

@@ -1,0 +1,25 @@
+{
+  "format": "sovereign-cloud-authorization-v1",
+  "advisoryOnly": true,
+  "defaultDecision": "BLOCKED",
+  "repository": "MightyMulligan-ops/strategy-game",
+  "issueNumber": null,
+  "taskId": null,
+  "approval": { "status": "NOT_GRANTED", "source": null, "owner": null, "verifiedAt": null, "currentPermission": null },
+  "specification": { "source": null, "approvedRevision": null, "snapshotDigest": null, "acceptanceCriteria": [], "exclusions": [] },
+  "publication": { "mode": "COMMIT_SPECIFIC", "expectedHeadSha": null, "branch": null, "prNumber": null },
+  "lifetime": { "expiresAt": null, "revokedAt": null, "endsOn": ["TASK_COMPLETED", "TASK_TRANSFERRED", "ISSUE_CLOSED", "SCOPE_CHANGED"] },
+  "commonEvidence": ["explicitOwnerLaunch", "verifiedOwnerSource", "matchingRepository", "matchingIssue", "sameTask", "frozenApprovedScope", "claimAvailable", "notRevoked", "notExpired"],
+  "gates": {
+    "A": { "status": "NOT_GRANTED", "operations": ["create_named_issue_spec"], "additionalEvidence": [] },
+    "BC": { "status": "NOT_GRANTED", "operations": ["implement_frozen_scope", "database_free_checks", "up_to_five_bounded_corrections", "author_expressly_approved_additive_sql"], "additionalEvidence": ["protectedScopeCovered", "implementationBudgetAvailable"] },
+    "D": { "status": "NOT_GRANTED", "operations": ["unchanged_hosted_ci", "fresh_disposable_postgresql", "committed_migrations_in_disposable_ci_only"], "additionalEvidence": ["unchangedCi", "freshDisposableOnly", "cleanupRequired", "notAutomaticRetry"] },
+    "P": { "status": "NOT_GRANTED", "operations": ["one_issue_branch_push", "one_draft_pr_to_main"], "additionalEvidence": ["protectedScopeCovered", "branchHeadVerified", "scopeReviewed", "disposableCiApproval", "publicationIdentityMatches"] },
+    "E": { "status": "NOT_GRANTED", "operations": ["ready_for_review", "owner_approved_squash_merge"], "additionalEvidence": ["separateExplicitOwnerDecision"] },
+    "F": { "status": "NOT_GRANTED", "operations": ["existing_environment_migration", "deployment"], "additionalEvidence": ["separateExplicitOwnerDecision"] }
+  },
+  "bundleMayCover": ["BC", "D", "P"],
+  "separateOwnerGates": ["E", "F"],
+  "protectedExclusions": ["existing_databases_and_credentials", "task_side_migrations", "task_side_postgresql_or_docker", "new_dependencies", "ci_workflow_changes", "repository_settings_or_permissions", "major_architecture_or_gameplay_expansion", "production_secrets", "external_paid_api_integration", "automatic_ci_retry", "automatic_merge"],
+  "history": { "implementationPassLimit": 5, "implementationPasses": [], "postReviewRepairLimitPerFailure": 2, "repairs": [], "transferSources": [] }
+}
