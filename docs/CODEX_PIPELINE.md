@@ -3,7 +3,8 @@
 Issue #53 reduces repeated handoffs within the opt-in cloud pilot. It adds human
 templates and static policy examples, not an authorization engine, task launcher,
 GitHub integration, new CI path or standing permission. The existing local VS Code
-workflow, read-only PR reporter, issue-status automation and CI remain unchanged.
+workflow, issue-status automation and CI remain unchanged. Automation 012 extends
+the existing reporter's read-only evidence as described below.
 
 ## Minimal owner workflow
 
@@ -93,6 +94,16 @@ The deterministic fixture tests exercise these declared matrix conditions and
 static instruction/template boundaries. They execute no protected operation and
 do not prove that an agent follows policy or authenticate an owner. Human/API
 verification of the actual source remains necessary; mock facts are not authority.
+
+Automation 012 extends the same read-only reporter with `sovereign-pr-acceptance-v1`:
+find its evidence table in the PR review Actions summary/report.md and bounded
+advisory JSON in the existing handoff.md artifact. It distinguishes source HEAD,
+synthetic checkout parents, current main, test skips and migration/cleanup evidence.
+PASS means only a named evidence check is consistent. Missing/stale facts are
+UNKNOWN, failures are FAIL, and protected scope/authorization need owner review.
+It cannot authenticate the approval bundle, accept code or authorize E/F. Inspect
+the packet and relevant diff, then explicitly decide ready/squash merge. Deployment
+remains separately approved; no new workflow, permissions or execution path is added.
 
 ## Checks, evidence and acceptance
 

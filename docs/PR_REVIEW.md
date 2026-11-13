@@ -27,6 +27,70 @@ Files are paginated up to GitHub's 3,000-file limit; both sides of renames are c
 
 API responses are capped at 4 MiB, job logs at 2 MiB, jobs/run discovery at 100. Oversized or malformed core data stops the report; unavailable optional logs/artifacts leave evidence unknown. No failure prints raw API/parser exceptions. Forks can receive read-only metadata reports but do not acquire a trusted issue claim or repair authority. Missing fork run associations are not guessed from branch names.
 
+## Read-only acceptance packet (Automation 012 / Issue #55)
+
+The existing trusted-main collector now derives **sovereign-pr-acceptance-v1** from
+the same metadata and two bounded job-log reads. Find the evidence table directly
+in **Actions → PR review summary → run summary**, or download its existing
+`pr-review-summary` artifact: `report.md` contains the human summary; `handoff.md`
+contains the same bounded advisory JSON in a fenced block. Workflow YAML, triggers,
+checkout, permissions, artifact paths and CI execution are unchanged. New reporter
+code becomes active in the hosted trusted-main workflow only after owner merge;
+an unmerged feature is verified with deterministic fixtures/read-only previews.
+
+Each check is **PASS**, **FAIL**, **UNKNOWN** or **NEEDS_OWNER_REVIEW**. There is no
+overall acceptance decision: `acceptanceDecision=NOT_MADE`, ready/merge, deployment
+and repair remain `NOT_GRANTED`. PASS means only the named evidence agrees, not
+that code is correct or that the owner authorized its scope. The minimal remaining
+owner action is to inspect the packet and relevant diff, verify frozen scope and
+approval sources, then explicitly decide ready/squash merge. Deployment stays separate.
+
+The packet binds PR/repository/source branch/head, PR base, current main tip,
+configured workflow ID/path/event, run/latest attempt, required job IDs/URLs and
+per-job passed/failed/skipped/pending/todo counts. It rechecks current main, PR
+identity/state/base, issue snapshot and newest run discovery after collection.
+Changed identity/base/scope, a newer run or a changed attempt invalidates the
+snapshot; optional inaccessible evidence stays UNKNOWN. A newer pending/failing
+run never falls back to an older success. Incomplete discovery/job/file inventory
+is explicit, not a passing complete packet.
+
+Source HEAD is distinct from the **synthetic PR merge checkout**. A bounded,
+allowlisted checkout log marker supplies a commit prefix; the GitHub commit API
+corroborates its full SHA and ordered base/source parents. Every required job's
+parents must match the current source head and current main, and PR base must
+agree, before current-base evidence passes. Missing/ambiguous markers, unavailable
+parents or an advanced main remain UNKNOWN. This is point-in-time consistency,
+not branch-protection/up-to-date-base enforcement or an independent checkout audit.
+
+PostgreSQL evidence requires positive matching runner counts, zero failed/skipped/
+pending/todo, a successful execution-guard step and exactly one matching no-skips
+guard report. Empty/ambiguous/unavailable counts are UNKNOWN, never zero or PASS.
+Application-job DB skips remain visible and never establish SQL success. Separate
+checks require initialization metadata/service-init marker, successful migration
+step plus a complete positive application report, and successful Stop containers
+plus container and network removal markers. Missing migration/cleanup evidence
+cannot pass. These markers and test counts retain **UNTRUSTED_RUNNER_REPORT**
+qualification; GitHub job conclusions are separate API metadata. Neither independently
+proves runtime behavior; VM lifecycle remains GitHub-managed.
+
+Only canonical same-repository issue/comment links and a bounded issue-body digest
+are retained as **UNVERIFIED** approval candidates. Up to 100 comments/10 candidates
+are examined; no prose, author-association claim, label, advisory JSON or green CI
+authenticates owner authority. Compare the digest/source with the separately frozen
+approved scope. Reporter code never parses a grant into operational permission.
+Protected categories include instructions/security, database/migrations, dependency
+and lock files, CI/permissions, gameplay/runtime/contracts and infrastructure; both
+rename paths are classified. Missing/withheld paths remain UNKNOWN. Owner scope
+review is still required even when no path category is flagged.
+
+JSON is capped at 1 MiB; a larger file inventory is shortened to 60 entries with
+inventory completeness UNKNOWN. Up to 3,000 files are still fetched/classified by
+the existing collector. Only fixed vocabulary, validated IDs/hashes, sanitized
+paths, counts and canonical URLs leave the collector. It emits no raw issue/PR/log
+text, migration names, service identifiers, secrets or signed log-storage URLs.
+No second reporter, new artifact extraction, AI agent, GitHub write, retry, PR
+comment/check/status write or database execution is introduced.
+
 ## Missing run associations (Automation 008A / Issue #34)
 
 GitHub returned `pull_requests: []` for successful CI run [43265346907](https://github.com/MightyMulligan-ops/strategy-game/actions/runs/43265346907), on merged PR #33 head `9f59b9652189e57371d0f93bde22fe652f87c572`. The original reporter therefore showed unknown CI. An absent array association does not prove the absence of PR CI.

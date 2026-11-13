@@ -1,9 +1,10 @@
 import { mkdirSync, readFileSync, writeFileSync, appendFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { createHash } from "node:crypto";
 import {
   REVIEW_POLICY, LIMITS, object, list, positive, sha, conclusion, linkedIssue, protectedFlags, displayPath, safeStep, logFacts,
-  renderReview, renderHandoff
+  renderReview, renderHandoff, executionFacts
 } from "./pr-review.ts";
 import type { Json, ReviewReport } from "./pr-review.ts";
 
@@ -87,6 +88,11 @@ export async function collectReview(api: ReadGitHub, request: ReviewRequest): Pr
   const report: ReviewReport = { number, head, base, fork,
     state: pr.merged ? "merged" : pr.state === "closed" ? "closed/unmerged" : pr.draft ? "draft/unmerged" : "open/unmerged",
     issue: null, files: [], fileCount: count(pr.changed_files), filesComplete: false, flags: [], ci: null, notes };
+  const mainTip = async () => sha(object(object(await api.get(`${repoPath}/git/ref/heads/main`)).object).sha);
+  let baseTip: string | null = null;
+  try { baseTip = await mainTip(); } catch { notes.push("Current main tip unavailable; current-base evidence remains UNKNOWN."); }
+  report.evidence = { workflowId, branch: displayPath(object(pr.head).ref), sourceRepository: displayPath(object(object(pr.head).repo).full_name),
+    baseTip, issueDigest: null, approvalSources: [], runInventoryComplete: false, jobInventoryComplete: false };
   if (trigger && trigger.head_sha !== head) notes.push("Trigger run is obsolete; this report uses only the current PR head.");
   const issueNumber = fork ? null : linkedIssue(object(pr.head).ref, pr.body);
   if (issueNumber !== null) {
@@ -95,6 +101,24 @@ export async function collectReview(api: ReadGitHub, request: ReviewRequest): Pr
       if (issue.number === issueNumber && !issue.pull_request && ["open", "closed"].includes(String(issue.state))) report.issue = {
         number: issueNumber, state: String(issue.state), labels: list(issue.labels).map((v) => object(v).name).filter((v): v is string => typeof v === "string" && managed.has(v)).sort()
       };
+      if (report.issue) {
+        report.evidence.approvalSources.push(`https://github.com/${REVIEW_POLICY.repository}/issues/${issueNumber}`);
+        if (typeof issue.body === "string" && Buffer.byteLength(issue.body, "utf8") <= 65_536) report.evidence.issueDigest = `sha256:${createHash("sha256").update(issue.body).digest("hex")}`;
+        if (typeof issue.comments === "number" && issue.comments > 0) {
+          try {
+            const comments = list(await api.get(`${repoPath}/issues/${issueNumber}/comments?per_page=100`));
+            if (comments.length > 100) throw new Error("Comment inventory exceeds limit");
+            for (const value of comments) {
+              const comment = object(value);
+              if (report.evidence.approvalSources.length >= 11) break;
+              if (typeof comment.body === "string" && Buffer.byteLength(comment.body, "utf8") <= 65_536 && /\b(?:approv(?:al|ed)|authoriz(?:ation|ed))\b/i.test(comment.body)) {
+                report.evidence.approvalSources.push(`https://github.com/${REVIEW_POLICY.repository}/issues/${issueNumber}#issuecomment-${positive(comment.id)}`);
+              }
+            }
+            if (issue.comments > comments.length || comments.length === 100) notes.push("Approval source discovery bounded to 100 comments/10 candidate links; authorization is unverified.");
+          } catch { notes.push("Approval comment sources unavailable; no authority inferred."); }
+        }
+      }
     } catch { notes.push("Linked issue metadata unavailable; no issue state was inferred."); }
   }
   const flags = new Set<string>();
@@ -121,6 +145,7 @@ export async function collectReview(api: ReadGitHub, request: ReviewRequest): Pr
   const runs = object(await api.get(`${repoPath}/actions/workflows/${workflowId}/runs?event=pull_request&head_sha=${head}&per_page=100`));
   const values = list(runs.workflow_runs);
   if (values.length > 100) throw new Error("CI run inventory exceeds limit");
+  report.evidence.runInventoryComplete = count(runs.total_count) === values.length && values.length <= 100;
   const matching = values.map(object).filter((run) => matchesRun(run, workflowId, pr))
     .sort((a, b) => positive(b.id) - positive(a.id));
   if (count(runs.total_count) > 100) notes.push("CI discovery limited to the newest 100 runs; older evidence was not searched.");
@@ -134,18 +159,40 @@ export async function collectReview(api: ReadGitHub, request: ReviewRequest): Pr
     const jobs = object(await api.get(`${repoPath}/actions/runs/${id}/jobs?filter=latest&per_page=100`));
     const values = list(jobs.jobs).map(object);
     if (values.length > 100) throw new Error("Too many jobs");
+    report.evidence.jobInventoryComplete = count(jobs.total_count) === values.length;
     if (count(jobs.total_count) !== values.length) notes.push("CI job inventory incomplete; missing checks must be reviewed manually.");
     report.ci = { id, attempt, conclusion: run.status === "completed" ? conclusion(run.conclusion) : "unknown/pending", jobs: [], artifacts: [] };
+    const checkoutCache = new Map<string, { commit: string; head: string; base: string } | null>();
     for (const name of REVIEW_POLICY.jobs) {
       const selected = values.filter((job) => job.name === name);
       if (selected.length !== 1) { notes.push(`Required job ${name} missing/ambiguous; no test evidence inferred.`); continue; }
       const job = selected[0]!;
       if (job.run_id !== id || job.run_attempt !== attempt) throw new Error("Job attempt mismatch");
-      const fact = { id: positive(job.id), name, conclusion: job.status === "completed" ? conclusion(job.conclusion) : "unknown/pending",
+      const jobSteps = list(job.steps ?? []).map(object);
+      const step = (name: string) => { const found = jobSteps.filter((s) => s.name === name); return found.length === 1 && found[0]!.status === "completed" ? conclusion(found[0]!.conclusion) : "unknown/pending"; };
+      const fact: NonNullable<ReviewReport["ci"]>["jobs"][number] = { id: positive(job.id), name, conclusion: job.status === "completed" ? conclusion(job.conclusion) : "unknown/pending",
         failedSteps: list(job.steps ?? []).map(object).filter((s) => ["failure", "timed_out"].includes(String(s.conclusion))).map((s) => safeStep(s.name)).slice(0, 15),
-        tests: null as ReturnType<typeof logFacts>["tests"], signals: [] as string[] };
+        tests: null, signals: [], steps: { initialize: step("Initialize containers"), migrations: step("Apply committed test migrations"),
+          guard: step("Require executed integration tests with no skips"), cleanup: step("Stop containers") }, checkout: null };
       if (job.status === "completed") {
-        try { Object.assign(fact, logFacts(await api.log(fact.id))); }
+        try {
+          const raw = await api.log(fact.id);
+          Object.assign(fact, logFacts(raw)); fact.execution = executionFacts(raw);
+          const logged = fact.execution.checkout;
+          if (logged) {
+            if (!checkoutCache.has(logged.prefix)) {
+              let proof: typeof fact.checkout = null;
+              try {
+                const commit = object(await api.get(`${repoPath}/commits/${logged.prefix}`));
+                const full = sha(commit.sha), parents = list(commit.parents).map((p) => sha(object(p).sha));
+                if (full.startsWith(logged.prefix) && parents.length === 2) proof = { commit: full, base: parents[0]!, head: parents[1]! };
+              } catch { /* Missing parent evidence remains UNKNOWN; never echo API errors. */ }
+              checkoutCache.set(logged.prefix, proof);
+            }
+            const proof = checkoutCache.get(logged.prefix);
+            if (proof && proof.head === head && proof.head === logged.head && proof.base === logged.base) fact.checkout = proof;
+          }
+        }
         catch { fact.signals.push("Logs unavailable, expired or over limit; inspect the job link"); }
       }
       report.ci.jobs.push(fact);
@@ -157,6 +204,17 @@ export async function collectReview(api: ReadGitHub, request: ReviewRequest): Pr
     } catch { notes.push("Failure artifact inventory unavailable; use the CI run link."); }
     const finalRun = object(await api.get(`${repoPath}/actions/runs/${id}`));
     if (finalRun.id !== id || !await attributedRun(api, finalRun, workflowId, pr) || finalRun.run_attempt !== attempt || finalRun.status !== run.status || finalRun.conclusion !== run.conclusion) throw new Error("CI changed during report");
+  }
+  // A newly created run must not be hidden by an earlier successful snapshot.
+  const refreshedRuns = object(await api.get(`${repoPath}/actions/workflows/${workflowId}/runs?event=pull_request&head_sha=${head}&per_page=100`));
+  const refreshedValues = list(refreshedRuns.workflow_runs);
+  if (refreshedValues.length > 100) throw new Error("CI run inventory exceeds limit");
+  const refreshed = refreshedValues.map(object).filter((r) => matchesRun(r, workflowId, pr)).sort((a, b) => positive(b.id) - positive(a.id));
+  if (refreshed[0]?.id !== matching[0]?.id || count(refreshedRuns.total_count) !== count(runs.total_count)) throw new Error("CI changed during report");
+  if (baseTip !== null && await mainTip() !== baseTip) throw new Error("Current base changed during report");
+  if (report.issue && report.evidence.issueDigest) {
+    const issue = object(await api.get(`${repoPath}/issues/${report.issue.number}`));
+    if (typeof issue.body !== "string" || `sha256:${createHash("sha256").update(issue.body).digest("hex")}` !== report.evidence.issueDigest) throw new Error("Issue scope changed during report");
   }
   const finalPR = validPR(await api.get(`${repoPath}/pulls/${number}`), number);
   if (object(finalPR.head).sha !== head || object(finalPR.head).ref !== object(pr.head).ref ||
