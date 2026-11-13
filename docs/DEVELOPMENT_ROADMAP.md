@@ -318,3 +318,7 @@ For each milestone:
 7. Open a pull request and review before merging to `main`.
 
 Avoid asking an AI coding agent to implement the entire game in one prompt.
+
+## Milestone 006D.1 — Authoritative starting armies (Issue #49)
+
+Implementation prepared / unmerged: strict versioned units/formations, one Lieutenant + five Infantry at existing capitals, creation-pinned initialization-only runtime, atomic v3 snapshot/start/restoration, additive immutable SQL guards, own-only read API/map, pure distance/leadership/contact helpers. See [INITIAL_ARMIES.md](INITIAL_ARMIES.md) and status evidence. Disposable PostgreSQL CI is separately gated and unrun. Movement execution/orders, source radius, collision/vacating policy, encounters/combat and transition to an executable runtime remain separate owner-approved milestones.

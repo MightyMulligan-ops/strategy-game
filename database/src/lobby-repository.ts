@@ -8,8 +8,8 @@ import { Prisma } from "./generated/prisma/client.js";
 import type { PrismaClient } from "./generated/prisma/client.js";
 import { json, safeNumber } from "./mappings.js";
 import { makeInitialWorld, insertInitialWorld } from "./world-repository.js";
-import { INITIAL_WORLD_RUNTIME_PROFILE } from "@strategy-game/shared-types/server";
-import { initializeTurnOne } from "@strategy-game/game-engine";
+import { INITIAL_WORLD_RUNTIME_PROFILE, InitialWorldRuntimeProfileSchema, InitialArmiesRuntimeProfileSchema } from "@strategy-game/shared-types/server";
+import { createTurn, initializeTurnOne, planInitialArmies } from "@strategy-game/game-engine";
 import { configurationRuntime, insertSnapshot, insertTurn } from "./turn-storage.js";
 
 export type LobbyErrorCode = "UNAUTHENTICATED" | "USERNAME_REQUIRED" | "INVALID_INPUT" | "NOT_FOUND"
@@ -93,7 +93,8 @@ function detail(row: LobbyRow, identityId: string, username: string): LobbyDetai
  */
 export class LobbyRepository {
   constructor(private readonly client: PrismaClient, private readonly worldFactory: typeof makeInitialWorld = makeInitialWorld,
-    private readonly clock: () => number = Date.now) {}
+    private readonly clock: () => number = Date.now,
+    private readonly creationRuntime: unknown = INITIAL_WORLD_RUNTIME_PROFILE) {}
 
   private async withLobby<T>(id: string, identityId: string,
     work: (tx: Transaction, row: LobbyRow, username: string) => Promise<T>): Promise<T> {
@@ -114,6 +115,9 @@ export class LobbyRepository {
     const parsed = LobbySettingsSchema.safeParse(settingsInput);
     if (!parsed.success) throw new LobbyError("INVALID_INPUT");
     const settings = parsed.data;
+    // Trusted creation-time selection only; request fields never select a runtime.
+    const oldProfile = InitialWorldRuntimeProfileSchema.safeParse(this.creationRuntime);
+    const runtime = oldProfile.success ? oldProfile.data : InitialArmiesRuntimeProfileSchema.parse(this.creationRuntime);
     return this.client.$transaction(async (tx) => {
       const username = await registeredUsername(tx, identityId);
       const id = randomUUID();
@@ -121,8 +125,8 @@ export class LobbyRepository {
       await tx.matchConfiguration.create({ data: {
         matchId: id, schemaVersion: 1, name: settings.name, playerCapacity: settings.playerCapacity,
         turnDurationMs: BigInt(settings.turnDurationMs),
-        rulesetId: INITIAL_WORLD_RUNTIME_PROFILE.ruleset.rulesetId, rulesetVersion: INITIAL_WORLD_RUNTIME_PROFILE.ruleset.version,
-        simulationVersion: INITIAL_WORLD_RUNTIME_PROFILE.simulationVersion, pinnedRuleset: json(INITIAL_WORLD_RUNTIME_PROFILE),
+        rulesetId: runtime.ruleset.rulesetId, rulesetVersion: runtime.ruleset.version,
+        simulationVersion: runtime.simulationVersion, pinnedRuleset: json(runtime),
         config: json({ schemaVersion: 1, gameId: id, turnDurationMs: settings.turnDurationMs })
       } });
       await tx.matchParticipant.create({ data: { matchId: id, playerId: randomUUID(), identityId, active: true } });
@@ -181,15 +185,18 @@ export class LobbyRepository {
       if (!row.configuration) throw new LobbyError("INVALID_STORAGE");
       const mode = configurationRuntime(row.configuration);
       if (mode === "empty") throw new LobbyError("INVALID_STORAGE");
-      if (mode === "initial_world" && (row.currentStateVersion !== 0n ||
+      if ((mode === "initial_world" || mode === "initial_armies") && (row.currentStateVersion !== 0n ||
           await tx.gameSnapshotRecord.count({ where: { matchId: row.id } }) !== 0 ||
           await tx.turn.count({ where: { matchId: row.id } }) !== 0)) throw new LobbyError("INVALID_STORAGE");
       const players = row.participants.map((p) => p.playerId);
       const archive = await insertInitialWorld(tx, row.id, this.worldFactory(players), players);
-      if (mode === "initial_world") {
+      if (mode === "initial_world" || mode === "initial_armies") {
         // One trusted sample after lock/generation. Any failure rolls the entire transaction back.
-        const plan = initializeTurnOne(row.configuration.config,
-          players.map((playerId) => ({ schemaVersion: 1, gameId: row.id, playerId, active: true })), archive, this.clock(), row.configuration.pinnedRuleset);
+        const roster = players.map((playerId) => ({ schemaVersion: 1 as const, gameId: row.id, playerId, active: true }));
+        // Derive all armies before the only trusted clock sample; legacy v2 remains unchanged.
+        const armies = mode === "initial_armies" ? planInitialArmies(row.configuration.config, roster, archive, row.configuration.pinnedRuleset) : null;
+        const plan = armies ? { ...armies, state: createTurn(armies.snapshot.config, armies.snapshot.players, this.clock()) }
+          : initializeTurnOne(row.configuration.config, roster, archive, this.clock(), row.configuration.pinnedRuleset);
         await insertSnapshot(tx, plan.snapshot);
         await insertTurn(tx, plan.state, plan.snapshot);
       }

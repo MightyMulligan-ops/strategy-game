@@ -411,3 +411,7 @@ For each meaningful change:
 - Manual browser verification for relevant UI flows.
 
 Do not report checks as passed unless they were actually run.
+
+## 006D.1 initialization-only formation slice
+
+[INITIAL_ARMIES.md](INITIAL_ARMIES.md) specifies strict server-only v3 snapshots, pure deterministic initialization/helpers, existing-table atomic persistence and immutable SQL guards. The production composition root explicitly pins new lobby creation; existing configurations are never repinned. Public formation DTOs are separate from server snapshots and the unchanged world DTO. A session/membership-first read-only repository filters own data; React independently fetches it only with a matching READY world. No dependencies, CI changes, runtime widening or normalized mutable army tables are introduced.

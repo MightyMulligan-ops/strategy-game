@@ -345,3 +345,7 @@ Do not silently settle these during implementation:
 15. Dependency cancellation policy (block versus cascading cancellation), failed/blocked movement handling, and production seed generation/storage/reveal. The current ordering helper executes none of these behaviors.
 
 When a task depends on one of these, ask for a decision or implement only the unambiguous portion behind a clearly marked configuration boundary.
+
+## 006D.1 approved starting armies (Issue #49)
+
+New explicitly pinned `initial-armies-v1` matches initialize one Infantry-specialized Lieutenant plus five Infantry at each existing capital. Permanent spawn provenance is its Military Supplies node. The fixed starting-foot policy is geographic Euclidean 250 map units per turn, cumulative across numbered orders. Single leaderless Infantry radius remains unapproved/non-executable. Pure contact classification requires explicit diplomacy; no collision tolerance, movement, combat or encounter results execute. Future hostile convergence is intended to block both opposing stacks at last valid positions with an unresolved encounter. Full contracts and boundaries: [INITIAL_ARMIES.md](INITIAL_ARMIES.md). Earlier world-only sections continue to describe their legacy cohorts.
