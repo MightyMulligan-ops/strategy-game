@@ -2,12 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 import type { PrismaClient } from "../src/generated/prisma/client.js";
 import { MatchRepository } from "../src/repository.js";
 import { configurationRuntime, restoreStoredTurn } from "../src/turn-storage.js";
+import { movementDraftFixture } from "./movement-draft-fixture.js";
 import { initialArmiesFixture } from "./initial-armies-fixture.js";
 import { initialTurnFixture as oldFixture } from "./initial-turn-fixture.js";
 import { initialTurnMigration } from "./initial-turn-migration.js";
 
-describe.each(["initial_world", "initial_armies"] as const)("version-aware %s storage (database-free)", (mode) => {
-  const initialTurnFixture = mode === "initial_armies" ? initialArmiesFixture : oldFixture;
+describe.each(["initial_world", "initial_armies", "movement_drafts"] as const)("version-aware %s storage (database-free)", (mode) => {
+  const initialTurnFixture = mode === "movement_drafts" ? movementDraftFixture : mode === "initial_armies" ? initialArmiesFixture : oldFixture;
   it("recognizes every additive migration statement without executing SQL", () => {
     const ddl = initialTurnMigration(); expect(ddl.functions).toHaveLength(6); expect(ddl.triggers).toHaveLength(17);
     expect(ddl.statements).toHaveLength(23); expect(new Set(ddl.triggers.map((t) => t.name)).size).toBe(17);

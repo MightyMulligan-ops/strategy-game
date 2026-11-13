@@ -1,6 +1,6 @@
 # Development status
 
-This is a short, evidence-based handoff, not a replacement for the rules or roadmap. Issue #49 baseline: latest `origin/main` at `ed1b7cb1b9a08636723bb8691c2a0d6a2c486e54`, including merged PR #48. Feature work remains unmerged even when its tests pass.
+This is a short, evidence-based handoff, not a replacement for the rules or roadmap. Issue #51 baseline: latest `origin/main` at `cb088ec5e8f2c103f026760b19de7023152a7cfa`, including merged PR #50. Feature work remains unmerged even when its tests pass.
 
 | Area | State | Evidence / limitations |
 |---|---|---|
@@ -31,7 +31,8 @@ This is a short, evidence-based handoff, not a replacement for the rules or road
 | Atomic initial-world Turn 1 (006B.2 / Issue #39) | Merged | [PR #40](https://github.com/MightyMulligan-ops/strategy-game/pull/40), `5872e85`; creation-time pins, atomic start, strict v2 restoration and pre-mutation guards, one offline-reviewed additive migration. 830 local DB-free tests and unchanged hosted CI passed; guard verified 107 disposable PostgreSQL assertions across 7 files, no skips. No existing database/sandbox migration or gameplay/production 006A wiring is authorized |
 | Production read-only Turn 1 status (006C.1 / Issue #42) | Merged | [PR #43](https://github.com/MightyMulligan-ops/strategy-game/pull/43), `388032d`; dedicated authenticated GET, active-member authorization before private state, PostgreSQL read-only repeatable-read restoration and strict own-player projection. Frozen install/build/typecheck/lint, 888 local DB-free unit/HTTP/security cases (58 new), actionlint and diff/scope/secret-pattern audit passed; all 117 PostgreSQL assertions (10 new) deliberately skipped locally. [Hosted CI run 64](https://github.com/MightyMulligan-ops/strategy-game/actions/runs/43307843050) passed both checks on `e7014c8`; guard verified 117 passed integration cases across 8 files, no skips, including the new reader suite. No schema/migration/dependency/workflow/frontend changes or existing DB access |
 | Read-only Turn 1 status UI (006C.2A / Issue #47) | Merged | [PR #48](https://github.com/MightyMulligan-ops/strategy-game/pull/48), `ed1b7cb1b9a08636723bb8691c2a0d6a2c486e54` (merge confirmed in GitHub); unchanged production GET, independent manual turn/world reads, strict own-player projection, absolute timestamps and session cleanup. [Owner implementation and separate hosted disposable-CI approval](https://github.com/MightyMulligan-ops/strategy-game/issues/47#issuecomment-6840432011). No turn mutations, backend/contracts/schema/dependencies/CI changes |
-| Authoritative starting armies (006D.1 / Issue #49) | Implementation prepared / unmerged | One local issue branch; strict v3 snapshot, creation-pinned runtime, own-only formation map and additive SQL authoring. No executable gameplay or database/CI execution; see handoff below |
+| Authoritative starting armies (006D.1 / Issue #49) | Merged | [PR #50](https://github.com/MightyMulligan-ops/strategy-game/pull/50), `cb088ec5e8f2c103f026760b19de7023152a7cfa`; predecessor merge confirmed before Issue #51 implementation. Historical local/publication evidence below remains a point-in-time record |
+| Movement drafts (006D.2 / Issue #51) | Prepared locally / unmerged | Dedicated local branch; Gates B/C only. No database access, migration execution, hosted CI or publication; current evidence follows below |
 | Production turn command APIs, scheduler | Planned | Next Phase 0B work; account authentication alone does not grant match permissions |
 | Map, gameplay, leadership, Military Supplies | Planned | Rules remain in GAME_DESIGN.md; no claim of implemented gameplay |
 
@@ -156,3 +157,148 @@ Delivery: one local issue branch and coherent implementation commit; not pushed,
 - `packages/shared-types/src/formations-view.ts`
 - `packages/shared-types/src/index.ts`
 - `packages/shared-types/src/server.ts`
+
+## Issue #51 — 006D.2 local implementation handoff
+
+Baseline: origin/main `cb088ec5e8f2c103f026760b19de7023152a7cfa`, confirmed merged PR #50 (head `536033f715887e521b85ee4cc325b7f352ed13dc`). Branch: `issue/51-movement-drafts`; local in progress / unmerged / unpublished. Prior Issue #49 status and evidence above are historical snapshots; PR #50 is now merged. Its Gate D authorization does not apply to Issue #51.
+
+The active owner request grants Gates B/C only: implementation and additive SQL authoring. No existing or disposable database, migration execution, hosted CI, push, PR, merge, deployment, workflow/settings change or new task is authorized. No remote issue metadata is changed by this local-only task. The cloud runtime briefly restarted; readiness was awaited and the same preserved branch/worktree was verified before continuing.
+
+Architecture review identified that generic applyTurnCommand observes/closes overdue turns; the new production adapter never calls it. A distinct strict v4 snapshot binds the new runtime and the unchanged v3 army identity. Existing immutable pins/cohorts/archives remain preserved. Queue GET/POST uses existing storage and private DTOs; no new models/dependencies or execution are introduced. Details and migration risks: [MOVEMENT_DRAFTS.md](MOVEMENT_DRAFTS.md).
+
+Initial implementation verification pending. Correction budget for Issue #51: **0/5 used** before initial checks (Issue #49 history remains separate). PostgreSQL suites are authored and deliberately unexecuted. Exact checks, counts, corrections and final local commit evidence follow; no milestone completion is claimed before owner review/merge.
+
+### Issue #51 correction pass 1 (started)
+
+Initial frozen pnpm 12.18.0 install, Prisma 7.10.1 generation and lint passed. Build passed shared types, engine and web, then failed database compilation: an accidentally rewritten validator import and a replay-map active flag inferred as literal true. Pass 1 fixes only these type boundaries and verifies full build/typecheck/tests. No tests/database/CI claims are inferred from the partial build.
+
+Pass 1 outcome: full build passed after type fixes. Full database-free suite passed (44 files / 1202 tests; 11 PostgreSQL files / 183 tests skipped). Database/server test typechecks passed separately. Full typecheck found only the new engine fixture's widened archive literals, so remains failed pending correction. No SQL/database commands ran.
+
+### Issue #51 correction pass 2 (started)
+
+Parse the new engine fixture's archive through its strict contract to retain literal types. Review also found that aborting a pending save through a formation refresh could leave the surviving queue component busy; reset local action state only on context-effect restart and add a late-write regression test. No POST retry or authority change. Verification follows.
+
+Pass 2 outcome: full typecheck, lint and affected web build passed; full database-free suite passed (44 files / 1203 tests; 11 database files / 183 tests skipped). Added a scoped SQLSTATE mapping unit assertion and a hosted-only expired-SQL-window assertion during final coverage review; their next verification is recorded below. No SQL was executed.
+
+### Issue #51 correction pass 3 (started)
+
+Chromium's exact label lookup failed because the formation label wrapped the select and included option text. Separate the native label/select, retain the responsive field wrapper, and assert the exact label text. Rebuild and repeat mocked desktop/mobile/dense-map verification, including pointer map selection. No runtime, database or gameplay change.
+
+Pass 3 also moves focus to the destination field after map choice (the temporary map-choice button disappears) and treats a well-shaped but wrong-origin POST acknowledgement as uncertain, requiring one authoritative GET. Added focused assertions; no mutation retry or authority widening. The SQL deadline-code unit mapping and hosted-only clock-skew test are included in final verification.
+
+Pass 3 outcome: full build, web rebuild and full source/test typecheck passed. Mocked Chromium passed 1440x1000 / 390x844 on 40 players / 1050 territories, including six explicit CSRF-protected POST actions, pointer/keyboard map choices, stable edit/reorder/cancel, unchanged formation marker, dotted routes, one SVG Tab stop, mobile containment and no page errors. Lint rejected a ref captured by the map-choice render callback (`react-hooks/refs`); no rule was disabled.
+
+### Issue #51 correction pass 4 (started)
+
+Move destination focus into an effect driven by a local focus request; event callbacks pass state only. Keep the exact native label and focus regression assertions. Final build/typecheck/lint/database-free tests/browser results follow. No SQL or database check is run.
+
+Pass 4 interim outcome: affected web build completed. During the environment restart the full suite reported 1183 passed / 22 failed / 184 database tests skipped; every failure was a 5s test timeout (plus one 10s teardown timeout) in three existing suites, with no assertion failure. Environment readiness/worktree were reverified after the owner's Resume request. Repeat unchanged checks sequentially after this concrete environment change; do not alter timeouts or assertions. This verification-only repeat consumes no additional correction pass. The final browser process handle was lost during restart, so browser evidence must be recollected on the final build.
+
+Pass 4 resumed outcome: lint passed; unchanged full suite passed after environment readiness (44 files / 1205 passed, zero failed; 11 database files / 184 assertions skipped). This confirms the timeout-only run above remains recorded but does not represent a remaining test failure. No test timeout, assertion or workflow was changed.
+
+### Issue #51 correction pass 5 (started — final allowance)
+
+Final authoring review found the SQL route helper's alias x shared a name with its coordinate variable, and checking integrality after float conversion could lose fractional JSONB precision. Use a distinct entry alias, reject fractional exact numeric values before conversion, and align trimmed order-ID checks with the public contract. Author one hosted-only direct guard regression; do not execute SQL. This is within approved Gate C and changes no historical migration or gameplay rule. Final checks follow; any unresolved implementation failure after this pass requires owner review.
+
+Pass 5 outcome: final full build and full source/test typecheck passed (exit 0). Final `pnpm test` passed **1205 tests / 0 failed / 185 deliberately skipped database assertions**, across **44 passed / 0 failed / 11 skipped files**. Final lint passed. The final mocked Chromium run passed on the final web bundle, including pointer and keyboard map choices, destination focus, six explicit scoped CSRF POST actions, stable edit/reorder/cancel, unchanged formation position, budget display, dotted routes, single SVG Tab stop, mobile scroll containment and no page errors. Manual desktop/mobile screenshots were inspected. **5/5 correction passes used; no unresolved database-free failure.** No further corrective edits or post-review repair are authorized in this task.
+
+### Issue #51 final verification and boundaries
+
+| Command/check | Actual result |
+|---|---|
+| `pnpm --version` | Exit 0, pinned 12.18.0 |
+| `pnpm install --frozen-lockfile --store-dir /workspace/.pnpm-store` | Exit 0; unchanged dependency/lock files |
+| `pnpm db:generate` | Exit 0; Prisma Client 7.10.1; no database connection |
+| `pnpm build` | Exit 0; final full application build |
+| `pnpm typecheck` | Exit 0; source and test code, including gated integration files |
+| `pnpm lint` | Exit 0; no disabled rules |
+| `pnpm test` | Exit 0; 1205 passed, 0 failed, 185 database tests skipped; 44 passed / 11 skipped files |
+| Mocked Chromium | Passed 1440x1000 and 390x844, 40 players / 1050 territories; all API/auth responses synthetic; no existing backend contacted |
+| Diff/scope/credential-pattern review | Passed; 43 approved files; zero credential-pattern hits; no dependency, workflow/settings, Prisma model, historical SQL or world-generator changes |
+| PostgreSQL/migration/hosted CI | NOT RUN / NOT AUTHORIZED for Issue #51 |
+
+Every task check used AUTH_ENABLED=false and RUN_DATABASE_TESTS=0. The interrupted timeout-only run and all correction history remain above. The frontend-only Vite static preview was stopped; its temporary browser harness, synthetic fixture, screenshots and logs remain outside Git under /tmp.
+
+Authored but unexecuted: `database/tests/movement-drafts.integration.test.ts` (24 assertions) and `apps/server/tests/movement-drafts.integration.test.ts` (2 assertions), guarded for separately approved fresh hosted CI. They cover new initialization/restoration, multi-connection revision races, independent players, stable swaps/cancellation, per-stage rollback, expiry and SQL clock skew, exact fractional JSONB/trim validation, immutable artifacts/Ready/Turn 2 refusal, old-cohort refusal, read-only isolation/concurrent reads, parent cleanup and real persisted-session HTTP privacy. The unchanged older 159 database assertions also remain unexecuted in this task; total skipped is 185. Compilation, in-memory transaction injection and SQL inventory checks are not PostgreSQL evidence.
+
+Runtime: new trusted creation pin `movement-drafts/1` / `movement-drafts-v1`, strict snapshot v4 `movement_drafts`, separate canonical hash plus bound v3 army snapshot identity. Army IDs, six-unit composition, coordinates, source nodes and archived world remain unchanged; no existing match is repinned or repaired. Accepted drafts alone advance own revision/history, remain unready and never update Turn/formation/world state. Queue GET/POST is session/membership scoped with POST Origin/CSRF, rate limits, private headers and safe errors; uncertain acknowledgements use GET reconciliation without POST retry. See [MOVEMENT_DRAFTS.md](MOVEMENT_DRAFTS.md) for complete contracts/decisions.
+
+Migration `202611130002_movement_drafts/migration.sql` is authoring only: 9 functions / 20 triggers, with only the historical admission function replaced by a byte-preserving old-branch extension. All earlier immutable guards remain installed; new write permissions are scoped to the exact new runtime. No schema tables/models or existing data are rewritten. Actual SQL execution, trigger semantics, physical transaction rollback/concurrency/isolation, migration compatibility/application, driver deadline-code behavior and cascades remain unverified until separate Gate D approval. Existing-environment migration and deployment require separate authorization and correct sequencing before the new creation pin is deployed. Long audit histories have replay cost; closely spaced SVG waypoint labels can overlap, with the separate native queue providing unambiguous numbered details. No gameplay collision/contact/radius policy is invented.
+
+Delivery: one dedicated local branch `issue/51-movement-drafts` and one coherent local implementation commit, prepared / unmerged / unpublished. **No database of any kind accessed, no migration executed, no PostgreSQL/Docker or database-backed server started, no branch pushed, no PR published, no hosted CI run, no repository settings/workflows changed and no deployment performed for Issue #51.** Stop after the implementation report and await separate owner approval for the next gate. Full changed-file inventory follows.
+
+### Issue #51 changed files
+
+- `README.md`
+- `apps/server/src/app.ts`
+- `apps/server/src/index.ts`
+- `apps/server/src/turns/movement-routes.ts`
+- `apps/server/tests/lobby-fixture.ts`
+- `apps/server/tests/movement-draft.test.ts`
+- `apps/server/tests/movement-drafts.integration.test.ts`
+- `apps/web/src/App.css`
+- `apps/web/src/MovementQueue.test.tsx`
+- `apps/web/src/MovementQueue.tsx`
+- `apps/web/src/WorldView.test.tsx`
+- `apps/web/src/WorldView.tsx`
+- `apps/web/src/movement-api.ts`
+- `database/README.md`
+- `database/prisma/migrations/202611130002_movement_drafts/migration.sql`
+- `database/src/formation-read-repository.ts`
+- `database/src/index.ts`
+- `database/src/lobby-repository.ts`
+- `database/src/movement-draft-repository.ts`
+- `database/src/movement-draft-storage.ts`
+- `database/src/turn-read-repository.ts`
+- `database/src/turn-storage.ts`
+- `database/tests/army-creation.test.ts`
+- `database/tests/lobby-start.test.ts`
+- `database/tests/movement-draft-fixture.ts`
+- `database/tests/movement-draft-migration.test.ts`
+- `database/tests/movement-draft-repository.test.ts`
+- `database/tests/movement-drafts.integration.test.ts`
+- `database/tests/turn-storage.test.ts`
+- `docs/DEVELOPMENT_ROADMAP.md`
+- `docs/DEVELOPMENT_STATUS.md`
+- `docs/GAME_DESIGN.md`
+- `docs/INITIAL_ARMIES.md`
+- `docs/MOVEMENT_DRAFTS.md`
+- `docs/TECHNICAL_ARCHITECTURE.md`
+- `docs/TURN_SYSTEM.md`
+- `packages/game-engine/src/index.ts`
+- `packages/game-engine/src/movement-drafts.ts`
+- `packages/game-engine/src/resolution.ts`
+- `packages/game-engine/tests/movement-drafts.test.ts`
+- `packages/shared-types/src/index.ts`
+- `packages/shared-types/src/movement-drafts.ts`
+- `packages/shared-types/src/server.ts`
+
+### Issue #51 owner-authorized corrective pass 1 — local only
+
+This append-only entry supersedes the prepublication delivery state above without erasing the original five implementation passes. The owner subsequently authorized exact publication of `914be9ec0d45968e2cd640ae51c70a8a91befdcb`; [draft PR #52](https://github.com/MightyMulligan-ops/strategy-game/pull/52) remains open/unmerged. [CI run #75, attempt 1](https://github.com/MightyMulligan-ops/strategy-game/actions/runs/43365830862) passed application checks (1205 passed / 0 failed / 185 deliberately skipped database cases) but failed PostgreSQL integration (160 passed / 25 failed / 0 skipped). All eight migrations installed in fresh disposable PostgreSQL; 25 of the 26 new cases failed, predominantly during initialization with `record "new" has no field "stateVersion"`. The disposable container/network were removed. No retry was performed.
+
+The current owner request authorizes **one additional narrowly scoped corrective pass**, on the existing local `issue/51-movement-drafts` branch from that exact baseline, with no publication, PR update, CI, database access or migration execution. This is corrective pass **1 of this separate authorization**; the earlier **5/5 implementation passes remain exhausted**.
+
+Diagnosis and changes: PostgreSQL resolves record fields within a Boolean expression without the assumed table-name short circuit. In `guard_movement_draft_artifact()`, split four combined conditions into explicit outer table checks and unchanged inner predicates: snapshot metadata; Turn 1 metadata; revision-zero PlayerTurnState; and revision-zero PlayerSubmissionRevision. The existing `IS TRUE`/`IS NOT TRUE` NULL handling, error text, runtime/lifecycle gates, immutability, deadline checks, locking, revision rules and transaction boundaries stay unchanged. No other migration or application code changes.
+
+Regression authoring strengthens initialization checks for all four roster sizes (including the exact initial world, v4 snapshot, OPEN Turn 1 and empty/unready player/history rows), and adds six PostgreSQL cases covering UPDATE/DELETE refusal for MatchWorld, GameSnapshotRecord and Turn after legitimate initialization. Tests require the intended immutable-guard message and an unchanged aggregate, so an unrelated missing-column error cannot count as protection. These gated database tests must not execute in this task.
+
+Shared-trigger static review includes the historical initial-world/initial-turn/initial-armies guards and new initialization/deferred draft guards. The four affected predicates above were the only combined table-name conditions referencing table-specific NEW fields. Other combined conditions use trigger metadata or explicitly typed configuration rows; other NEW/OLD accesses are in separate table/operation branches or use columns common to all reachable attached tables. No additional same-class defect was identified. Static review is not PostgreSQL execution evidence; fresh disposable integration verification still requires separate authorization. Editing this unmerged migration changes its checksum; do not apply it to any database where the prior version was recorded, repair migration history or use it to upgrade existing matches.
+
+Corrective pass 1 completed with the following database-free verification. Every task check used `AUTH_ENABLED=false` and `RUN_DATABASE_TESTS=0`; database URL variables were unset for the build/test command runner. The shell initially resolved environment fallback pnpm 11.25.0; a temporary Corepack cache and native-binary shim outside Git restored pinned pnpm 12.18.0 for checks and nested scripts. The initial toolchain assertion stopped before running checks, with no source correction or test failure.
+
+| Command/check | Actual result |
+|---|---|
+| `pnpm --version` | Pinned 12.18.0 verified before checks |
+| `corepack pnpm install --frozen-lockfile --store-dir /workspace/.pnpm-store` | Exit 0, pnpm 12.18.0; dependency/lock files unchanged |
+| `pnpm db:generate` | Exit 0; Prisma Client 7.10.1 generated without a database connection |
+| `pnpm build` | Exit 0; full application build |
+| `pnpm typecheck` | Exit 0; includes compilation of authored integration regression tests |
+| `pnpm lint` | Exit 0 |
+| `pnpm test` | Exit 0; **1205 passed / 0 failed / 191 deliberately skipped database cases**, **44 passed / 0 failed / 11 skipped files** |
+| Static SQL/scope review | Passed; nine functions / twenty triggers retained; zero combined table-name/NEW-or-OLD-field conditions in migration function bodies. Reversing the four branch restructures recovers the baseline migration byte-for-byte apart from the explanatory comment |
+| `git diff --check` | Exit 0 |
+
+The six new regression cases are authored and compiled, **not executed**. The movement database suite now contains 30 cases; its unchanged live HTTP suite contains 2, for 32 Issue #51 PostgreSQL cases. All 191 workspace database cases remain deliberately skipped in this local pass. Migration application, live trigger/rejection behavior, deadline/concurrency/rollback/isolation and cascade verification on the corrective head remain unverified pending separately authorized fresh disposable hosted CI. No claim that the previous hosted failure is resolved by execution evidence is made.
+
+Delivery is one corrective commit on the existing local branch, with only `database/prisma/migrations/202611130002_movement_drafts/migration.sql`, `database/tests/movement-drafts.integration.test.ts` and this status record changed. Its parent is the approved baseline `914be9ec0d45968e2cd640ae51c70a8a91befdcb`. PR #52 remains draft and unchanged at that baseline; its previous CI failure is still the current published result. **No database was accessed, no migration executed, no PostgreSQL/Docker or database-backed server started, no corrective commit pushed, no PR updated/created, no hosted CI run/retry initiated, no workflow/settings changed, and no merge or deployment performed in this corrective pass.** Stop after reporting the local corrective SHA and await explicit owner publication/Gate D authorization.

@@ -218,6 +218,28 @@ export const InitialArmiesSnapshotSchema = z.strictObject({ schemaVersion: z.lit
 }).readonly();
 export type InitialArmiesSnapshot = z.infer<typeof InitialArmiesSnapshotSchema>;
 
+// New cohort and identity, retaining the v3 army composition/reference invariants.
+export const MOVEMENT_DRAFT_RUNTIME_PROFILE = Object.freeze({ schemaVersion: 1 as const,
+  ruleset: Object.freeze({ rulesetId: "movement-drafts" as const, version: "1" as const }),
+  simulationVersion: "movement-drafts-v1" as const, movementTieBreakPolicy: "seeded-shuffle-v1" as const });
+export const MovementDraftRuntimeProfileSchema = z.strictObject({ schemaVersion: version,
+  ruleset: z.strictObject({ rulesetId: z.literal("movement-drafts"), version: z.literal("1") }).readonly(),
+  simulationVersion: z.literal("movement-drafts-v1"), movementTieBreakPolicy: z.literal("seeded-shuffle-v1") }).readonly();
+export const MovementDraftSnapshotSchema = z.strictObject({
+  ...InitialArmiesSnapshotSchema.unwrap().shape,
+  schemaVersion: z.literal(4), kind: z.literal("movement_drafts"), snapshotId: z.string().regex(/^movement-drafts:[a-f0-9]{64}$/),
+  ruleset: MovementDraftRuntimeProfileSchema.unwrap().shape.ruleset, simulationVersion: z.literal("movement-drafts-v1"),
+  initialArmiesSnapshotId: z.string().regex(/^initial-armies:[a-f0-9]{64}$/)
+}).superRefine((snapshot, ctx) => {
+  const { initialArmiesSnapshotId, ...army } = snapshot;
+  // Reuse v3 composition/reference validation without accepting a v3 stored payload.
+  if (!InitialArmiesSnapshotSchema.safeParse({ ...army, schemaVersion: 3, kind: "initial_armies",
+    snapshotId: initialArmiesSnapshotId, ruleset: INITIAL_ARMIES_RUNTIME_PROFILE.ruleset, simulationVersion: "initial-armies-v1" }).success) {
+    ctx.addIssue({ code: "custom", message: "Invalid v4 initial army structure" });
+  }
+}).readonly();
+export type MovementDraftSnapshot = z.infer<typeof MovementDraftSnapshotSchema>;
+
 // Server-only validation for pure helpers, not executable command contracts.
 export const MovementLeadershipInputSchema = z.array(z.discriminatedUnion("kind", [
   z.strictObject({ unitId: identifier.max(128), kind: z.literal("INFANTRY") }),

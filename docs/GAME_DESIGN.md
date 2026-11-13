@@ -349,3 +349,7 @@ When a task depends on one of these, ask for a decision or implement only the un
 ## 006D.1 approved starting armies (Issue #49)
 
 New explicitly pinned `initial-armies-v1` matches initialize one Infantry-specialized Lieutenant plus five Infantry at each existing capital. Permanent spawn provenance is its Military Supplies node. The fixed starting-foot policy is geographic Euclidean 250 map units per turn, cumulative across numbered orders. Single leaderless Infantry radius remains unapproved/non-executable. Pure contact classification requires explicit diplomacy; no collision tolerance, movement, combat or encounter results execute. Future hostile convergence is intended to block both opposing stacks at last valid positions with an unresolved encounter. Full contracts and boundaries: [INITIAL_ARMIES.md](INITIAL_ARMIES.md). Earlier world-only sections continue to describe their legacy cohorts.
+
+## 006D.2 movement drafts (Issue #51)
+
+A new creation-pinned runtime accepts only whole-formation private movement drafts for the unchanged initial army. Numbering follows queue order; Euclidean distance is cumulative <=250, with integer destinations in actual map bounds. Drafts remain unready, actual positions stay immutable, and deadline rejection leaves the turn OPEN. No Ready/closure/execution/encounter/combat or new radius/contact rule is included. See [MOVEMENT_DRAFTS.md](MOVEMENT_DRAFTS.md).

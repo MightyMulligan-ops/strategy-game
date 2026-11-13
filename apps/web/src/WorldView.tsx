@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
 import { ReadWorldResponseSchema } from '@strategy-game/shared-types'
-import type { OwnFormation, PublicWorld, ReadWorldResponse } from '@strategy-game/shared-types'
+import type { MovementRoute, OwnFormation, PublicWorld, ReadWorldResponse } from '@strategy-game/shared-types'
 import { lobbyRequest, LobbyRequestError } from './lobby-api'
 import TurnStatus from './TurnStatus'
 import Formations from './Formations'
+import MovementQueue from './MovementQueue'
 
-function MapView({ world, formation }: { world: PublicWorld; formation: OwnFormation | null }) {
+function MapView({ world, formation, route, choose }: { world: PublicWorld; formation: OwnFormation | null; route: MovementRoute | null; choose: ((point: { x: number; y: number }) => void) | null }) {
   const [selection, setSelection] = useState(0)
   const mapId = useId()
   const refs = useRef(new Map<string, SVGPolygonElement>())
@@ -45,6 +46,7 @@ function MapView({ world, formation }: { world: PublicWorld; formation: OwnForma
     <p className="small muted">Terrain patterns: dots = plains, diagonal lines = forest, peaks = hills. Selection has a solid gold border; keyboard focus has an inset dashed outline.</p>
     <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">Selected {selected.territoryId}.</p>
     <button type="button" className="world-details-control" onClick={() => inspector.current?.focus()}>Inspect selected territory</button>
+    {choose && <button type="button" onClick={() => choose(selected.center)}>Use selected territory center as destination</button>}
     <div className="world-grid"><div className="world-map">
       <svg viewBox={`0 0 ${world.bounds.width} ${world.bounds.height}`} width={world.bounds.width} height={world.bounds.height}
         style={{ minWidth: minimumWidth }} role="group" aria-label="Initial territory map" aria-describedby={`${mapId}-instructions`}>
@@ -60,7 +62,14 @@ function MapView({ world, formation }: { world: PublicWorld; formation: OwnForma
             role="button" tabIndex={index === selection ? 0 : -1} aria-pressed={index === selection}
             aria-label={`Territory ${t.territoryId}, row ${t.row + 1}, column ${t.column + 1}, ${t.terrain.toLowerCase()}, ${ownerId(t.ownerPlayerId)}${t.ownerPlayerId === null ? '' : `: ${owner(t.ownerPlayerId)}`}${t.capital ? ', capital' : ''}`}
             onFocus={(event) => { setSelection(index); keepVisible(event.currentTarget) }}
-            onClick={() => focusTerritory(index)} onKeyDown={(event) => navigate(event, index)} />
+            onClick={(event) => {
+              focusTerritory(index)
+              const svg = event.currentTarget.ownerSVGElement, matrix = svg?.getScreenCTM?.()
+              if (choose && svg && matrix) {
+                const point = svg.createSVGPoint(); point.x = event.clientX; point.y = event.clientY
+                const target = point.matrixTransform(matrix.inverse()); choose({ x: Math.round(target.x), y: Math.round(target.y) })
+              }
+            }} onKeyDown={(event) => navigate(event, index)} />
           {(t.capital || t.ownerPlayerId !== null) && <text className="world-owner-marker" x={t.center.x} y={t.center.y}
             textAnchor="middle" pointerEvents="none" aria-hidden="true">
             {t.capital && <tspan x={t.center.x} dy="-6">★</tspan>}
@@ -70,6 +79,10 @@ function MapView({ world, formation }: { world: PublicWorld; formation: OwnForma
         {formation && <g className="formation-marker" transform={`translate(${formation.position.x} ${formation.position.y})`} aria-hidden="true" pointerEvents="none">
           <path d="M0 -36L36 0L0 36L-36 0Z" fill="none" stroke="#fff" strokeWidth="3" vectorEffect="non-scaling-stroke" />
         </g>}
+        <g className="planned-route" aria-hidden="true" pointerEvents="none">{route?.segments.map((s) => <g key={s.orderId}>
+          <line x1={s.from.x} y1={s.from.y} x2={s.destination.x} y2={s.destination.y} stroke="#D4AF37" strokeWidth="3" strokeDasharray="2 6" vectorEffect="non-scaling-stroke" />
+          <text x={s.destination.x + 10} y={s.destination.y - 12} fill="#fff">Move {s.moveNumber}</text>
+        </g>)}</g>
       </svg></div>
       <section className="panel territory-inspector" aria-label="Territory inspector">
         <h2 ref={inspector} tabIndex={-1}>Territory inspector</h2><h3>{selected.territoryId}</h3>
@@ -121,7 +134,8 @@ function MatchWorldView({ matchId, onClose, onSessionError }: { matchId: string;
     <div className="section-heading"><h1 id="world-title">Initial world</h1><button onClick={onClose}>Back to lobbies</button><button disabled={loading} onClick={() => void refresh()}>Refresh world</button></div>
     {loading ? <p role="status">Loading world…</p> : error ? <p role="alert">{error}</p>
       : result?.state === 'READY' ? <Formations matchId={matchId} world={result.world} onSessionError={sessionError}
-        map={(formation) => <MapView world={result.world} formation={formation} />} />
+        map={(formation) => <MovementQueue matchId={matchId} world={result.world} formation={formation} onSessionError={sessionError}
+          map={(route, choose) => <MapView world={result.world} formation={formation} route={route} choose={choose} />} />} />
         : result?.state === 'UNINITIALIZED' ? <section className="panel" role="status" aria-live="polite" aria-atomic="true" aria-labelledby="world-unavailable-title">
           <h2 id="world-unavailable-title">Map unavailable for this match</h2>
           <p>This match started before world-map support was added and has no saved map to display.</p>

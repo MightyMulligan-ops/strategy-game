@@ -17,7 +17,8 @@ let host: HTMLDivElement; let root: ReturnType<typeof createRoot>
 const request = vi.fn(); const close = vi.fn(); const session = vi.fn(async () => {})
 const turnRequest = vi.fn()
 const formationRequest = vi.fn()
-const transport = vi.fn((path: string, options: RequestInit) => path.endsWith('/turn') ? turnRequest(path, options) : path.endsWith('/formations') ? formationRequest(path, options) : request(path, options))
+const movementRequest = vi.fn()
+const transport = vi.fn((path: string, options: RequestInit) => path.endsWith('/orders') ? movementRequest(path, options) : path.endsWith('/turn') ? turnRequest(path, options) : path.endsWith('/formations') ? formationRequest(path, options) : request(path, options))
 const turnReady = { schemaVersion: 1, matchId: 'match', state: 'READY',
   turn: { schemaVersion: 1, gameId: 'match', turnNumber: 1, status: 'open', openedAtMs: 1000, deadlineAtMs: 2000 },
   own: { schemaVersion: 1, gameId: 'match', turnNumber: 1, revision: 9, ready: false, orders: [] } }
@@ -26,6 +27,7 @@ beforeEach(() => {
   request.mockReset().mockImplementation(async () => json(ready)); close.mockReset(); session.mockClear()
   turnRequest.mockReset().mockImplementation(async () => json({ schemaVersion: 1, matchId: 'match', state: 'UNINITIALIZED' }))
   formationRequest.mockReset().mockImplementation(async () => json({ schemaVersion: 1, matchId: 'match', state: 'UNSUPPORTED' }))
+  movementRequest.mockReset().mockImplementation(async () => json({ schemaVersion: 1, matchId: 'match', state: 'UNSUPPORTED' }))
   transport.mockClear(); vi.stubGlobal('fetch', transport)
 })
 afterEach(async () => { await act(async () => root.unmount()); host.remove(); vi.unstubAllGlobals() })

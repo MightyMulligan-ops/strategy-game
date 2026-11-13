@@ -137,3 +137,7 @@ The passing live suite still emits a `pg` deprecation warning about overlapping 
 ## Initial armies (006D.1 / Issue #49)
 
 New explicitly creation-pinned `initial-armies-v1` uses snapshot v3 in existing JSONB storage. The default repository cohort remains v2; production composition selects v3 for newly created lobbies only. One additive functions/triggers migration (`202611130001_initial_armies`) admits the new profile and protects exact atomic immutable initialization; historical SQL and Prisma models stay unchanged. Application restoration recomputes identities and whole-content equality from actual archive data. See [INITIAL_ARMIES.md](../docs/INITIAL_ARMIES.md). SQL is authored only; no migration or database test was executed in this task. Hosted integration tests remain skipped pending separate fresh-disposable-CI approval; existing DB/deployment access remains prohibited.
+
+## Movement drafts (006D.2 / Issue #51)
+
+Existing snapshot/turn/player/order/history tables store the separately pinned v4 cohort. New `202611130002_movement_drafts` authoring retains historical guards and permits only new-runtime unready revisioned draft writes before the trusted deadline; world/snapshot/army/Turn stay immutable. Repository writes use parent-first serialization and full history restoration. SQL is not executed and integration tests remain disabled with RUN_DATABASE_TESTS=0. See [MOVEMENT_DRAFTS.md](../docs/MOVEMENT_DRAFTS.md).

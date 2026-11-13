@@ -322,3 +322,7 @@ Avoid asking an AI coding agent to implement the entire game in one prompt.
 ## Milestone 006D.1 — Authoritative starting armies (Issue #49)
 
 Implementation prepared / unmerged: strict versioned units/formations, one Lieutenant + five Infantry at existing capitals, creation-pinned initialization-only runtime, atomic v3 snapshot/start/restoration, additive immutable SQL guards, own-only read API/map, pure distance/leadership/contact helpers. See [INITIAL_ARMIES.md](INITIAL_ARMIES.md) and status evidence. Disposable PostgreSQL CI is separately gated and unrun. Movement execution/orders, source radius, collision/vacating policy, encounters/combat and transition to an executable runtime remain separate owner-approved milestones.
+
+## Milestone 006D.2 — Movement drafts (Issue #51)
+
+Prepared locally / unmerged: creation-pinned v4, authenticated revisioned complete-draft replacement/cancellation, cumulative 250-unit validation and dotted route/Movement Queue UI. Gates B/C authorize code and additive SQL authoring only. Hosted integration tests are authored but unrun; no publication or CI is authorized. Movement execution, Ready/closure, encounters and runtime transition remain separate. See [MOVEMENT_DRAFTS.md](MOVEMENT_DRAFTS.md).
