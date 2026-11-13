@@ -100,5 +100,13 @@
   .world-owner-marker { fill: CanvasText; stroke: Canvas; }
 }
 .formation-id { overflow-wrap: anywhere; }
+.movement-entry { display: flex; flex-wrap: wrap; gap: .75rem; align-items: end; }
+.movement-entry label { display: grid; gap: .3rem; max-width: 100%; }
+.movement-field { display: grid; gap: .3rem; max-width: 100%; }
+.movement-entry input { width: 8rem; max-width: 100%; }
+.movement-entry select { max-width: 100%; }
+.movement-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.movement-list { padding-inline-start: 1.5rem; }
+.movement-list li { margin-block: 1rem; }
 .formation-list summary { cursor: pointer; padding: .5rem; min-height: 44px; }
 .formation-list details[open] { border-inline-start: 2px solid currentColor; padding-inline-start: .75rem; }

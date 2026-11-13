@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PrismaClient } from "../src/generated/prisma/client.js";
 import { LobbyRepository } from "../src/lobby-repository.js";
+import { movementDraftFixture } from "./movement-draft-fixture.js";
 import { initialArmiesFixture } from "./initial-armies-fixture.js";
 import { initialTurnFixture } from "./initial-turn-fixture.js";
 
-function fixture(mode: "initial" | "armies" | "legacy" | "running" | "unsupported" = "initial", now = 10_000) {
-  const f = mode === "armies" ? initialArmiesFixture() : initialTurnFixture(); const events: string[] = [];
+function fixture(mode: "initial" | "drafts" | "armies" | "legacy" | "running" | "unsupported" = "initial", now = 10_000) {
+  const f = mode === "drafts" ? movementDraftFixture() : mode === "armies" ? initialArmiesFixture() : initialTurnFixture(); const events: string[] = [];
   const row = { ...f.row.match, status: mode === "running" ? "RUNNING" : "OPEN",
     participants: f.row.match.participants.map((p, i) => ({ ...p, identity: { username: `Player${i}` } })) };
   if (mode === "legacy") Object.assign(row.configuration!, { rulesetId: null, rulesetVersion: null, simulationVersion: null, pinnedRuleset: null });
@@ -22,7 +23,7 @@ function fixture(mode: "initial" | "armies" | "legacy" | "running" | "unsupporte
 }
 
 describe("lobby initialization orchestration (database-free injected storage)", () => {
-  it.each(["initial", "armies"] as const)("%s locks and generates before its only clock sample, writes all components then RUNNING", async (mode) => {
+  it.each(["initial", "armies", "drafts"] as const)("%s locks and generates before its only clock sample, writes all components then RUNNING", async (mode) => {
     const f = fixture(mode); const before = structuredClone(f.row.configuration); const result = await f.repository.startLobby(f.row.id, f.row.hostIdentityId!);
     expect(result.outcome).toBe("STARTED"); expect(f.events).toEqual(["lock", "generate", "world", "clock", "snapshot", "turn", "draft", "revision", "draft", "revision", "running"]);
     expect(f.clock).toHaveBeenCalledTimes(1); expect(f.generator).toHaveBeenCalledTimes(1);

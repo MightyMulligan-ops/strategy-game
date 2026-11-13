@@ -1,14 +1,15 @@
 import { isDeepStrictEqual as same } from "node:util";
 import { GameConfigSchema } from "@strategy-game/shared-types";
 import {
-  GameSnapshotSchema, InitialWorldRuntimeProfileSchema, InitialArmiesRuntimeProfileSchema, PinnedRulesetSchema
+  GameSnapshotSchema, InitialWorldRuntimeProfileSchema, InitialArmiesRuntimeProfileSchema, MovementDraftRuntimeProfileSchema, PinnedRulesetSchema
 } from "@strategy-game/shared-types/server";
-import type { GameSnapshot, InitialWorldSnapshot, InitialArmiesSnapshot } from "@strategy-game/shared-types/server";
-import { createTurn, validateInitialWorldSnapshot, validateInitialArmiesSnapshot } from "@strategy-game/game-engine";
+import type { GameSnapshot, InitialWorldSnapshot, InitialArmiesSnapshot, MovementDraftSnapshot } from "@strategy-game/shared-types/server";
+import { createTurn, validateInitialWorldSnapshot, validateInitialArmiesSnapshot, validateMovementDraftSnapshot } from "@strategy-game/game-engine";
 import type { TurnState } from "@strategy-game/game-engine";
 import type { MatchConfiguration, Prisma } from "./generated/prisma/client.js";
 import { PersistenceError } from "./errors.js";
 import { json, restoreDraft, restoreTurnRecord, safeNumber, turnFields } from "./mappings.js";
+import { restoreMovementDrafts } from "./movement-draft-storage.js";
 import { restoreWorldArchive } from "./world-repository.js";
 
 export const storedTurnInclude = {
@@ -18,7 +19,7 @@ export const storedTurnInclude = {
 export type StoredTurnRow = Prisma.TurnGetPayload<{ include: typeof storedTurnInclude }>;
 
 function invalid(): never { throw new PersistenceError("invalid_storage", "Stored turn initialization is inconsistent"); }
-export function configurationRuntime(row: MatchConfiguration): "legacy" | "initial_world" | "initial_armies" | "empty" {
+export function configurationRuntime(row: MatchConfiguration): "legacy" | "initial_world" | "initial_armies" | "movement_drafts" | "empty" {
   const fields = [row.rulesetId, row.rulesetVersion, row.simulationVersion, row.pinnedRuleset];
   if (fields.every((value) => value === null)) return "legacy";
   if (fields.some((value) => value === null)) return invalid();
@@ -29,6 +30,9 @@ export function configurationRuntime(row: MatchConfiguration): "legacy" | "initi
   }
   if (pinned.simulationVersion === "initial-armies-v1") {
     InitialArmiesRuntimeProfileSchema.parse(pinned); return "initial_armies";
+  }
+  if (pinned.simulationVersion === "movement-drafts-v1") {
+    MovementDraftRuntimeProfileSchema.parse(pinned); return "movement_drafts";
   }
   if (pinned.simulationVersion === "empty-turn-v1") return "empty";
   return invalid();
@@ -47,10 +51,11 @@ function restore(row: StoredTurnRow) {
   const roster = playerRows.map((p) => ({ schemaVersion: 1 as const, gameId: row.matchId, playerId: p.playerId, active: p.active }));
   const expected = createTurn(config, roster, safeNumber(row.openedAtMs));
 
-  if (mode === "initial_world" || mode === "initial_armies") {
+  if (mode === "initial_world" || mode === "initial_armies" || mode === "movement_drafts") {
     if (!row.match.world) return invalid();
     const archive = restoreWorldArchive(row.match.world);
-    const snapshot = mode === "initial_armies"
+    const snapshot = mode === "movement_drafts" ? validateMovementDraftSnapshot(row.startingSnapshot.payload, archive, pinned)
+      : mode === "initial_armies"
       ? validateInitialArmiesSnapshot(row.startingSnapshot.payload, archive, pinned)
       : validateInitialWorldSnapshot(row.startingSnapshot.payload, archive, pinned);
     const activeIds = row.match.participants.map((p) => p.playerId).sort();
@@ -63,6 +68,11 @@ function restore(row: StoredTurnRow) {
         row.frozenInput !== null || row.resolution !== null) return invalid();
     const fields = turnFields(expected);
     for (const key of Object.keys(fields) as (keyof typeof fields)[]) if (row[key] !== fields[key]) return invalid();
+    if (mode === "movement_drafts") {
+      const movement = snapshot as MovementDraftSnapshot;
+      return { kind: "movement_drafts" as const, row, snapshot: movement, pinned,
+        state: Object.freeze({ ...expected, drafts: restoreMovementDrafts(row, movement, archive) }) };
+    }
     for (const p of playerRows) {
       const r = p.revisions[0];
       if (p.matchId !== row.matchId || p.turnNumber !== 1n || !p.active || p.revision !== 0n || p.ready || p.orders.length !== 0 ||
@@ -101,11 +111,11 @@ export function requireEmptyRuntime(aggregate: StoredTurn): asserts aggregate is
   if (aggregate.kind !== "empty") throw new PersistenceError("unsupported_runtime_operation", "Initial-world runtime supports initialization only");
 }
 
-export async function insertSnapshot(tx: Prisma.TransactionClient, snapshot: GameSnapshot | InitialWorldSnapshot | InitialArmiesSnapshot) {
+export async function insertSnapshot(tx: Prisma.TransactionClient, snapshot: GameSnapshot | InitialWorldSnapshot | InitialArmiesSnapshot | MovementDraftSnapshot) {
   await tx.gameSnapshotRecord.create({ data: { matchId: snapshot.config.gameId, stateVersion: BigInt(snapshot.stateVersion),
     snapshotId: snapshot.snapshotId, completedTurnNumber: BigInt(snapshot.completedTurnNumber), payload: json(snapshot) } });
 }
-export async function insertTurn(tx: Prisma.TransactionClient, state: TurnState, snapshot: GameSnapshot | InitialWorldSnapshot | InitialArmiesSnapshot) {
+export async function insertTurn(tx: Prisma.TransactionClient, state: TurnState, snapshot: GameSnapshot | InitialWorldSnapshot | InitialArmiesSnapshot | MovementDraftSnapshot) {
   const matchId = state.config.gameId; const turnNumber = BigInt(state.turn.turnNumber);
   await tx.turn.create({ data: { matchId, number: turnNumber, startingStateVersion: BigInt(snapshot.stateVersion), ...turnFields(state) } });
   for (const player of state.players) {

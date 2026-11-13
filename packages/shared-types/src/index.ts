@@ -182,3 +182,7 @@ export const TurnErrorResponseSchema = z.strictObject({
     "RATE_LIMITED", "INTERNAL_ERROR", "TURN_UNINITIALIZED", "TURN_CLOSED", "WRONG_TURN", "STALE_REVISION", "REVISION_EXHAUSTED"])
 }).readonly();
 export type TurnErrorResponse = z.infer<typeof TurnErrorResponseSchema>;
+
+export { MovementDraftOrderSchema, MovementDraftOrdersSchema, MovementDraftRequestSchema, MovementDraftPathSchema,
+  MovementDraftCommandSchema, MovementRouteSchema, MovementDraftReadySchema, ReadMovementDraftSchema, MovementDraftErrorSchema } from "./movement-drafts.js";
+export type { MovementDraftRequest, MovementDraftCommand, MovementDraftOrder, MovementDraftReady, ReadMovementDraft, MovementRoute, MovementDraftErrorCode } from "./movement-drafts.js";

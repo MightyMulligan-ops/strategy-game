@@ -415,3 +415,7 @@ Do not report checks as passed unless they were actually run.
 ## 006D.1 initialization-only formation slice
 
 [INITIAL_ARMIES.md](INITIAL_ARMIES.md) specifies strict server-only v3 snapshots, pure deterministic initialization/helpers, existing-table atomic persistence and immutable SQL guards. The production composition root explicitly pins new lobby creation; existing configurations are never repinned. Public formation DTOs are separate from server snapshots and the unchanged world DTO. A session/membership-first read-only repository filters own data; React independently fetches it only with a matching READY world. No dependencies, CI changes, runtime widening or normalized mutable army tables are introduced.
+
+## 006D.2 private movement drafts
+
+[MOVEMENT_DRAFTS.md](MOVEMENT_DRAFTS.md) specifies the separate creation-pinned v4 runtime, dedicated no-closure validation, parent-first revision transaction, complete audit replay, additive new-profile SQL guards and own-only queue GET/POST. The old engine command path, resolver and immutable cohorts remain unchanged. React shows only accepted planned routes beside the fixed own formation. No execution or storage architecture change is introduced.

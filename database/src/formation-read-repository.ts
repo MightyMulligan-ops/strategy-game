@@ -42,7 +42,7 @@ export class FormationReadRepository {
         const stored = await readStoredTurn(tx, matchId, 1);
         if (!stored.state.players.some((p) => p.playerId === member.playerId && p.active)) return invalid();
         if (stored.kind === "initial_world") return ReadFormationsResponseSchema.parse({ ...envelope, state: "UNSUPPORTED" });
-        if (stored.kind !== "initial_armies") return invalid();
+        if (stored.kind !== "initial_armies" && stored.kind !== "movement_drafts") return invalid();
         const formation = stored.snapshot.formations.find((f) => f.ownerPlayerId === member.playerId);
         if (!formation) return invalid();
         const members = new Map(stored.snapshot.units.map((u) => [u.unitId, u]));

@@ -15,3 +15,4 @@ export { initializeTurnOne, createInitialWorldReference, validateInitialWorldSna
 export type { InitialTurnInitialization } from "./turn-initialization.js";
 export { planInitialArmies, initializeArmiesTurnOne, validateInitialArmiesSnapshot, InitialArmiesError } from "./initial-armies.js";
 export { squaredDistance, geographicDistance, evaluateLeadership, evaluateStartingFootMovement, classifyEncounter, MovementInputError } from "./army-movement.js";
+export { planMovementDrafts, initializeMovementDrafts, validateMovementDraftSnapshot, previewMovementDraft, reviseMovementDraft, MovementDraftFailure } from "./movement-drafts.js";

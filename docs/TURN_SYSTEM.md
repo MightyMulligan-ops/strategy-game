@@ -148,3 +148,7 @@ Tests cover GET-only transport, every availability/error state, private/mismatch
 ## Initialization-only starting armies (006D.1 / Issue #49)
 
 The new creation-pinned `initial-armies/1` / `initial-armies-v1` profile and v3 `initial_armies` snapshot coexist with v2. World generation/archive remain unchanged. Host start atomically persists deterministic armies, OPEN Turn 1 and empty revision-zero drafts/history. Restoration replays canonical identities against actual archive data and fails closed. Persistence, SQL guards and freezer/resolver refuse executable gameplay for this cohort, including Ready, orders, deadline closure, advancement and Turn 2. Production Turn GET accepts the validated aggregate without changing its DTO; separate own-only formations GET supplies map data. Details: [INITIAL_ARMIES.md](INITIAL_ARMIES.md). No runtime transition is authorized.
+
+## Revisioned movement drafts (006D.2 / Issue #51)
+
+`movement-drafts-v1` / strict snapshot v4 `movement_drafts` is a new creation-only cohort. Existing lifecycle commands remain refused; dedicated ordered replacement/cancellation validates the actual intact formation and cumulative 250 budget, advances only own revision/orders/history and leaves Turn metadata OPEN/immutable. Restoration replays complete history; GET stays read-only. A new queue GET/POST preserves old DTOs and has normal session/membership/Origin/CSRF controls. See [MOVEMENT_DRAFTS.md](MOVEMENT_DRAFTS.md) for contracts, deadlines, SQL and verification limits.
