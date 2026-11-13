@@ -31,6 +31,8 @@ The first playable prototype should demonstrate the strategy-game loop and inclu
 
 Assignment 007 / Issue #2 is merged: issue templates, status labels, a human-started local VS Code Codex workflow, and metadata-only synchronization. Automation 010 is a separately owner-invoked cloud pilot, not an unattended issue-triggered agent. Ongoing delivery state is tracked in `DEVELOPMENT_STATUS.md`.
 
+- [ ] Automation 011 / Issue #53: one-issue short cloud launch, explicit B/C+D+P approval bundle and standardized evidence handoff. Documentation/templates/static policy tests only; existing reporter, CI privileges, app/gameplay, schemas and dependencies unchanged. Five implementation passes and separate two-owner-attempt repairs persist across transfers; E/F remain separate decisions. See [CODEX_PIPELINE.md](CODEX_PIPELINE.md). In progress / unmerged until owner merge.
+
 **Exit criteria:** A clean install, type-check, and test command work; web and server can start locally; core design docs are discoverable.
 
 ## Phase 0A — Turn contracts and lifecycle (Assignment 002)

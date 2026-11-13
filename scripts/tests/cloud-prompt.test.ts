@@ -75,7 +75,9 @@ describe("owner-started cloud implementation boundaries", () => {
 
   it("links only known workflow documentation and real anchors", () => {
     const allowed = new Set([".github/CODEX_ISSUE_PROMPT.md", ".github/CODEX_REPAIR_PROMPT.md",
-      ".github/CODEX_REVIEW_PROMPT.md", "docs/CODEX_WORKFLOW.md", "docs/PR_REVIEW.md"]);
+      ".github/CODEX_REVIEW_PROMPT.md", ".github/CODEX_CLOUD_LAUNCH.template.md",
+      ".github/CODEX_CLOUD_APPROVAL.template.json", ".github/CODEX_CLOUD_HANDOFF.template.md",
+      "docs/CODEX_PIPELINE.md", "docs/CODEX_WORKFLOW.md", "docs/PR_REVIEW.md"]);
     for (const match of read(".github/CODEX_CLOUD_PROMPT.md").matchAll(/\]\(([^)]+)\)/g)) {
       const [file, anchor] = match[1]!.split("#");
       const target = resolve(root, ".github", file!);

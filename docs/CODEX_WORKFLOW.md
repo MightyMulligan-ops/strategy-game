@@ -51,6 +51,12 @@ The reusable prompt grants feature-branch commit/push and draft PR creation when
 
 ### Owner setup and supported access
 
+Automation 011 / Issue #53 provides a short owner-started launch, issue-specific
+B/C+D+P approval bundle and standardized completion evidence. See
+[CODEX_PIPELINE.md](CODEX_PIPELINE.md) for the reusable templates, default-deny
+matrix, scope freeze, expiry/revocation, TASK_SCOPE versus COMMIT_SPECIFIC gates,
+and worked handoff. This refines the opt-in pilot; local VS Code remains the fallback.
+
 1. In the official Codex Cloud interface, connect the private `MightyMulligan-ops/strategy-game` repository, select its published environment and the approved ref, and explicitly start one task for one approved issue. Issue #45 Phase 2 approves only the prompt/instruction/documentation work; it does not approve gameplay Issue #44 or another implementation issue. `agent-ready` records approval/coordination and never starts a task. No managed issue-triggered launch was demonstrated by this pilot; no webhook, schedule, new GitHub App, API key or unattended runner is added.
 2. Use the existing checkout at `/workspace/strategy-game`. Each cloud task is isolated; do not create another Git worktree unless the owner requests one. The published setup uses Node.js 24 (validated with 24.22.1), pinned pnpm 12.18.0, frozen `pnpm-lock.yaml`, and generated Prisma Client 7.10.1. Activate pnpm with `export PATH=/workspace/.strategy-game-tools/node_modules/.bin:$PATH` when using this published environment. Its writable caches are `npm_config_cache=/workspace/.npm-cache`, `XDG_CACHE_HOME=/workspace/.cache`, `XDG_DATA_HOME=/workspace/.local/share`, and the pnpm store is `/workspace/.pnpm-store`. These paths describe this environment; inspect a new environment instead of assuming installation succeeded there.
 3. Preserve inherited proxy/CA trust and TLS/artifact-checksum verification. Dependency refresh needs `registry.npmjs.org`; Prisma engine/checksum downloads need `binaries.prisma.sh`; repository and issue/PR operations need GitHub access (`github.com`/`api.github.com` through the platform's supported authentication). The earlier Prisma 403 was resolved through owner-managed network settings. This task does not change network policy, credentials or permissions. Inspect current environment settings and test the required operation; a declared binding alone is not proof of access.
@@ -92,6 +98,13 @@ Prisma generation and compilation do not connect to PostgreSQL. Report the comma
 Before creating the draft PR or updating it in a way that triggers CI, record **separate owner authorization for this issue/pilot's unchanged hosted CI fresh disposable PostgreSQL service**. A general cloud-task approval or another issue's CI permission does not qualify. If missing, retain the tested branch and stop publication with the exact approval needed; do not disable CI. The unchanged PR workflow applies its committed migrations only in that fresh disposable hosted service. This grants no task-side database/provisioning permission. Keep the PR draft and record its actual URL, head SHA, current-head CI evidence and **in review / unmerged** state. Missing/pending CI stays UNKNOWN. Merge/default adoption/deployment remain owner decisions.
 
 ### Implementation correction budget and independent review
+
+Separate CI authorization identifies D as an explicit operation; it can be granted
+in the same issue-specific owner message as B/C and P. Do not request it again when
+a verified, current bundle already covers the task's frozen scope and publication.
+Missing, ambiguous, revoked, expired or wrong-issue grants block protected actions.
+Honor any exact-SHA publication condition. The advisory templates cannot grant
+themselves authority; ready/merge and deployment still require separate owner decisions.
 
 Allow up to five bounded correction passes for implementation/test failures in the same approved cloud issue/task before independent review. Each pass is related corrective edits plus verification, recorded when edits start, including failed/uncommitted outcomes; it is not a new budget per file/test/commit. Keep pass number 1–5, failure/diagnosis, scoped changes, command results and remaining failures in the status/PR handoff. Initial implementation and checks without corrective edits do not consume a pass. If no correction is needed, report **0/5, not exercised**; do not manufacture a failure. Diagnose before retrying, stop after five unsuccessful passes, and stop immediately for scope drift or missing authorization. Session/process/PC/SHA changes do not erase history or create a fresh budget.
 
