@@ -142,6 +142,24 @@ describe.skipIf(process.env.RUN_DATABASE_TESTS !== "1")("turn closure (separatel
     await repo.joinLobby(l.lobbyId,b);await repo.setReady(l.lobbyId,a,true);await repo.setReady(l.lobbyId,b,true);await repo.startLobby(l.lobbyId,a);
     const before=await inspect(l.lobbyId);await expect(new TurnClosureRepository(client).setReady(l.lobbyId,1,a,{schemaVersion:1,expectedRevision:0,ready:true})).rejects.toMatchObject({code:"UNSUPPORTED_RUNTIME"});expect(await new TurnClosureRepository(client).closeDue(l.lobbyId)).toBe(false);expect(await inspect(l.lobbyId)).toEqual(before);
   });
+  it.each(["first-ready","final-ready","draft"])("rolls back %s if deferred validation crosses the deadline", async(kind)=>{
+    const f=await fresh(2,TURN_CLOSURE_RUNTIME_PROFILE,5000);
+    if(kind==="final-ready")await f.ready();
+    const before=await inspect(f.id),name=`delay_${randomUUID().replaceAll("-","")}`;
+    // CI-only failure injection reaches deferred validation before deadline, then
+    // delays it past expiry. The checkpoint must undo the uncommitted candidate.
+    await client.$executeRawUnsafe(`CREATE FUNCTION "${name}"() RETURNS trigger LANGUAGE plpgsql AS $$ DECLARE deadline bigint; BEGIN IF NEW."matchId"='${f.id}' AND NEW."revision">0 THEN SELECT "deadlineAtMs" INTO STRICT deadline FROM "Turn" WHERE "matchId"=NEW."matchId" AND "number"=1; IF floor(extract(epoch FROM clock_timestamp())*1000)>=deadline THEN RAISE EXCEPTION 'Fixture failed to reach predeadline commit'; END IF; PERFORM pg_sleep(5.1); END IF; RETURN NULL; END; $$`);
+    await client.$executeRawUnsafe(`CREATE CONSTRAINT TRIGGER "A_${name}" AFTER INSERT ON "PlayerSubmissionRevision" DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION "${name}"()`);
+    try{
+      await expect(kind==="draft"?f.submit([f.order("uncommitted",100)]):f.ready(0,true,kind==="final-ready"?f.members[1]!:f.host)).rejects.toMatchObject({code:"TURN_CLOSED"});
+      const after=await inspect(f.id);expect(after.turns[0]).toMatchObject({status:"CLOSED",closeReason:"DEADLINE"});
+      expect(after.turns[0]!.players).toEqual(before.turns[0]!.players);expect(JSON.stringify(after.turns[0]!.frozenInput!.payload)).not.toContain("uncommitted");
+      expect((await new MatchRepository(client).loadTurn(f.id,1)).kind).toBe("turn_closure");
+    }finally{
+      await client.$executeRawUnsafe(`DROP TRIGGER "A_${name}" ON "PlayerSubmissionRevision"`);
+      await client.$executeRawUnsafe(`DROP FUNCTION "${name}"()`);
+    }
+  },30_000);
   it("SQL expiry rolls back the late candidate and independently commits deadline closure", async()=>{
     const f=await fresh(2,TURN_CLOSURE_RUNTIME_PROFILE,1,()=>Date.now()-10000),before=await inspect(f.id);
     await expect(new TurnClosureRepository(client,()=>Number(before.turns[0]!.openedAtMs)).setReady(f.id,1,f.host,{schemaVersion:1,expectedRevision:0,ready:true})).rejects.toMatchObject({code:"TURN_CLOSED"});
