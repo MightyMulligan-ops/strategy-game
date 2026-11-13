@@ -9,7 +9,7 @@ import { PersistenceError } from "./errors.js";
 
 function invalid(): never { throw new PersistenceError("invalid_storage", "Movement draft history is inconsistent"); }
 /** Replay every accepted revision and compare current and retired rows. Never repair storage. */
-export function restoreClosureDrafts(row: StoredTurnRow, snapshot: TurnClosureSnapshot, archive: InitialWorldArchive) {
+export function restoreClosureDrafts(row: StoredTurnRow, snapshot: Pick<TurnClosureSnapshot, "config" | "formations" | "units">, archive: InitialWorldArchive) {
   return Object.freeze([...row.players].sort((a, b) => a.playerId < b.playerId ? -1 : a.playerId > b.playerId ? 1 : 0).map((p) => {
     const current = restoreDraft(p), revision = safeNumber(p.revision);
     if (p.matchId !== row.matchId || p.turnNumber !== 1n || !p.active || p.revisions.length !== revision + 1) return invalid();

@@ -9,7 +9,7 @@ import type { TurnState } from "@strategy-game/game-engine";
 import type { MatchConfiguration, Prisma } from "./generated/prisma/client.js";
 import { PersistenceError } from "./errors.js";
 import { json, restoreDraft, restoreTurnRecord, safeNumber, turnFields } from "./mappings.js";
-import { restoreMovementResolution } from "./movement-resolution-storage.js";
+import { isMovementResolutionRow, restoreMovementResolution } from "./movement-resolution-storage.js";
 import { restoreClosureDrafts } from "./closure-storage.js";
 import { restoreMovementDrafts } from "./movement-draft-storage.js";
 import { restoreWorldArchive } from "./world-repository.js";
@@ -45,13 +45,15 @@ export function configurationRuntime(row: MatchConfiguration): "legacy" | "initi
 }
 
 function restore(row: StoredTurnRow) {
+  // Choose this cohort without invoking header accessors; its complete data
+  // inspection must precede ordinary config/schema reads and cached reuse.
+  if (isMovementResolutionRow(row)) return restoreMovementResolution(row);
   const configuration = row.match.configuration;
   if (!configuration) return invalid();
   const config = GameConfigSchema.parse(configuration.config);
   if (configuration.matchId !== row.matchId || configuration.schemaVersion !== 1 || config.gameId !== row.matchId ||
       configuration.turnDurationMs !== BigInt(config.turnDurationMs)) return invalid();
   const mode = configurationRuntime(configuration);
-  if (mode === "movement_resolution") return restoreMovementResolution(row);
   const pinned = PinnedRulesetSchema.parse(configuration.pinnedRuleset);
   const byId = (a: { playerId: string }, b: { playerId: string }) => a.playerId < b.playerId ? -1 : a.playerId > b.playerId ? 1 : 0;
   const playerRows = [...row.players].sort(byId);
