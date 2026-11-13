@@ -16,7 +16,8 @@ const json = (value: unknown, status = 200) => new Response(JSON.stringify(value
 let host: HTMLDivElement; let root: ReturnType<typeof createRoot>
 const request = vi.fn(); const close = vi.fn(); const session = vi.fn(async () => {})
 const turnRequest = vi.fn()
-const transport = vi.fn((path: string, options: RequestInit) => path.endsWith('/turn') ? turnRequest(path, options) : request(path, options))
+const formationRequest = vi.fn()
+const transport = vi.fn((path: string, options: RequestInit) => path.endsWith('/turn') ? turnRequest(path, options) : path.endsWith('/formations') ? formationRequest(path, options) : request(path, options))
 const turnReady = { schemaVersion: 1, matchId: 'match', state: 'READY',
   turn: { schemaVersion: 1, gameId: 'match', turnNumber: 1, status: 'open', openedAtMs: 1000, deadlineAtMs: 2000 },
   own: { schemaVersion: 1, gameId: 'match', turnNumber: 1, revision: 9, ready: false, orders: [] } }
@@ -24,6 +25,7 @@ beforeEach(() => {
   host = document.createElement('div'); document.body.append(host); root = createRoot(host)
   request.mockReset().mockImplementation(async () => json(ready)); close.mockReset(); session.mockClear()
   turnRequest.mockReset().mockImplementation(async () => json({ schemaVersion: 1, matchId: 'match', state: 'UNINITIALIZED' }))
+  formationRequest.mockReset().mockImplementation(async () => json({ schemaVersion: 1, matchId: 'match', state: 'UNSUPPORTED' }))
   transport.mockClear(); vi.stubGlobal('fetch', transport)
 })
 afterEach(async () => { await act(async () => root.unmount()); host.remove(); vi.unstubAllGlobals() })
@@ -208,7 +210,7 @@ describe('read-only initial map', () => {
     expect(host.querySelector('svg')).toBeNull(); expect(host.textContent).toContain('Your revision9')
     expect(turnRequest).toHaveBeenCalledTimes(2)
     for (const [path, options] of transport.mock.calls) {
-      expect(path).toMatch(/^\/api\/matches\/match\/(world|turn)$/)
+      expect(path).toMatch(/^\/api\/matches\/match\/(world|turn|formations)$/)
       expect(options.method ?? 'GET').toBe('GET'); expect(options.body).toBeUndefined(); expect(options.credentials).toBe('same-origin')
     }
   })
@@ -234,5 +236,63 @@ describe('read-only initial map', () => {
     await click('Refresh world'); expect(signal.aborted).toBe(true); expect(session).toHaveBeenCalledOnce()
     await act(async () => finish(json(turnReady)))
     expect(host.querySelector('svg')).toBeNull(); expect(host.textContent).not.toContain('Your revision9')
+  })
+})
+
+const ownArmy = { schemaVersion: 1, matchId: 'match', state: 'READY', formations: [{ schemaVersion: 1,
+  formationId: `formation:${'a'.repeat(64)}`, ownerPlayerId: 'a', position: { x: 50, y: 50 },
+  units: Array.from({ length: 6 }, (_, i) => ({ schemaVersion: 1, unitId: `unit:${String(i).repeat(64)}`, originalSpawnNodeId: 'n0',
+    ...(i === 0 ? { kind: 'LEADER', rank: 'LIEUTENANT', specialization: 'INFANTRY' } : { kind: 'INFANTRY' }) })) }] }
+describe('own formation integration', () => {
+  it('anchors one nonfocusable diamond at the capital and supplies a native keyboard inspector', async () => {
+    formationRequest.mockImplementation(async () => json(ownArmy)); await mount()
+    const marker = host.querySelector('.formation-marker')!
+    expect(marker.getAttribute('transform')).toBe('translate(50 50)'); expect(marker.getAttribute('aria-hidden')).toBe('true')
+    expect(marker.querySelector('[tabindex]')).toBeNull(); expect(host.querySelectorAll('svg [tabindex="0"]')).toHaveLength(1)
+    const summary = host.querySelector('summary')!; expect(summary.textContent).toContain('Lieutenant + 5 Infantry')
+    summary.focus(); expect(document.activeElement).toBe(summary)
+    await act(async () => summary.click()); expect(host.querySelector('details')!.open).toBe(true)
+    expect(host.querySelectorAll('.formation-list li li')).toHaveLength(6)
+    expect(host.textContent).toContain('Infantry specialization'); expect(host.textContent).toContain('Original spawn node')
+    expect(host.querySelector('svg')!.textContent).not.toContain('unit:')
+    await key(host.querySelector('polygon')!, 'ArrowRight')
+    expect(host.querySelectorAll('svg [tabindex="0"]')).toHaveLength(1)
+    for (const [path, options] of formationRequest.mock.calls) {
+      expect(path).toBe('/api/matches/match/formations'); expect(options).toMatchObject({ method: 'GET', cache: 'no-store', credentials: 'same-origin' }); expect(options.body).toBeUndefined()
+    }
+  })
+  it('clears markers while refreshing formations without refreshing the world or polling', async () => {
+    formationRequest.mockImplementation(async () => json(ownArmy)); await mount()
+    let finish!: (response: Response) => void
+    formationRequest.mockImplementation(() => new Promise<Response>((resolve) => { finish = resolve }))
+    await click('Refresh formations'); expect(host.querySelector('.formation-marker')).toBeNull()
+    expect(host.textContent).toContain('Loading formations'); expect(request).toHaveBeenCalledOnce()
+    await act(async () => finish(json({ schemaVersion: 1, matchId: 'match', state: 'UNSUPPORTED' })))
+    expect(host.textContent).toContain('older match'); expect(host.querySelector('.formation-list')).toBeNull()
+    expect(formationRequest).toHaveBeenCalledTimes(2)
+  })
+  it.each([['wrong-match', 200], ['wrong-position', 200], ['private-field', 200], ['denied', 404], ['failure', 500]] as const)('rejects %s without retaining markers or raw errors', async (kind, status) => {
+    let value: unknown = { private: 'server-secret' }
+    if (kind === 'wrong-match') value = { ...ownArmy, matchId: 'other' }
+    if (kind === 'wrong-position') value = { ...ownArmy, formations: [{ ...ownArmy.formations[0], position: { x: 51, y: 50 } }] }
+    if (kind === 'private-field') value = { ...ownArmy, seed: 'server-secret' }
+    formationRequest.mockImplementation(async () => json(value, status)); await mount()
+    expect(host.querySelector('.formation-marker')).toBeNull(); expect(host.querySelector('.formation-list')).toBeNull()
+    expect(host.querySelector('[role="alert"]')).not.toBeNull(); expect(host.textContent).not.toContain('server-secret')
+    expect(session).not.toHaveBeenCalled()
+  })
+  it('cancels and ignores late formation data when the world becomes unavailable', async () => {
+    let finish!: (response: Response) => void
+    formationRequest.mockImplementation(() => new Promise<Response>((resolve) => { finish = resolve })); await mount()
+    const signal = formationRequest.mock.calls[0]![1].signal as AbortSignal
+    request.mockImplementation(async () => json({ schemaVersion: 1, matchId: 'match', state: 'UNINITIALIZED' })); await click('Refresh world')
+    expect(signal.aborted).toBe(true); await act(async () => finish(json(ownArmy)))
+    expect(host.querySelector('.formation-marker')).toBeNull(); expect(host.querySelector('.formation-list')).toBeNull(); expect(host.textContent).not.toContain('Your formations')
+  })
+  it.each([[401, 'UNAUTHENTICATED'], [403, 'USERNAME_REQUIRED']] as const)('clears the complete private workspace on formation HTTP %i', async (status, error) => {
+    formationRequest.mockImplementation(async () => json(ownArmy)); await mount()
+    formationRequest.mockImplementation(async () => json({ schemaVersion: 1, error }, status)); await click('Refresh formations')
+    expect(host.querySelector('svg')).toBeNull(); expect(host.querySelector('.formation-list')).toBeNull()
+    expect(session).toHaveBeenCalledOnce(); expect(host.textContent).toContain('Your session is unavailable')
   })
 })

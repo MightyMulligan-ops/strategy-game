@@ -2,10 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 import type { PrismaClient } from "../src/generated/prisma/client.js";
 import { MatchRepository } from "../src/repository.js";
 import { configurationRuntime, restoreStoredTurn } from "../src/turn-storage.js";
-import { initialTurnFixture } from "./initial-turn-fixture.js";
+import { initialArmiesFixture } from "./initial-armies-fixture.js";
+import { initialTurnFixture as oldFixture } from "./initial-turn-fixture.js";
 import { initialTurnMigration } from "./initial-turn-migration.js";
 
-describe("version-aware initial turn storage (database-free)", () => {
+describe.each(["initial_world", "initial_armies"] as const)("version-aware %s storage (database-free)", (mode) => {
+  const initialTurnFixture = mode === "initial_armies" ? initialArmiesFixture : oldFixture;
   it("recognizes every additive migration statement without executing SQL", () => {
     const ddl = initialTurnMigration(); expect(ddl.functions).toHaveLength(6); expect(ddl.triggers).toHaveLength(17);
     expect(ddl.statements).toHaveLength(23); expect(new Set(ddl.triggers.map((t) => t.name)).size).toBe(17);
@@ -13,7 +15,7 @@ describe("version-aware initial turn storage (database-free)", () => {
   it.each([2, 4, 10, 40])("restores immutable exact %i-player state from the real archive", (count) => {
     const f = initialTurnFixture(count); const before = structuredClone(f.row);
     const restored = restoreStoredTurn(f.row);
-    expect(restored.kind).toBe("initial_world"); expect(restored.state).toEqual(f.plan.state); expect(restored.snapshot).toEqual(f.plan.snapshot);
+    expect(restored.kind).toBe(mode); expect(restored.state).toEqual(f.plan.state); expect(restored.snapshot).toEqual(f.plan.snapshot);
     expect(restored.state.drafts.every((d) => !d.ready && d.revision === 0 && d.orders.length === 0)).toBe(true);
     expect(Object.isFrozen(restored.state.drafts)).toBe(true); expect(f.row).toEqual(before);
   });
@@ -53,7 +55,7 @@ describe("version-aware initial turn storage (database-free)", () => {
   });
   it("recognizes all-null legacy pins but rejects partial and mismatched profiles", () => {
     const f = initialTurnFixture(); const c = f.row.match.configuration!;
-    expect(configurationRuntime(c)).toBe("initial_world");
+    expect(configurationRuntime(c)).toBe(mode);
     Object.assign(c, { rulesetId: null, rulesetVersion: null, simulationVersion: null, pinnedRuleset: null });
     expect(configurationRuntime(c)).toBe("legacy"); c.rulesetId = "initial-world";
     expect(() => configurationRuntime(c)).toThrow();

@@ -13,3 +13,5 @@ export type { MovementOrderGroup, MovementTieBreaker } from "./movement-queue.js
 export { generateWorld } from "./world-generation.js";
 export { initializeTurnOne, createInitialWorldReference, validateInitialWorldSnapshot } from "./turn-initialization.js";
 export type { InitialTurnInitialization } from "./turn-initialization.js";
+export { planInitialArmies, initializeArmiesTurnOne, validateInitialArmiesSnapshot, InitialArmiesError } from "./initial-armies.js";
+export { squaredDistance, geographicDistance, evaluateLeadership, evaluateStartingFootMovement, classifyEncounter, MovementInputError } from "./army-movement.js";

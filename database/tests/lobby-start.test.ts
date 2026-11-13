@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PrismaClient } from "../src/generated/prisma/client.js";
 import { LobbyRepository } from "../src/lobby-repository.js";
+import { initialArmiesFixture } from "./initial-armies-fixture.js";
 import { initialTurnFixture } from "./initial-turn-fixture.js";
 
-function fixture(mode: "initial" | "legacy" | "running" | "unsupported" = "initial", now = 10_000) {
-  const f = initialTurnFixture(); const events: string[] = [];
+function fixture(mode: "initial" | "armies" | "legacy" | "running" | "unsupported" = "initial", now = 10_000) {
+  const f = mode === "armies" ? initialArmiesFixture() : initialTurnFixture(); const events: string[] = [];
   const row = { ...f.row.match, status: mode === "running" ? "RUNNING" : "OPEN",
     participants: f.row.match.participants.map((p, i) => ({ ...p, identity: { username: `Player${i}` } })) };
   if (mode === "legacy") Object.assign(row.configuration!, { rulesetId: null, rulesetVersion: null, simulationVersion: null, pinnedRuleset: null });
@@ -21,8 +22,8 @@ function fixture(mode: "initial" | "legacy" | "running" | "unsupported" = "initi
 }
 
 describe("lobby initialization orchestration (database-free injected storage)", () => {
-  it("locks and generates before its only clock sample, writes all components then RUNNING", async () => {
-    const f = fixture(); const before = structuredClone(f.row.configuration); const result = await f.repository.startLobby(f.row.id, f.row.hostIdentityId!);
+  it.each(["initial", "armies"] as const)("%s locks and generates before its only clock sample, writes all components then RUNNING", async (mode) => {
+    const f = fixture(mode); const before = structuredClone(f.row.configuration); const result = await f.repository.startLobby(f.row.id, f.row.hostIdentityId!);
     expect(result.outcome).toBe("STARTED"); expect(f.events).toEqual(["lock", "generate", "world", "clock", "snapshot", "turn", "draft", "revision", "draft", "revision", "running"]);
     expect(f.clock).toHaveBeenCalledTimes(1); expect(f.generator).toHaveBeenCalledTimes(1);
     expect(f.tx.playerTurnState.create.mock.calls.map(([value]) => (value as { data: object }).data)).toEqual(f.players.map((p) => ({ matchId: f.row.id, turnNumber: 1n, playerId: p.playerId, active: true, revision: 0n, ready: false })));
@@ -47,5 +48,13 @@ describe("lobby initialization orchestration (database-free injected storage)", 
     f.row.participants[1]!.lobbyReady = false;
     await expect(f.repository.startLobby(f.row.id, f.row.hostIdentityId!)).rejects.toMatchObject({ code: "NOT_ALL_READY" });
     expect(f.generator).not.toHaveBeenCalled(); expect(f.clock).not.toHaveBeenCalled(); expect(f.tx.matchWorld.create).not.toHaveBeenCalled();
+  });
+  it("derives the complete army plan before sampling the trusted opening clock", async () => {
+    const f = fixture("armies");
+    f.row.configuration!.config = { schemaVersion: 1, gameId: "wrong-match", turnDurationMs: 1000 };
+    await expect(f.repository.startLobby(f.row.id, f.row.hostIdentityId!)).rejects.toThrow();
+    expect(f.clock).not.toHaveBeenCalled(); expect(f.tx.turn.create).not.toHaveBeenCalled();
+    expect(f.tx.match.updateMany).not.toHaveBeenCalled();
+    // Injected storage cannot prove rollback; the hosted-only suite covers real atomicity.
   });
 });

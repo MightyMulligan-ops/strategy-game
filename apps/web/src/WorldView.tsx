@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
 import { ReadWorldResponseSchema } from '@strategy-game/shared-types'
-import type { PublicWorld, ReadWorldResponse } from '@strategy-game/shared-types'
+import type { OwnFormation, PublicWorld, ReadWorldResponse } from '@strategy-game/shared-types'
 import { lobbyRequest, LobbyRequestError } from './lobby-api'
 import TurnStatus from './TurnStatus'
+import Formations from './Formations'
 
-function MapView({ world }: { world: PublicWorld }) {
+function MapView({ world, formation }: { world: PublicWorld; formation: OwnFormation | null }) {
   const [selection, setSelection] = useState(0)
   const mapId = useId()
   const refs = useRef(new Map<string, SVGPolygonElement>())
@@ -66,6 +67,9 @@ function MapView({ world }: { world: PublicWorld }) {
             {t.ownerPlayerId !== null && <tspan x={t.center.x} dy={t.capital ? 26 : 7}>{ownerId(t.ownerPlayerId)}</tspan>}
           </text>}
         </g>)}
+        {formation && <g className="formation-marker" transform={`translate(${formation.position.x} ${formation.position.y})`} aria-hidden="true" pointerEvents="none">
+          <path d="M0 -36L36 0L0 36L-36 0Z" fill="none" stroke="#fff" strokeWidth="3" vectorEffect="non-scaling-stroke" />
+        </g>}
       </svg></div>
       <section className="panel territory-inspector" aria-label="Territory inspector">
         <h2 ref={inspector} tabIndex={-1}>Territory inspector</h2><h3>{selected.territoryId}</h3>
@@ -74,7 +78,7 @@ function MapView({ world }: { world: PublicWorld }) {
           <dt>City</dt><dd>{selected.city ? 'Capital' : 'None'}</dd><dt>Position</dt><dd>{selected.center.x}, {selected.center.y}</dd>
           <dt>Resources</dt><dd>{selected.resources.length ? 'Military Supplies: 0 (initial fixture)' : 'None'}</dd>
           <dt>Adjacent territories</dt><dd>{adjacent.join(', ')}</dd></dl>
-        <p className="small muted">Read-only initial world. A saved Turn 1 may be open; armies, economy processing and turn controls are not available.</p>
+        <p className="small muted">Read-only initial world. A saved Turn 1 may be open; movement, economy processing and turn controls are not available.</p>
       </section>
     </div>
   </>
@@ -116,7 +120,8 @@ function MatchWorldView({ matchId, onClose, onSessionError }: { matchId: string;
   return <section className="world-workspace" aria-labelledby="world-title" aria-busy={loading}>
     <div className="section-heading"><h1 id="world-title">Initial world</h1><button onClick={onClose}>Back to lobbies</button><button disabled={loading} onClick={() => void refresh()}>Refresh world</button></div>
     {loading ? <p role="status">Loading world…</p> : error ? <p role="alert">{error}</p>
-      : result?.state === 'READY' ? <MapView world={result.world} />
+      : result?.state === 'READY' ? <Formations matchId={matchId} world={result.world} onSessionError={sessionError}
+        map={(formation) => <MapView world={result.world} formation={formation} />} />
         : result?.state === 'UNINITIALIZED' ? <section className="panel" role="status" aria-live="polite" aria-atomic="true" aria-labelledby="world-unavailable-title">
           <h2 id="world-unavailable-title">Map unavailable for this match</h2>
           <p>This match started before world-map support was added and has no saved map to display.</p>

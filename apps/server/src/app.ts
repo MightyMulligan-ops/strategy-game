@@ -10,12 +10,15 @@ import type { WorldPersistence } from "./worlds/routes.js";
 import { registerFixtureTurnRoutes } from "./turns/routes.js";
 import type { FixtureTurnService } from "./turns/service.js";
 import { registerTurnReadRoutes } from "./turns/read-routes.js";
+import { registerFormationReadRoutes } from "./formations/read-routes.js";
+import type { FormationReadPersistence } from "./formations/read-routes.js";
 import type { TurnReadPersistence } from "./turns/read-routes.js";
 
 export async function buildApp(options: {
   auth?: Authentication; lobbies?: LobbyPersistence; worlds?: WorldPersistence;
   turnFixtures?: { service: FixtureTurnService };
   turnReads?: TurnReadPersistence;
+  formationReads?: FormationReadPersistence;
   logger?: FastifyServerOptions["logger"]; trustProxy?: FastifyServerOptions["trustProxy"]
 } = {}) {
   if (options.turnFixtures && options.turnReads) throw new Error("Fixture and production turn readers are mutually exclusive");
@@ -38,6 +41,7 @@ export async function buildApp(options: {
     }
     await registerAuthentication(app, options.auth);
     if (options.turnReads) await registerTurnReadRoutes(app, { accounts: options.auth.persistence, turns: options.turnReads });
+    if (options.formationReads) await registerFormationReadRoutes(app, { accounts: options.auth.persistence, formations: options.formationReads });
     if (options.turnFixtures) await registerFixtureTurnRoutes(app, {
       origin: options.auth.config.origin, accounts: options.auth.persistence, service: options.turnFixtures.service
     });

@@ -96,3 +96,7 @@ Required offline checks: frozen install, build, TypeScript, unit tests, lint, sc
 ## Acceptance sequence (CI or separately approved owner environment only)
 
 Do not run this against an existing local database during this task. After separate owner-approved environment preparation, use independent browser profiles with Player One/Two: create a new two-player lobby, join, ready both and host-start once. Open View map in each, compare capitals/terrain/territories, select the inspector and reload both map URLs. Check outsider denial, unchanged duration and no turn advancement. Verify a legacy RUNNING fixture shows UNINITIALIZED even after reads/host start retry; do not press an initialization/backfill button (none exists). CI performs equivalent persistence/authorization checks in its disposable service. Real Google/Discord consent and manual sandbox verification remain separate owner actions.
+
+## Versioned formations alongside the unchanged archive (006D.1)
+
+Issue #49 adds a separate immutable army snapshot and own-only formation projection for explicitly new-pinned matches. The `territory-grid-v1` archive, required-empty `startingState.units`, production side 5 and public world DTO remain unchanged. The map independently loads own formations and places a nonfocusable diamond at exact existing capital coordinates, with a native HTML inspector. Old matches stay unchanged/unavailable; no GET initializes anything. See [INITIAL_ARMIES.md](INITIAL_ARMIES.md).

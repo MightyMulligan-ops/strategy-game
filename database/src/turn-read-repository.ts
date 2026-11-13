@@ -48,7 +48,7 @@ export class TurnReadRepository {
         }
         if (!match.world || match.currentStateVersion !== 0n || match.turns.length !== 1 || match.turns[0]?.number !== 1n) return invalid();
         const aggregate = await readStoredTurn(tx, matchId, 1);
-        if (aggregate.kind !== "initial_world") return invalid();
+        if (aggregate.kind !== "initial_world" && aggregate.kind !== "initial_armies") return invalid();
         const own = aggregate.state.drafts.find((draft) => draft.playerId === member.playerId);
         if (!own || !aggregate.state.players.some((player) => player.playerId === member.playerId && player.active)) return invalid();
         const turn = aggregate.state.turn;

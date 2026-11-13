@@ -4,6 +4,8 @@ import { z } from "zod";
 import { GameConfigSchema, GamePlayerSchema, OrderListSchema, TurnRecordSchema } from "./index.js";
 import { identifier, nonnegativeInteger, positiveInteger, version } from "./primitives.js";
 import { GeneratedWorldSchema } from "./world.js";
+import { ArmyUnitIdSchema, FormationIdSchema } from "./formations-view.js";
+import { WorldPointSchema } from "./world-geometry.js";
 export {
   WORLD_GENERATOR_VERSION, WORLD_MAX_TERRITORIES, WorldSeedSchema, WorldGenerationSettingsSchema,
   WorldGenerationInputSchema, WorldPointSchema, WorldTerrainSchema, WorldTerritorySchema,
@@ -173,3 +175,62 @@ export const InitialWorldSnapshotSchema = z.strictObject({
   }
 }).readonly();
 export type InitialWorldSnapshot = z.infer<typeof InitialWorldSnapshotSchema>;
+
+// Separate initialization-only cohort. Old v1/v2 contracts and archive stay unchanged.
+export const INITIAL_ARMIES_RUNTIME_PROFILE = Object.freeze({ schemaVersion: 1 as const,
+  ruleset: Object.freeze({ rulesetId: "initial-armies" as const, version: "1" as const }),
+  simulationVersion: "initial-armies-v1" as const, movementTieBreakPolicy: "seeded-shuffle-v1" as const });
+export const InitialArmiesRuntimeProfileSchema = z.strictObject({ schemaVersion: version,
+  ruleset: z.strictObject({ rulesetId: z.literal("initial-armies"), version: z.literal("1") }),
+  simulationVersion: z.literal("initial-armies-v1"), movementTieBreakPolicy: z.literal("seeded-shuffle-v1") }).readonly();
+export const INITIAL_ARMIES_POLICY = Object.freeze({ schemaVersion: 1 as const, armyVersion: "initial-armies-v1" as const,
+  movementVersion: "starting-foot-v1" as const, rangePerTurn: 250 as const, budget: "cumulative" as const, leaderlessRadius: null });
+export const InitialArmiesPolicySchema = z.strictObject({ schemaVersion: version, armyVersion: z.literal("initial-armies-v1"),
+  movementVersion: z.literal("starting-foot-v1"), rangePerTurn: z.literal(250), budget: z.literal("cumulative"), leaderlessRadius: z.null() }).readonly();
+const unitFields = { schemaVersion: version, unitId: ArmyUnitIdSchema, ownerPlayerId: identifier.max(128), originalSpawnNodeId: identifier.max(128) };
+export const ArmyUnitSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ ...unitFields, kind: z.literal("INFANTRY") }),
+  z.strictObject({ ...unitFields, kind: z.literal("LEADER"), rank: z.literal("LIEUTENANT"), specialization: z.literal("INFANTRY") })
+]).readonly();
+export type ArmyUnit = z.infer<typeof ArmyUnitSchema>;
+export const InitialFormationSchema = z.strictObject({ schemaVersion: version, formationId: FormationIdSchema,
+  ownerPlayerId: identifier.max(128), unitIds: z.array(ArmyUnitIdSchema).length(6).readonly(), position: WorldPointSchema }).readonly();
+export type InitialFormation = z.infer<typeof InitialFormationSchema>;
+export const InitialArmiesSnapshotSchema = z.strictObject({ schemaVersion: z.literal(3), kind: z.literal("initial_armies"),
+  snapshotId: z.string().regex(/^initial-armies:[a-f0-9]{64}$/), ruleset: InitialArmiesRuntimeProfileSchema.unwrap().shape.ruleset,
+  simulationVersion: z.literal("initial-armies-v1"), config: GameConfigSchema,
+  completedTurnNumber: z.literal(0), stateVersion: z.literal(0), players: InitialWorldRosterSchema,
+  worldRef: InitialWorldReferenceSchema, policy: InitialArmiesPolicySchema,
+  units: z.array(ArmyUnitSchema).min(12).max(240).readonly(), formations: z.array(InitialFormationSchema).min(2).max(40).readonly()
+}).superRefine((snapshot, ctx) => {
+  const owners = snapshot.players.map((p) => p.playerId);
+  const units = new Map(snapshot.units.map((u) => [u.unitId, u]));
+  const memberships = snapshot.formations.flatMap((f) => f.unitIds);
+  if (snapshot.worldRef.matchId !== snapshot.config.gameId || snapshot.players.some((p, i) => p.gameId !== snapshot.config.gameId ||
+      (i > 0 && snapshot.players[i - 1]!.playerId >= p.playerId)) || snapshot.units.length !== owners.length * 6 || units.size !== snapshot.units.length ||
+      snapshot.formations.length !== owners.length || new Set(snapshot.formations.map((f) => f.formationId)).size !== owners.length ||
+      new Set(snapshot.formations.map((f) => f.ownerPlayerId)).size !== owners.length || new Set(memberships).size !== snapshot.units.length ||
+      snapshot.formations.some((f) => !owners.includes(f.ownerPlayerId) || f.unitIds.some((id) => units.get(id)?.ownerPlayerId !== f.ownerPlayerId) ||
+        f.unitIds.filter((id) => units.get(id)?.kind === "LEADER").length !== 1 ||
+        new Set(f.unitIds.map((id) => units.get(id)?.originalSpawnNodeId)).size !== 1)) {
+    ctx.addIssue({ code: "custom", message: "Invalid initial army membership/ownership" });
+  }
+}).readonly();
+export type InitialArmiesSnapshot = z.infer<typeof InitialArmiesSnapshotSchema>;
+
+// Server-only validation for pure helpers, not executable command contracts.
+export const MovementLeadershipInputSchema = z.array(z.discriminatedUnion("kind", [
+  z.strictObject({ unitId: identifier.max(128), kind: z.literal("INFANTRY") }),
+  z.strictObject({ unitId: identifier.max(128), kind: z.literal("LEADER"), rank: z.enum(["GENERAL", "COLONEL", "CAPTAIN", "LIEUTENANT"]) })
+])).min(1).max(240);
+export const StartingFootMovementInputSchema = z.strictObject({
+  ownerPlayerId: identifier.max(128), from: WorldPointSchema, destinations: z.array(WorldPointSchema).min(1),
+  bounds: z.strictObject({ width: z.number().int().positive().max(4900), height: z.number().int().positive().max(4200) }),
+  members: z.array(ArmyUnitSchema).min(1).max(6)
+});
+export const EncounterInputSchema = z.strictObject({
+  destination: WorldPointSchema, destinationCityId: identifier.max(128).optional(),
+  occupant: z.strictObject({ position: WorldPointSchema, cityId: identifier.max(128).optional() }).nullable(),
+  relationship: z.enum(["friendly", "hostile", "unknown"]),
+  situation: z.enum(["occupied_destination", "converging_destinations", "crossing_paths", "vacating_position"])
+});
