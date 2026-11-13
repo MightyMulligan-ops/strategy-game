@@ -65,6 +65,7 @@ const request = vi.fn(async (path: string, init: RequestInit = {}): Promise<Resp
 
 beforeEach(() => {
   host = document.createElement('div'); document.body.append(host); root = createRoot(host)
+  Object.assign(redirect, { hash: '' })
   user = profile; current = room(); tokens = 0; listed = true; intercept = undefined; request.mockClear(); redirect.assign.mockClear(); redirect.replace.mockClear()
   const originalWindow = window
   vi.stubGlobal('window', new Proxy(originalWindow, { get(target, key) { return key === 'location' ? redirect : Reflect.get(target, key, target) } }))
@@ -94,6 +95,22 @@ async function submit(id: string) { await act(async () => { host.querySelector(i
 const posts = () => request.mock.calls.filter(([, init]) => init?.method === 'POST')
 
 describe('Sovereign account and lobby UI', () => {
+  it('removes private turn data from a deep-linked world when session recovery signs the player out', async () => {
+    Object.assign(redirect, { hash: '#world=council' })
+    let expired = false
+    intercept = (path) => {
+      if (path === '/api/matches/council/world') return json({ schemaVersion: 1, matchId: 'council', state: 'UNINITIALIZED' })
+      if (path === '/api/matches/council/turn') return expired ? failure('UNAUTHENTICATED', 401) : json({
+        schemaVersion: 1, matchId: 'council', state: 'READY',
+        turn: { schemaVersion: 1, gameId: 'council', turnNumber: 1, status: 'open', openedAtMs: 1000, deadlineAtMs: 2000 },
+        own: { schemaVersion: 1, gameId: 'council', turnNumber: 1, revision: 77, ready: false, orders: [] },
+      })
+    }
+    await mount(); expect(text()).toContain('Your revision77'); expect(text()).toContain('Map unavailable for this match')
+    expired = true; user = null; await click('Refresh turn')
+    expect(text()).toContain('Sign in to continue'); expect(text()).not.toContain('Your revision77')
+    expect(text()).not.toContain('Turn data available'); expect(posts()).toHaveLength(0)
+  })
   it('uses original assets and offers configured sign-in without loading lobby data for signed-out users', async () => {
     user = null; await mount()
     expect(button('Continue with Discord').disabled).toBe(false)

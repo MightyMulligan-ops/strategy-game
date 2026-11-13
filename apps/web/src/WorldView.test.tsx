@@ -15,9 +15,16 @@ const ready = { schemaVersion: 1, matchId: 'match', state: 'READY', world }
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status })
 let host: HTMLDivElement; let root: ReturnType<typeof createRoot>
 const request = vi.fn(); const close = vi.fn(); const session = vi.fn(async () => {})
+const turnRequest = vi.fn()
+const transport = vi.fn((path: string, options: RequestInit) => path.endsWith('/turn') ? turnRequest(path, options) : request(path, options))
+const turnReady = { schemaVersion: 1, matchId: 'match', state: 'READY',
+  turn: { schemaVersion: 1, gameId: 'match', turnNumber: 1, status: 'open', openedAtMs: 1000, deadlineAtMs: 2000 },
+  own: { schemaVersion: 1, gameId: 'match', turnNumber: 1, revision: 9, ready: false, orders: [] } }
 beforeEach(() => {
   host = document.createElement('div'); document.body.append(host); root = createRoot(host)
-  request.mockReset().mockImplementation(async () => json(ready)); close.mockReset(); session.mockClear(); vi.stubGlobal('fetch', request)
+  request.mockReset().mockImplementation(async () => json(ready)); close.mockReset(); session.mockClear()
+  turnRequest.mockReset().mockImplementation(async () => json({ schemaVersion: 1, matchId: 'match', state: 'UNINITIALIZED' }))
+  transport.mockClear(); vi.stubGlobal('fetch', transport)
 })
 afterEach(async () => { await act(async () => root.unmount()); host.remove(); vi.unstubAllGlobals() })
 async function mount() { await act(async () => root.render(<StrictMode><WorldView matchId="match" onClose={close} onSessionError={session} /></StrictMode>)) }
@@ -150,7 +157,7 @@ describe('read-only initial map', () => {
     expect(status.textContent).toContain('Refreshing this view will not create a map')
     expect(host.querySelector('svg')).toBeNull(); expect(host.querySelector('[aria-label="Territory inspector"]')).toBeNull()
     expect(host.querySelector('[role="alert"]')).toBeNull(); expect(session).not.toHaveBeenCalled()
-    expect([...host.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Back to lobbies', 'Refresh world'])
+    expect([...host.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Back to lobbies', 'Refresh world', 'Refresh turn'])
     expect(request).toHaveBeenCalledOnce(); await click('Refresh world'); expect(request).toHaveBeenCalledTimes(2)
     expect(host.querySelector('#world-unavailable-title')).not.toBeNull()
     for (const [path, options] of request.mock.calls) {
@@ -191,5 +198,41 @@ describe('read-only initial map', () => {
     const signal = request.mock.calls[0]![1].signal as AbortSignal
     await act(async () => root.render(<p>Elsewhere</p>)); expect(signal.aborted).toBe(true)
     await act(async () => finish(json(ready))); expect(host.textContent).toBe('Elsewhere')
+  })
+  it('keeps world and turn availability independent and refreshes each GET separately', async () => {
+    await mount(); expect(host.querySelector('svg')).not.toBeNull(); expect(host.textContent).toContain('No saved turn')
+    turnRequest.mockImplementation(async () => json(turnReady)); await click('Refresh turn')
+    expect(host.textContent).toContain('Your revision9'); expect(request).toHaveBeenCalledOnce()
+    request.mockImplementation(async () => json({ schemaVersion: 1, matchId: 'match', state: 'UNINITIALIZED' }))
+    await click('Refresh world')
+    expect(host.querySelector('svg')).toBeNull(); expect(host.textContent).toContain('Your revision9')
+    expect(turnRequest).toHaveBeenCalledTimes(2)
+    for (const [path, options] of transport.mock.calls) {
+      expect(path).toMatch(/^\/api\/matches\/match\/(world|turn)$/)
+      expect(options.method ?? 'GET').toBe('GET'); expect(options.body).toBeUndefined(); expect(options.credentials).toBe('same-origin')
+    }
+  })
+  it('keeps a turn read failure independent from a working map', async () => {
+    turnRequest.mockRejectedValue(new Error('private-network-detail')); await mount()
+    expect(host.querySelector('svg')).not.toBeNull(); expect(host.textContent).toContain('Unable to connect to the turn service')
+    expect(host.textContent).not.toContain('private-network-detail')
+  })
+  it('clears both map and private turn data when turn refresh detects session expiry', async () => {
+    turnRequest.mockImplementation(async () => json(turnReady)); await mount()
+    expect(host.textContent).toContain('Your revision9'); expect(host.querySelector('svg')).not.toBeNull()
+    turnRequest.mockImplementation(async () => json({ schemaVersion: 1, error: 'UNAUTHENTICATED' }, 401))
+    await click('Refresh turn')
+    expect(session).toHaveBeenCalledOnce(); expect(host.textContent).not.toContain('Your revision9')
+    expect(host.querySelector('svg')).toBeNull(); expect(host.textContent).toContain('Your session is unavailable')
+    expect([...host.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Back to lobbies'])
+  })
+  it('aborts a pending turn read when world refresh detects an invalid session', async () => {
+    let finish!: (response: Response) => void
+    turnRequest.mockImplementation(() => new Promise<Response>((resolve) => { finish = resolve })); await mount()
+    const signal = turnRequest.mock.calls[0]![1].signal as AbortSignal
+    request.mockImplementation(async () => json({ schemaVersion: 1, error: 'USERNAME_REQUIRED' }, 403))
+    await click('Refresh world'); expect(signal.aborted).toBe(true); expect(session).toHaveBeenCalledOnce()
+    await act(async () => finish(json(turnReady)))
+    expect(host.querySelector('svg')).toBeNull(); expect(host.textContent).not.toContain('Your revision9')
   })
 })
