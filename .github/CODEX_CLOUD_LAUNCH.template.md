@@ -8,6 +8,7 @@ Use only the operations explicitly approved for this issue. Preserve exclusions,
 the five-pass implementation history and the separate two-attempt repair history.
 Deliver the standardized cloud handoff, link the read-only acceptance packet
 (PR review summary / report.md / handoff.md), and stop for owner review.
+Include read-only triage and the exact-head review prompt; neither launches an agent.
 
 Explicit owner overrides: NONE. (If supplied, identify the operation, issue and
 owner source. An override cannot grant itself authority or silently widen scope.)

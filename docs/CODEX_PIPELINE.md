@@ -105,6 +105,17 @@ It cannot authenticate the approval bundle, accept code or authorize E/F. Inspec
 the packet and relevant diff, then explicitly decide ready/squash merge. Deployment
 remains separately approved; no new workflow, permissions or execution path is added.
 
+Automation 013 adds deterministic review triage and one owner-copyable exact-head
+review prompt in the same summary/artifact. REVIEW_READY_EVIDENCE means evidence is
+available for **manual review**, not permission, correctness or acceptance. Missing
+or contradictory evidence is BLOCKED_UNKNOWN; evidenced failures are INVESTIGATE.
+An observed approval-shaped record is still UNVERIFIED; no owner identity or grant
+is authenticated by this hint. Recheck source head, PR/current-main base, issue scope
+and newest run/attempt before use. Copying text never launches Codex or authorizes
+edits/repair/merge. See [PR_REVIEW.md](PR_REVIEW.md) for priority, reason codes, bounds
+and live-validation limitations. Five in-task corrections and two owner-started
+post-review repairs remain distinct; a failure/report never starts a repair.
+
 ## Checks, evidence and acceptance
 
 Task-side checks always use AUTH_ENABLED=false and RUN_DATABASE_TESTS=0: frozen

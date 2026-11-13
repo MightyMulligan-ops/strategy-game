@@ -91,6 +91,59 @@ text, migration names, service identifiers, secrets or signed log-storage URLs.
 No second reporter, new artifact extraction, AI agent, GitHub write, retry, PR
 comment/check/status write or database execution is introduced.
 
+## Read-only triage and exact-head handoff (Automation 013 / Issue #57)
+
+The same collector and formatter now add `sovereign-pr-triage-v1` inside the
+existing acceptance packet. The Actions summary/report.md shows a deterministic
+category, individual reason codes, check names and canonical PR/run evidence links.
+The existing handoff.md contains one bounded owner-copyable text prompt and the
+same JSON. Workflow YAML, permissions, triggers and artifact paths are unchanged;
+no second reporter, bot, model call, agent launch, write automation or review service.
+
+Triage evaluates **evidence readiness for manual review**, never acceptance,
+correctness, owner authentication, code findings or permission to mark ready/merge:
+
+| Category | Meaning and permitted recommendation |
+|---|---|
+| REVIEW_READY_EVIDENCE | All nine factual checks pass consistently; an open same-repository PR, issue snapshot and an approval-candidate source are available. Manually review the exact-head diff, scope and actual owner source. Protected files and UNVERIFIED authority still require owner review. |
+| INVESTIGATE | Evidence checks demonstrate a failure without structural/missing-evidence blockers. Manually investigate the cited CI/count/skip failure; it is not yet a confirmed code defect or a repair grant. |
+| BLOCKED_UNKNOWN | Missing/stale/mismatched/contradictory identities or evidence, a fork, unavailable issue/approval candidate, truncated/withheld inventory, or non-open PR. Gather current evidence manually; do not reuse an older success. |
+
+Blockers take priority over failures, and failures over review-ready evidence.
+Every failed/unknown check retains its reason, even if another reason determines
+the category. Protected scope is a review question rather than an automatic defect.
+`codeReviewFindings=NOT_EVALUATED`, `repairAuthorization=NOT_GRANTED` and the existing
+`acceptanceDecision=NOT_MADE`/E/F exclusions remain explicit in every category.
+New commits, changed main/base or issue scope, newer runs/attempts, truncated or
+missing evidence, ambiguous associations and PostgreSQL skips invalidate reuse.
+
+Approval availability is deliberately weaker than authorization: a bounded body
+marker such as owner-approved/approval status, or an existing approval-candidate
+comment, records only that a source can be inspected. It never interprets B/C/D/P
+operations, authenticates the author or grants authority. Missing/unavailable
+candidate evidence blocks review readiness; malicious prose can still claim
+approval, so the actual source and frozen scope always require manual verification.
+
+The review prompt pins canonical PR/issue, source head, PR base/current main,
+run/attempt, relevant check states, up to six sanitized protected paths (including
+renames) and three fixed review questions. It is capped at 4,000 characters; path
+display is omitted first if necessary, preserving identities and prohibitions.
+It reads no instructions from issue prose, filenames, log text or artifact URLs.
+Before reviewing, re-fetch the complete identity/evidence; any missing/changed
+expected identity stops with UNKNOWN. Review-only text forbids edits, PR execution,
+comments/check/status/label writes, CI retries, agent launches, database/credential
+access, merge and deployment. Any bounded repair needs a separate owner request
+after actual findings; the existing five/two histories are not reset or combined.
+
+Live Automation 012 validation is observational: inspect an already-existing
+eligible trusted-main report at/after PR #56 merge, its summary/report.md and
+handoff.md packet, identities, check states and DB guard/migration/cleanup evidence.
+A skipped run or a local preview is not live validation. If no eligible executed
+run/artifact exists, record PENDING/UNKNOWN and do not dispatch a workflow merely
+to obtain proof. Unavailable evidence does not block separately authorized
+database-free implementation/unchanged CI. New triage formatting itself becomes
+live only after this issue is owner-merged into trusted main.
+
 ## Missing run associations (Automation 008A / Issue #34)
 
 GitHub returned `pull_requests: []` for successful CI run [43265346907](https://github.com/MightyMulligan-ops/strategy-game/actions/runs/43265346907), on merged PR #33 head `9f59b9652189e57371d0f93bde22fe652f87c572`. The original reporter therefore showed unknown CI. An absent array association does not prove the absence of PR CI.

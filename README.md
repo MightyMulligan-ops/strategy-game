@@ -49,6 +49,7 @@ Use a **server-authoritative modular monolith** initially. Do not introduce micr
 - `.github/CODEX_CLOUD_PROMPT.md` — opt-in, explicitly owner-started Automation 010 cloud pilot; database-free task checks, five bounded implementation correction passes and a separate hosted disposable-CI approval gate. The local VS Code workflow and two-attempt owner-controlled post-review repair policy remain unchanged.
 - `docs/CODEX_PIPELINE.md` — Automation 011 short cloud launch, issue-specific B/C+D+P owner approval bundle and standard completion handoff; advisory records, default-deny protected operations and separate ready/merge/deployment decisions.
 - `docs/PR_REVIEW.md` — Automation 012 read-only acceptance evidence in the existing Actions summary/artifact: current source/head/base/run provenance, bounded advisory JSON, test skips, migration/cleanup evidence and owner review requirements; no automatic acceptance or merge.
+- Automation 013 adds read-only triage reason codes and one exact-head owner-copyable review prompt to those same artifacts; hints never launch Codex or grant repair/merge authority. See `docs/PR_REVIEW.md` for evidence invalidation and live-validation status.
 - `docs/DEVELOPMENT_STATUS.md` — evidence-based progress handoff and update policy.
 - `AGENTS.md` — instructions for AI coding agents and contributors.
 - `packages/shared-types/` — strict, versioned runtime schemas and transport types.
