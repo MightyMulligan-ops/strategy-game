@@ -1,6 +1,6 @@
 # Sovereign lobby and account shell (004B.2D / Issue #13)
 
-The React client provides account/lobby flows and a participant-only initial SVG map after atomic host start (005B.2 / Issue #22). Sovereign branding remains unchanged. Legacy RUNNING lobbies may have no initialized world; the map shows that explicit state without repair. No Turn 1, scheduler, presence or playable turn exists. See [INITIAL_WORLD.md](INITIAL_WORLD.md) for map navigation, visibility and tests.
+The React client provides account/lobby flows and a participant-only initial SVG map after atomic host start (005B.2 / Issue #22). Sovereign branding remains unchanged. Legacy RUNNING lobbies may have no initialized world; the map shows that explicit state without repair. 006B.2 persists Turn 1 and 006C.1 exposes its read-only status; 006C.2A (Issue #47, unmerged) displays it in the existing world view. No gameplay processing, scheduler, presence or turn controls are enabled. See [INITIAL_WORLD.md](INITIAL_WORLD.md) for map navigation, visibility and tests.
 
 ## Account and API boundaries
 
@@ -15,6 +15,14 @@ When the server advertises boolean `devLoginEnabled: true`, anonymous users also
 Every successful lobby action reloads list/detail. State-conflict errors, including NOT_ALL_READY/NOT_ENOUGH_PARTICIPANTS/HOST_REQUIRED, explain the failure and refresh authoritative state without retrying the mutation. Join/Leave use server viewer flags. Active members in OPEN see Mark ready / Mark not ready; the body sets an explicit own boolean. Only hosts see Start Match, disabled unless server canStart is true, with reasons for insufficient players, host not ready, waiting for others or already started. RUNNING removes membership/readiness controls and disables host Start. STARTED/ALREADY_STARTED notices make no gameplay claim. Session failures recover account state; malformed/private errors remain sanitized.
 
 AbortControllers cancel superseded reads and unmounted effects. Aborted responses are checked before state updates, including after asynchronous account recovery. Bootstrap work is cancellable in React StrictMode. Loading, empty, unavailable, validation, permission and pending states are visible; nothing fabricates successful multiplayer state.
+
+## Read-only turn panel (006C.2A / Issue #47)
+
+`WorldView.tsx` embeds `TurnStatus.tsx` independently of map availability. Entry and explicit **Refresh turn** issue only GET through `turn-api.ts` and the existing `/api` proxy, with same-origin credentials, no-store and an AbortSignal. Strict existing public schemas and requested-match checks reject malformed, mismatched or private payloads. No identity/time fields, CSRF fetch, retries, polling or mutations are added. No private state is persisted in browser storage.
+
+Data availability (`state: READY`) is distinct from the caller's Ready flag. The panel displays the stored turn number/status, absolute UTC opening/deadline, own readiness and revision; it does not render orders or infer closure from the browser clock. A deadline in the past may still accompany stored OPEN status. NOT_STARTED and UNINITIALIZED are separate from session/permission, malformed-response, service and network errors. Refreshing never initializes a turn, and a READY world can coexist with an UNINITIALIZED turn.
+
+Starting a refresh clears old turn data; aborts and post-await checks prevent superseded responses restoring it. Match-keyed components reset state immediately on navigation. Session/username failures from either world or turn reads remove both views, abort pending reads and invoke the existing account recovery flow. Logout/unmount also discards the panel. Existing map keyboard/focus behavior and styling are preserved; revised map copy acknowledges stored Turn 1 without claiming gameplay is running.
 
 ## Same-origin development
 

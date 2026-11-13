@@ -197,10 +197,17 @@ Existing unpinned OPEN lobbies keep world-only start; existing RUNNING records a
 
 ## Milestone 006C.1 — Production read-only participant Turn 1 status (Issue #42)
 
-- [ ] Dedicated production GET only, strict existing versioned contracts and caller-only projection, session/username and exact active-match authorization before availability/private content, read-only repeatable-read restoration.
-- [ ] NOT_STARTED/legacy UNINITIALIZED and sanitized unsupported/corrupt-state handling, unchanged overdue OPEN state, fixture/production separation; database-free tests plus unchanged hosted disposable PostgreSQL CI evidence.
+- [x] Dedicated production GET only, strict existing versioned contracts and caller-only projection, session/username and exact active-match authorization before availability/private content, read-only repeatable-read restoration.
+- [x] NOT_STARTED/legacy UNINITIALIZED and sanitized unsupported/corrupt-state handling, unchanged overdue OPEN state, fixture/production separation; database-free tests plus unchanged hosted disposable PostgreSQL CI evidence.
 
-Implemented for owner review on the Issue #42 branch; these items stay unchecked until human merge. No production Ready/orders, deadline observation/closure, world-aware resolution, scheduler, frontend, legacy initialization, schema/migration/dependency/CI changes or existing database access. See [TURN_SYSTEM.md](TURN_SYSTEM.md#production-read-only-turn-1-status-006c1--issue-42) and development status for actual verification.
+Merged in PR #43 as `388032d`. No production Ready/orders, deadline observation/closure, world-aware resolution, scheduler, frontend, legacy initialization, schema/migration/dependency/CI changes or existing database access. See [TURN_SYSTEM.md](TURN_SYSTEM.md#production-read-only-turn-1-status-006c1--issue-42).
+
+## Milestone 006C.2A — Read-only participant Turn 1 UI (Issue #47)
+
+- [ ] Display stored turn number/status/opening/deadline and caller-only readiness/revision using the unchanged GET and public contracts.
+- [ ] Independent manual world/turn reads, strict payload/match validation, cancellation and session/private-data cleanup, accessible existing styling and database-free regressions.
+
+Implemented on the Issue #47 branch for independent review; keep unchecked until human merge. No Ready/orders, client-authoritative deadline decisions, polling, backend/contracts/schema/migrations, dependencies or CI changes. Hosted disposable CI alone is separately owner-authorized for this issue; no existing database access or task-side DB provisioning is permitted.
 
 ## Phase 1 — Map and game shell
 
