@@ -30,7 +30,7 @@ export function observeClosureDeadline(state: TurnState, now: number): TurnState
   return Object.freeze({ ...state, lastObservedAtMs: now, turn: now < state.turn.deadlineAtMs ? state.turn : Object.freeze({ ...state.turn,
     status: "closed" as const, closeReason: "deadline" as const, closedAtMs: state.turn.deadlineAtMs }) });
 }
-export function reviseClosureDraft(snapshot: TurnClosureSnapshot, archive: InitialWorldArchive, draft: PlayerTurnDraft, input: unknown): PlayerTurnDraft {
+export function reviseClosureDraft(snapshot: Pick<TurnClosureSnapshot,"config"|"formations"|"units">, archive: InitialWorldArchive, draft: PlayerTurnDraft, input: unknown): PlayerTurnDraft {
   const parsed = ClosureCommandSchema.safeParse(input);
   if (!parsed.success) throw new MovementDraftFailure("INVALID_REQUEST");
   const c = parsed.data;
@@ -48,7 +48,7 @@ export function reviseClosureDraft(snapshot: TurnClosureSnapshot, archive: Initi
   return Object.freeze({ ...draft, revision: draft.revision + 1, orders });
 }
 /** Deadline observation precedes semantic rejection; callers commit returned state even on rejection. */
-export function applyClosureCommand(state: TurnState, snapshot: TurnClosureSnapshot, archive: InitialWorldArchive, actor: string, input: unknown, now: number) {
+export function applyClosureCommand(state: TurnState, snapshot: Pick<TurnClosureSnapshot,"config"|"formations"|"units">, archive: InitialWorldArchive, actor: string, input: unknown, now: number) {
   const observed = observeClosureDeadline(state, now);
   if (observed.turn.status !== "open") return { state: observed, error: "TURN_CLOSED" as const };
   const draft = observed.drafts.find((p) => p.playerId === actor);

@@ -4,7 +4,7 @@ A browser-based, multiplayer 2D grand strategy game inspired by the broad gamepl
 
 ## Project status
 
-**Pre-production / foundation.** Authenticated lobbies, world/army initialization and private movement drafts are merged. Issue #59 prepares a separate creation-pinned closure runtime with Ready/Unready, immutable frozen Turn 1 inputs and bounded deadline observation for draft review. Formations remain at their capitals; movement execution, resolution and Turn 2 remain future work. Historical matches stay unchanged. See [TURN_CLOSURE.md](docs/TURN_CLOSURE.md) and [DEVELOPMENT_STATUS.md](docs/DEVELOPMENT_STATUS.md).
+**Pre-production / foundation.** Authenticated lobbies, world/army initialization and private movement drafts are merged. Issue #59 / PR #60 is merged. Issue #61 prepares a new creation-pinned deterministic movement resolution, immutable audits and pending hostile encounters for draft review. Historical cohorts keep their original behavior. The new cohort can resolve Turn 1 movement once; combat and Turn 2 remain future work. Historical matches stay unchanged. See [TURN_CLOSURE.md](docs/TURN_CLOSURE.md) and [DEVELOPMENT_STATUS.md](docs/DEVELOPMENT_STATUS.md).
 
 ## Product direction
 
@@ -235,3 +235,5 @@ The default `pnpm test` runs unit tests and explicitly skips live database tests
 For focused issue work, use the [local Codex workflow](docs/CODEX_WORKFLOW.md) and [reusable issue prompt](.github/CODEX_ISSUE_PROMPT.md). A person starts Codex in VS Code with ChatGPT sign-in; GitHub metadata automation never invokes it and requires no OpenAI API key. Review current progress in [DEVELOPMENT_STATUS.md](docs/DEVELOPMENT_STATUS.md).
 
 Configure provider credentials and manually verify consent/callbacks before deploying sign-in. Issue #7 (004B.2A) establishes lobby contracts and documentation only: 2–40 player capacity, registered authenticated callers, host-only start with at least two participants, public discovery, and no new joins/leaves after start. It adds no endpoints, lobby database models, or UI. Next implement authorized lobby/match membership and command adapters, followed by durable acknowledgements and scheduling/restart orchestration. Authentication alone does not authorize game data. See [MATCH_LOBBIES.md](docs/MATCH_LOBBIES.md) and `docs/DEVELOPMENT_ROADMAP.md`.
+
+See [MOVEMENT_RESOLUTION.md](docs/MOVEMENT_RESOLUTION.md) for the Issue #61 numeric policy, compatibility, privacy and rollout boundaries.

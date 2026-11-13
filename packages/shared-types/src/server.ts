@@ -292,3 +292,57 @@ export const ClosureFrozenInputSchema = z.strictObject({ schemaVersion: z.litera
 export type ClosureFrozenInput = z.infer<typeof ClosureFrozenInputSchema>;
 
 export const ClosureCommandSchema = z.union([MovementDraftCommandSchema, ReadyChangeSchema.refine((c) => c.turnNumber === 1)]);
+
+// 006D.4: distinct creation-pinned cohort. No historical schema is widened.
+export const MOVEMENT_RESOLUTION_RUNTIME_PROFILE = Object.freeze({ schemaVersion: 1 as const,
+  ruleset: Object.freeze({ rulesetId: "movement-resolution" as const, version: "1" as const }),
+  simulationVersion: "movement-resolution-v1" as const, movementTieBreakPolicy: "seeded-shuffle-v1" as const });
+export const MovementResolutionRuntimeSchema = z.strictObject({ schemaVersion: version,
+  ruleset: z.strictObject({rulesetId:z.literal("movement-resolution"),version:z.literal("1")}).readonly(),
+  simulationVersion:z.literal("movement-resolution-v1"),movementTieBreakPolicy:z.literal("seeded-shuffle-v1") }).readonly();
+export const MOVEMENT_RESOLUTION_POLICY = Object.freeze({ version:"swept-circle-lattice-v1" as const,
+  worldUnitsPerMovementPoint:50 as const,radius:10 as const,contactDistance:20 as const,precision:0.001 as const,
+  stopping:"strict-before-contact" as const,seedSource:"world-seed-v1" as const });
+export const MovementResolutionPolicySchema = z.strictObject({version:z.literal("swept-circle-lattice-v1"),
+  worldUnitsPerMovementPoint:z.literal(50),radius:z.literal(10),contactDistance:z.literal(20),precision:z.literal(0.001),
+  stopping:z.literal("strict-before-contact"),seedSource:z.literal("world-seed-v1")}).readonly();
+export const MovementInitialSnapshotSchema = z.strictObject({...TurnClosureSnapshotSchema.unwrap().shape,
+  schemaVersion:z.literal(6),kind:z.literal("movement_resolution"),snapshotId:z.string().regex(/^movement-initial:[a-f0-9]{64}$/),
+  ruleset:MovementResolutionRuntimeSchema.unwrap().shape.ruleset,simulationVersion:z.literal("movement-resolution-v1"),
+  initialClosureSnapshotId:z.string().regex(/^turn-closure:[a-f0-9]{64}$/),movementPolicy:MovementResolutionPolicySchema
+}).superRefine((s,ctx)=>{
+  const {initialClosureSnapshotId,movementPolicy,...base}=s;void movementPolicy;
+  if(!TurnClosureSnapshotSchema.safeParse({...base,schemaVersion:5,kind:"turn_closure",snapshotId:initialClosureSnapshotId,
+    ruleset:TURN_CLOSURE_RUNTIME_PROFILE.ruleset,simulationVersion:"turn-closure-v1"}).success)ctx.addIssue({code:"custom",message:"Invalid v6 initial formation structure"});
+}).readonly();
+export type MovementInitialSnapshot=z.infer<typeof MovementInitialSnapshotSchema>;
+export const MovementFrozenInputSchema=z.strictObject({...ClosureFrozenInputSchema.unwrap().shape,
+  schemaVersion:z.literal(3),kind:z.literal("movement_resolution"),runtimeProfile:MovementResolutionRuntimeSchema,
+  startingSnapshotId:z.string().regex(/^movement-initial:[a-f0-9]{64}$/),resolutionSeed:SeedSchema
+}).superRefine((s,ctx)=>{
+ const {resolutionSeed,...base}=s;
+ if(resolutionSeed!==s.worldSeed||!ClosureFrozenInputSchema.safeParse({...base,schemaVersion:2,kind:"turn_closure",
+ startingSnapshotId:`turn-closure:${"0".repeat(64)}`,runtimeProfile:TURN_CLOSURE_RUNTIME_PROFILE}).success)ctx.addIssue({code:"custom",message:"Invalid frozen v3 scope/seed"});
+}).readonly();
+export type MovementFrozenInput=z.infer<typeof MovementFrozenInputSchema>;
+export const MilliPointSchema=z.strictObject({xMilli:nonnegativeInteger.max(4900000),yMilli:nonnegativeInteger.max(4200000)}).readonly();
+const finitePoint=z.strictObject({x:z.number().finite(),y:z.number().finite()}).readonly();
+export const MovementAuditSchema=z.strictObject({auditId:identifier,playerId:identifier,formationId:FormationIdSchema,orderId:identifier,
+ moveNumber:positiveInteger,sequence:nonnegativeInteger,outcome:z.enum(["executed","blocked_encounter","not_executed_after_encounter"]),
+ from:MilliPointSchema,to:MilliPointSchema,plannedDistance:z.number().finite().min(0).max(250),
+ traveled:z.number().finite().min(0).max(250),remaining:z.number().finite().min(0).max(250),encounterId:identifier.nullable()}).readonly();
+export const EncounterContactSchema=z.strictObject({mover:FormationIdSchema,defender:FormationIdSchema,orderId:identifier.nullable(),
+ moveNumber:nonnegativeInteger,sequence:nonnegativeInteger,mathematicalContact:finitePoint,stopped:MilliPointSchema,
+ parameter:z.number().finite().min(0).max(1),kind:z.enum(["initial_contact","swept_contact"])}).readonly();
+export const PendingEncounterSchema=z.strictObject({encounterId:identifier,resolutionId:identifier,status:z.literal("unresolved"),
+ policy:z.literal("swept-circle-lattice-v1"),members:z.array(z.strictObject({formationId:FormationIdSchema,playerId:identifier}).readonly()).min(2).max(40).readonly(),
+ contacts:z.array(EncounterContactSchema).min(1).max(780).readonly()}).readonly();
+export const ResolvedMovementSnapshotSchema=z.strictObject({...MovementInitialSnapshotSchema.unwrap().shape,
+ schemaVersion:z.literal(7),kind:z.literal("movement_resolved"),snapshotId:z.string().regex(/^movement-resolved:[a-f0-9]{64}$/),
+ stateVersion:z.literal(1),completedTurnNumber:z.literal(1),initialSnapshotId:z.string().regex(/^movement-initial:[a-f0-9]{64}$/),resolutionId:identifier,
+ formations:z.array(z.strictObject({...InitialFormationSchema.unwrap().shape,position:MilliPointSchema}).readonly()).min(2).max(40).readonly()}).readonly();
+export const MovementResolutionResultSchema=z.strictObject({schemaVersion:z.literal(2),kind:z.literal("movement_resolution"),
+ runtimeProfile:MovementResolutionRuntimeSchema,resolutionId:identifier,startingSnapshotId:identifier,seed:SeedSchema,
+ policy:MovementResolutionPolicySchema,nextState:ResolvedMovementSnapshotSchema,
+ audits:z.array(MovementAuditSchema).readonly(),encounters:z.array(PendingEncounterSchema).max(20).readonly()}).readonly();
+export type MovementResolutionResult=z.infer<typeof MovementResolutionResultSchema>;

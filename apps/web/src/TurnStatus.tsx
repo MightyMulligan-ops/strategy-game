@@ -60,7 +60,7 @@ function MatchTurnStatus({ matchId, onSessionError }: { matchId: string; onSessi
               <div><dt>Your turn readiness</dt><dd>{result.own.ready ? 'Ready' : 'Not ready'}</dd></div>
               <div><dt>Your revision</dt><dd>{result.own.revision}</dd></div>
             </dl>
-            <p className="small muted">Stored status only; this view does not advance turns. {result.turn.status === 'closed' ? 'CLOSED records frozen orders only; formations have not moved and Turn 2 has not opened.' : 'Gameplay processing is not available.'}</p>
+            <p className="small muted">Stored status only; this view does not advance turns. {result.turn.status==='resolved'?'Movement is resolved; combat has not occurred and Turn 2 has not opened.': result.turn.status === 'closed' ? 'CLOSED records frozen orders only; formations have not moved and Turn 2 has not opened.' : 'Gameplay processing is not available.'}</p>
           </> : null}
   </section>
 }

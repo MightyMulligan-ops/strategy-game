@@ -1,14 +1,15 @@
 import { isDeepStrictEqual as same } from "node:util";
 import { GameConfigSchema } from "@strategy-game/shared-types";
 import {
-  GameSnapshotSchema, InitialWorldRuntimeProfileSchema, InitialArmiesRuntimeProfileSchema, MovementDraftRuntimeProfileSchema, TurnClosureRuntimeProfileSchema, PinnedRulesetSchema
+  GameSnapshotSchema, InitialWorldRuntimeProfileSchema, InitialArmiesRuntimeProfileSchema, MovementDraftRuntimeProfileSchema, TurnClosureRuntimeProfileSchema, MovementResolutionRuntimeSchema, PinnedRulesetSchema
 } from "@strategy-game/shared-types/server";
-import type { GameSnapshot, InitialWorldSnapshot, InitialArmiesSnapshot, MovementDraftSnapshot, TurnClosureSnapshot } from "@strategy-game/shared-types/server";
+import type { GameSnapshot, InitialWorldSnapshot, InitialArmiesSnapshot, MovementDraftSnapshot, TurnClosureSnapshot, MovementInitialSnapshot } from "@strategy-game/shared-types/server";
 import { createTurn, validateInitialWorldSnapshot, validateInitialArmiesSnapshot, validateMovementDraftSnapshot, validateTurnClosureSnapshot, freezeClosureInput } from "@strategy-game/game-engine";
 import type { TurnState } from "@strategy-game/game-engine";
 import type { MatchConfiguration, Prisma } from "./generated/prisma/client.js";
 import { PersistenceError } from "./errors.js";
 import { json, restoreDraft, restoreTurnRecord, safeNumber, turnFields } from "./mappings.js";
+import { restoreMovementResolution } from "./movement-resolution-storage.js";
 import { restoreClosureDrafts } from "./closure-storage.js";
 import { restoreMovementDrafts } from "./movement-draft-storage.js";
 import { restoreWorldArchive } from "./world-repository.js";
@@ -20,7 +21,7 @@ export const storedTurnInclude = {
 export type StoredTurnRow = Prisma.TurnGetPayload<{ include: typeof storedTurnInclude }>;
 
 function invalid(): never { throw new PersistenceError("invalid_storage", "Stored turn initialization is inconsistent"); }
-export function configurationRuntime(row: MatchConfiguration): "legacy" | "initial_world" | "initial_armies" | "movement_drafts" | "turn_closure" | "empty" {
+export function configurationRuntime(row: MatchConfiguration): "legacy" | "initial_world" | "initial_armies" | "movement_drafts" | "turn_closure" | "movement_resolution" | "empty" {
   const fields = [row.rulesetId, row.rulesetVersion, row.simulationVersion, row.pinnedRuleset];
   if (fields.every((value) => value === null)) return "legacy";
   if (fields.some((value) => value === null)) return invalid();
@@ -38,6 +39,7 @@ export function configurationRuntime(row: MatchConfiguration): "legacy" | "initi
   if (pinned.simulationVersion === "turn-closure-v1") {
     TurnClosureRuntimeProfileSchema.parse(pinned); return "turn_closure";
   }
+  if (pinned.simulationVersion === "movement-resolution-v1") { MovementResolutionRuntimeSchema.parse(pinned); return "movement_resolution"; }
   if (pinned.simulationVersion === "empty-turn-v1") return "empty";
   return invalid();
 }
@@ -49,6 +51,7 @@ function restore(row: StoredTurnRow) {
   if (configuration.matchId !== row.matchId || configuration.schemaVersion !== 1 || config.gameId !== row.matchId ||
       configuration.turnDurationMs !== BigInt(config.turnDurationMs)) return invalid();
   const mode = configurationRuntime(configuration);
+  if (mode === "movement_resolution") return restoreMovementResolution(row);
   const pinned = PinnedRulesetSchema.parse(configuration.pinnedRuleset);
   const byId = (a: { playerId: string }, b: { playerId: string }) => a.playerId < b.playerId ? -1 : a.playerId > b.playerId ? 1 : 0;
   const playerRows = [...row.players].sort(byId);
@@ -123,17 +126,22 @@ export type StoredTurn = ReturnType<typeof restoreStoredTurn>;
 export async function readStoredTurn(tx: Prisma.TransactionClient, matchId: string, turnNumber: number) {
   const row = await tx.turn.findUnique({ where: { matchId_number: { matchId, number: BigInt(turnNumber) } }, include: storedTurnInclude });
   if (!row) throw new PersistenceError("not_found", "Turn not found");
-  return restoreStoredTurn(row);
+  const restored=restoreStoredTurn(row);
+  if(restored.kind==="movement_resolution"&&restored.result){
+    const next=await tx.gameSnapshotRecord.findUnique({where:{matchId_stateVersion:{matchId,stateVersion:1n}}});
+    if(!next||next.snapshotId!==restored.result.nextState.snapshotId||next.completedTurnNumber!==1n||!same(next.payload,json(restored.result.nextState)))return invalid();
+  }
+  return restored;
 }
 export function requireEmptyRuntime(aggregate: StoredTurn): asserts aggregate is Extract<StoredTurn, { kind: "empty" }> {
   if (aggregate.kind !== "empty") throw new PersistenceError("unsupported_runtime_operation", "Initial-world runtime supports initialization only");
 }
 
-export async function insertSnapshot(tx: Prisma.TransactionClient, snapshot: GameSnapshot | InitialWorldSnapshot | InitialArmiesSnapshot | MovementDraftSnapshot | TurnClosureSnapshot) {
+export async function insertSnapshot(tx: Prisma.TransactionClient, snapshot: GameSnapshot | InitialWorldSnapshot | InitialArmiesSnapshot | MovementDraftSnapshot | TurnClosureSnapshot | MovementInitialSnapshot) {
   await tx.gameSnapshotRecord.create({ data: { matchId: snapshot.config.gameId, stateVersion: BigInt(snapshot.stateVersion),
     snapshotId: snapshot.snapshotId, completedTurnNumber: BigInt(snapshot.completedTurnNumber), payload: json(snapshot) } });
 }
-export async function insertTurn(tx: Prisma.TransactionClient, state: TurnState, snapshot: GameSnapshot | InitialWorldSnapshot | InitialArmiesSnapshot | MovementDraftSnapshot | TurnClosureSnapshot) {
+export async function insertTurn(tx: Prisma.TransactionClient, state: TurnState, snapshot: GameSnapshot | InitialWorldSnapshot | InitialArmiesSnapshot | MovementDraftSnapshot | TurnClosureSnapshot | MovementInitialSnapshot) {
   const matchId = state.config.gameId; const turnNumber = BigInt(state.turn.turnNumber);
   await tx.turn.create({ data: { matchId, number: turnNumber, startingStateVersion: BigInt(snapshot.stateVersion), ...turnFields(state) } });
   for (const player of state.players) {

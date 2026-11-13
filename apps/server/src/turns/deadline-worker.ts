@@ -28,3 +28,8 @@ export function deadlineWorker(store: DeadlineStore, config: DeadlineWorkerConfi
   return { start() { if (!stopped) return; stopped = false; timer = setTimeout(run, 0); timer.unref(); },
     async stop() { stopped = true; clearTimeout(timer); await pending; } };
 }
+
+export function movementLifecycleStore(closures:DeadlineStore,resolutions:{dueMatches:(limit:number)=>Promise<readonly string[]>;resolveClosed:(id:string,timeout:number)=>Promise<boolean>}):DeadlineStore{
+ return {async dueMatches(limit){const ready=await resolutions.dueMatches(limit);return [...new Set([...ready,...await closures.dueMatches(limit)])].slice(0,limit)},
+ async closeDue(id,timeout){const closed=await closures.closeDue(id,timeout);return await resolutions.resolveClosed(id,timeout)||closed}};
+}

@@ -1,4 +1,4 @@
-import { MovementDraftErrorSchema, MovementDraftPathSchema, ReadMovementQueueSchema, MovementDraftRequestSchema, UsernameSchema } from "@strategy-game/shared-types";
+import { MovementDraftErrorSchema, MovementDraftPathSchema, ReadMovementPlanSchema, MovementDraftRequestSchema, UsernameSchema } from "@strategy-game/shared-types";
 import type { MovementDraftErrorCode } from "@strategy-game/shared-types";
 import { MovementDraftError } from "@strategy-game/database";
 import type { AuthPersistence, MovementDraftRepository } from "@strategy-game/database";
@@ -37,14 +37,14 @@ export async function registerMovementDraftRoutes(app: FastifyInstance, options:
     routes.get(url, async (request) => {
       const p = path(request.params), query = request.query as Record<string, unknown>;
       if (request.body !== undefined || Object.keys(query).some((k) => k !== "schemaVersion") || (query.schemaVersion !== undefined && query.schemaVersion !== "1")) throw new MovementDraftError("INVALID_REQUEST");
-      const result = ReadMovementQueueSchema.parse(await options.drafts.getDraft(p.matchId, p.turnNumber, request.session.playerIdentityId!));
+      const result = ReadMovementPlanSchema.parse(await options.drafts.getDraft(p.matchId, p.turnNumber, request.session.playerIdentityId!));
       if (result.matchId !== p.matchId) throw new MovementDraftError("INTERNAL_ERROR");
       return result;
     });
     routes.post(url, { onRequest: [app.csrfProtection] }, async (request) => {
       const p = path(request.params), body = MovementDraftRequestSchema.safeParse(request.body);
       if (!body.success || Object.keys(request.query as object).length) throw new MovementDraftError("INVALID_REQUEST");
-      const result = ReadMovementQueueSchema.parse(await options.drafts.submitDraft(p.matchId, p.turnNumber, request.session.playerIdentityId!, body.data));
+      const result = ReadMovementPlanSchema.parse(await options.drafts.submitDraft(p.matchId, p.turnNumber, request.session.playerIdentityId!, body.data));
       if (result.state !== "READY" || result.matchId !== p.matchId || result.own.turnNumber !== p.turnNumber || result.own.revision !== body.data.expectedRevision + 1) throw new MovementDraftError("INTERNAL_ERROR");
       return result;
     });

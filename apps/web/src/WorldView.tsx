@@ -6,8 +6,9 @@ import { lobbyRequest, LobbyRequestError } from './lobby-api'
 import TurnStatus from './TurnStatus'
 import Formations from './Formations'
 import MovementQueue from './MovementQueue'
+import MovementResolution from './MovementResolution'
 
-function MapView({ world, formation, route, choose }: { world: PublicWorld; formation: OwnFormation | null; route: MovementRoute | null; choose: ((point: { x: number; y: number }) => void) | null }) {
+function MapView({ world, formation, route, choose,policy }: { world: PublicWorld; formation: OwnFormation | null; route: MovementRoute | null; choose: ((point: { x: number; y: number }) => void) | null;policy?:{radius:10;pending:boolean} }) {
   const [selection, setSelection] = useState(0)
   const mapId = useId()
   const refs = useRef(new Map<string, SVGPolygonElement>())
@@ -41,7 +42,7 @@ function MapView({ world, formation, route, choose }: { world: PublicWorld; form
   }
   const adjacent = world.links.filter((e) => e.a === selected.territoryId || e.b === selected.territoryId).map((e) => e.a === selected.territoryId ? e.b : e.a)
   return <>
-    <p className="muted" id={`${mapId}-instructions`}>Initial map shared with active participants. Tab enters the map at the selected territory. Arrow keys select neighboring territories without wrapping; Enter or Space selects. Tab or Shift+Tab leaves the map. Scroll to explore. Borders show adjacency; movement is not implemented.</p>
+    <p className="muted" id={`${mapId}-instructions`}>Initial map shared with active participants. Tab enters the map at the selected territory. Arrow keys select neighboring territories without wrapping; Enter or Space selects. Tab or Shift+Tab leaves the map. Scroll to explore. Borders show adjacency; {policy?'movement outcomes are server-authoritative.':'movement is not implemented.'}</p>
     <ul className="world-legend" aria-label="Player identifiers">{world.players.map((p) => <li key={p.playerId}><span aria-hidden="true" style={{ color: color(p.playerId) }}>■</span> {ownerId(p.playerId)}: {p.username}</li>)}<li>★ Capital · Unmarked territories are neutral</li></ul>
     <p className="small muted">Terrain patterns: dots = plains, diagonal lines = forest, peaks = hills. Selection has a solid gold border; keyboard focus has an inset dashed outline.</p>
     <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">Selected {selected.territoryId}.</p>
@@ -77,6 +78,8 @@ function MapView({ world, formation, route, choose }: { world: PublicWorld; form
           </text>}
         </g>)}
         {formation && <g className="formation-marker" transform={`translate(${formation.position.x} ${formation.position.y})`} aria-hidden="true" pointerEvents="none">
+          {policy&&<circle r={policy.radius} fill="none" stroke="#D4AF37" strokeWidth="1" data-testid="collision-circle"/>}
+          {policy?.pending&&<text x="0" y="-42" textAnchor="middle" fill="#fff">Pending battle</text>}
           <path d="M0 -36L36 0L0 36L-36 0Z" fill="none" stroke="#fff" strokeWidth="3" vectorEffect="non-scaling-stroke" />
         </g>}
         <g className="planned-route" aria-hidden="true" pointerEvents="none">{route?.segments.map((s) => <g key={s.orderId}>
@@ -91,7 +94,7 @@ function MapView({ world, formation, route, choose }: { world: PublicWorld; form
           <dt>City</dt><dd>{selected.city ? 'Capital' : 'None'}</dd><dt>Position</dt><dd>{selected.center.x}, {selected.center.y}</dd>
           <dt>Resources</dt><dd>{selected.resources.length ? 'Military Supplies: 0 (initial fixture)' : 'None'}</dd>
           <dt>Adjacent territories</dt><dd>{adjacent.join(', ')}</dd></dl>
-        <p className="small muted">Read-only initial world. A saved Turn 1 may be open; movement, economy processing and turn controls are not available.</p>
+        <p className="small muted">{policy?'Immutable initial map; formation markers show stored movement state. No combat or Turn 2.':'Read-only initial world. A saved Turn 1 may be open; movement, economy processing and turn controls are not available.'}</p>
       </section>
     </div>
   </>
@@ -134,8 +137,8 @@ function MatchWorldView({ matchId, onClose, onSessionError }: { matchId: string;
     <div className="section-heading"><h1 id="world-title">Initial world</h1><button onClick={onClose}>Back to lobbies</button><button disabled={loading} onClick={() => void refresh()}>Refresh world</button></div>
     {loading ? <p role="status">Loading world…</p> : error ? <p role="alert">{error}</p>
       : result?.state === 'READY' ? <Formations matchId={matchId} world={result.world} onSessionError={sessionError}
-        map={(formation) => <MovementQueue matchId={matchId} world={result.world} formation={formation} onSessionError={sessionError}
-          map={(route, choose) => <MapView world={result.world} formation={formation} route={route} choose={choose} />} />} />
+        map={(formation,policy) => <><MovementQueue matchId={matchId} world={result.world} formation={formation} onSessionError={sessionError}
+          map={(route, choose) => <MapView world={result.world} formation={formation} route={route} choose={choose} {...(policy?{policy}:{})} />} />{policy&&<MovementResolution matchId={matchId} onSessionError={sessionError}/>}</>} />
         : result?.state === 'UNINITIALIZED' ? <section className="panel" role="status" aria-live="polite" aria-atomic="true" aria-labelledby="world-unavailable-title">
           <h2 id="world-unavailable-title">Map unavailable for this match</h2>
           <p>This match started before world-map support was added and has no saved map to display.</p>

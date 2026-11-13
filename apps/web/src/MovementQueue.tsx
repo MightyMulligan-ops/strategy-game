@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import type { ReactNode, SyntheticEvent } from 'react'
-import type { MovementDraftOrder, MovementDraftRequest, MovementRoute, OwnFormation, PublicWorld, ReadMovementQueue } from '@strategy-game/shared-types'
+import type { MovementDraftOrder, MovementDraftRequest, MovementRoute, OwnFormation, PublicWorld, ReadMovementPlan } from '@strategy-game/shared-types'
 import { MovementRequestError, readMovementDraft, writeMovementDraft, writeTurnReady } from './movement-api'
 
 type Point = { x: number; y: number }
@@ -9,7 +9,7 @@ export default function MovementQueue({ matchId, world, formation, onSessionErro
   map: (route: MovementRoute | null, choose: ((point: Point) => void) | null) => ReactNode
 }) {
   const id = useId()
-  const [result, setResult] = useState<ReadMovementQueue | null>(null)
+  const [result, setResult] = useState<ReadMovementPlan | null>(null)
   const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false)
   const [error, setError] = useState(''), [notice, setNotice] = useState('')
   const [selected, setSelected] = useState(false), [choosing, setChoosing] = useState(false)
@@ -20,10 +20,10 @@ export default function MovementQueue({ matchId, world, formation, onSessionErro
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer) }, [])
   const destinationX = useRef<HTMLInputElement>(null)
   useEffect(() => { if (destinationFocusRequest > 0) destinationX.current?.focus() }, [destinationFocusRequest])
-  const validateContext = useCallback((response: ReadMovementQueue) => {
+  const validateContext = useCallback((response: ReadMovementPlan) => {
     if (response.state === 'READY' && (!formation || response.route.formationId !== formation.formationId ||
       response.route.segments.some((s) => s.destination.x > world.bounds.width || s.destination.y > world.bounds.height) ||
-      (response.route.segments[0] && (response.route.segments[0].from.x !== formation.position.x || response.route.segments[0].from.y !== formation.position.y)))) throw new MovementRequestError()
+      (response.route.segments[0] && (response.route.segments[0].from.x !== (response.schemaVersion===3?response.initialPosition.x:formation.position.x) || response.route.segments[0].from.y !== (response.schemaVersion===3?response.initialPosition.y:formation.position.y))))) throw new MovementRequestError()
     return response
   }, [formation, world])
   const handleAccess = useCallback(async (failure: unknown) => {
@@ -38,7 +38,7 @@ export default function MovementQueue({ matchId, world, formation, onSessionErro
     if (!formation) { setLoading(false); return }
     try {
       const response = validateContext(await readMovementDraft(matchId, controller.signal))
-      if (!controller.signal.aborted) { setResult(response); if (response.schemaVersion === 2) window.dispatchEvent(new CustomEvent('sovereign-turn-refresh', { detail: matchId })) }
+      if (!controller.signal.aborted) { setResult(response); if (response.schemaVersion >= 2) window.dispatchEvent(new CustomEvent('sovereign-turn-refresh', { detail: matchId })) }
     } catch (failure) {
       if (controller.signal.aborted) return
       setError(failure instanceof MovementRequestError ? failure.message : 'Unable to load movement drafts.')
@@ -57,7 +57,7 @@ export default function MovementQueue({ matchId, world, formation, onSessionErro
     return () => window.removeEventListener('online', reconnect)
   }, [refresh])
   async function changeReadiness() {
-    if (locked.current || !ready || ready.schemaVersion !== 2 || ready.turn.status !== 'open') return
+    if (locked.current || !ready || ready.schemaVersion < 2 || ready.turn.status !== 'open') return
     locked.current = true; setBusy(true); setChoosing(false); setError(''); setNotice('')
     const controller = new AbortController(); write.current = controller
     try {
@@ -116,15 +116,15 @@ export default function MovementQueue({ matchId, world, formation, onSessionErro
     <div className="section-heading"><h2 id={id}>Movement Queue</h2><button type="button" disabled={loading || busy} onClick={() => void refresh()}>Refresh movement queue</button></div>
     {error && <p role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
     {loading ? <p role="status">Loading movement queue…</p> : ready ? <>
-      <p>Planned route only. Your formation stays at its capital. No movement or encounters execute.</p>
+      <p>Planned route only. {ready.turn.status==='resolved'?'Movement is complete. The marker shows your stored position; combat has not occurred.':'Your formation stays at its capital. No movement or encounters execute.'}</p>
       <p>Revision {ready.own.revision} · Distance {ready.route.distance.toFixed(2)} / 250 · Remaining {ready.route.remaining.toFixed(2)} map units</p>
-      {ready.schemaVersion === 2 && <div aria-label="Turn readiness">
+      {ready.schemaVersion >= 2 && <div aria-label="Turn readiness">
         <p role="status">Authoritative Turn 1: {ready.turn.status.toUpperCase()} · Your status: {ready.own.ready ? 'Ready' : 'Unready'}.</p>
         {ready.turn.status === 'open' ? <>
           <p>Informational countdown: {Math.max(0, Math.ceil((ready.turn.deadlineAtMs - now) / 1000))} seconds. Only the server closes the turn.</p>
           <button type="button" disabled={busy} onClick={() => void changeReadiness()}>{ready.own.ready ? 'Become Unready' : 'Mark Ready'}</button>
           {ready.own.ready && <p>Editing is locked until you explicitly become Unready before closure.</p>}
-        </> : <p>Turn 1 is closed. These orders are frozen; formations have not moved and Turn 2 has not opened.</p>}
+        </> : <p>{ready.turn.status==='resolved'?'Turn 1 is resolved. No combat has occurred and Turn 2 has not opened.':'Turn 1 is closed. These orders are frozen; formations have not moved and Turn 2 has not opened.'}</p>}
       </div>}
       <form onSubmit={destination} className="movement-entry">
         <div className="movement-field"><label htmlFor={`${id}-formation`}>Owned formation</label><select id={`${id}-formation`} value={selected ? formation.formationId : ''} disabled={busy || !canEdit}

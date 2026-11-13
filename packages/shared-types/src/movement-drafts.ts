@@ -75,3 +75,12 @@ export const ClosureMovementReadySchema = z.strictObject({ ...MovementDraftReady
 }).readonly();
 export const ReadMovementQueueSchema = z.union([ReadMovementDraftSchema, ClosureMovementReadySchema]);
 export type ReadMovementQueue = z.infer<typeof ReadMovementQueueSchema>;
+
+export const ResolutionMovementReadySchema=z.strictObject({...ClosureMovementReadySchema.unwrap().shape,schemaVersion:z.literal(3),
+ initialPosition:WorldPointSchema}).superRefine((v,ctx)=>{
+ const {initialPosition,...base}=v;void initialPosition;
+ const turn={schemaVersion:1,gameId:v.turn.gameId,turnNumber:v.turn.turnNumber,status:"open",openedAtMs:v.turn.openedAtMs,deadlineAtMs:v.turn.deadlineAtMs};
+ if(!ClosureMovementReadySchema.safeParse({...base,schemaVersion:2,turn}).success)ctx.addIssue({code:"custom",message:"Invalid movement-resolution queue projection"});
+}).readonly();
+export const ReadMovementPlanSchema=z.union([ReadMovementQueueSchema,ResolutionMovementReadySchema]);
+export type ReadMovementPlan=z.infer<typeof ReadMovementPlanSchema>;

@@ -145,3 +145,7 @@ Existing snapshot/turn/player/order/history tables store the separately pinned v
 ## Issue #59 closure cohort
 
 [TURN_CLOSURE.md](../docs/TURN_CLOSURE.md) describes the additive `202611130003_turn_closure` guard migration, strict v5 restoration and frozen-v2 lifecycle. No table/model changes or old-match upgrades. Task-side SQL execution is prohibited; only explicitly authorized fresh disposable hosted CI applies the committed migration chain. Existing-environment rollout is a separate owner gate.
+
+## 006D.4 movement resolution (Issue #61)
+
+[MOVEMENT_RESOLUTION.md](../docs/MOVEMENT_RESOLUTION.md) specifies the new movement-resolution-v1 cohort, strict initial/frozen/result/resolved contracts, exact swept contact, strict-before-contact milliworld stopping, hostile-edge encounter components, atomic Turn 1 resolution and participant-only audit/event UI. Different active owners are hostile only in this new cohort. Historical runtimes remain unchanged. No combat, Turn 2, existing-environment migration or deployment is included.
