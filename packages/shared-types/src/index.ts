@@ -186,3 +186,6 @@ export type TurnErrorResponse = z.infer<typeof TurnErrorResponseSchema>;
 export { MovementDraftOrderSchema, MovementDraftOrdersSchema, MovementDraftRequestSchema, MovementDraftPathSchema,
   MovementDraftCommandSchema, MovementRouteSchema, MovementDraftReadySchema, ReadMovementDraftSchema, MovementDraftErrorSchema } from "./movement-drafts.js";
 export type { MovementDraftRequest, MovementDraftCommand, MovementDraftOrder, MovementDraftReady, ReadMovementDraft, MovementRoute, MovementDraftErrorCode } from "./movement-drafts.js";
+
+export { ClosureMovementReadySchema, ReadMovementQueueSchema } from "./movement-drafts.js";
+export type { ReadMovementQueue } from "./movement-drafts.js";

@@ -1,8 +1,9 @@
 import { GameConfigSchema, MovementDraftPathSchema, MovementDraftRequestSchema, MovementDraftReadySchema, UsernameSchema } from "@strategy-game/shared-types";
-import type { MovementDraftErrorCode, MovementDraftRequest, ReadMovementDraft } from "@strategy-game/shared-types";
+import type { MovementDraftErrorCode, MovementDraftRequest, ReadMovementQueue } from "@strategy-game/shared-types";
 import { MovementDraftFailure, previewMovementDraft, reviseMovementDraft } from "@strategy-game/game-engine";
 import { Prisma } from "./generated/prisma/client.js";
 import type { PrismaClient } from "./generated/prisma/client.js";
+import { TurnClosureRepository, closureView } from "./turn-closure-repository.js";
 import { configurationRuntime, readStoredTurn } from "./turn-storage.js";
 import type { StoredTurn } from "./turn-storage.js";
 import { json, orderRows } from "./mappings.js";
@@ -60,7 +61,7 @@ async function context(tx: Transaction, matchId: string) {
 /** Dedicated production adapter. Does not use lifecycle commands, clocks or writes on GET. */
 export class MovementDraftRepository {
   constructor(private readonly client: PrismaClient, private readonly clock: () => number = Date.now) {}
-  async getDraft(matchId: string, turnNumber: number, identityId: string): Promise<ReadMovementDraft> {
+  async getDraft(matchId: string, turnNumber: number, identityId: string): Promise<ReadMovementQueue> {
     if (!MovementDraftPathSchema.safeParse({ matchId, turnNumber }).success) throw new MovementDraftError("INVALID_REQUEST");
     try {
       return await this.client.$transaction(async (tx) => {
@@ -70,6 +71,7 @@ export class MovementDraftRepository {
         const metadata = await context(tx, matchId);
         if (metadata.state !== "READY") return { schemaVersion: 1, matchId, state: metadata.state };
         const aggregate = await readStoredTurn(tx, matchId, 1);
+        if (aggregate.kind === "turn_closure") return closureView(aggregate, member.playerId);
         if (aggregate.kind !== "movement_drafts") return { schemaVersion: 1, matchId, state: "UNSUPPORTED" };
         return view(aggregate, member.playerId);
       }, { isolationLevel: "RepeatableRead" });
@@ -77,6 +79,8 @@ export class MovementDraftRepository {
   }
   async submitDraft(matchId: string, turnNumber: number, identityId: string, input: MovementDraftRequest) {
     if (!MovementDraftPathSchema.safeParse({ matchId, turnNumber }).success || !MovementDraftRequestSchema.safeParse(input).success) throw new MovementDraftError("INVALID_REQUEST");
+    const existing = await this.getDraft(matchId, turnNumber, identityId);
+    if (existing.schemaVersion === 2) return new TurnClosureRepository(this.client, this.clock).mutate(matchId, turnNumber, identityId, input);
     try {
       return await this.client.$transaction(async (tx) => {
         await participant(tx, matchId, identityId); // Deny before locks or private metadata.

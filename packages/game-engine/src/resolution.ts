@@ -23,7 +23,7 @@ export type TurnResolution =
 function claimsInitialWorld(value: unknown): boolean {
   return value !== null && typeof value === "object" && (
     "kind" in value && (value.kind === "initial_world" || value.kind === "initial_armies" || value.kind === "movement_drafts") ||
-    "simulationVersion" in value && (value.simulationVersion === INITIAL_WORLD_SIMULATION_VERSION || value.simulationVersion === "initial-armies-v1" || value.simulationVersion === "movement-drafts-v1")
+    "simulationVersion" in value && (value.simulationVersion === INITIAL_WORLD_SIMULATION_VERSION || value.simulationVersion === "initial-armies-v1" || value.simulationVersion === "movement-drafts-v1" || value.simulationVersion === "turn-closure-v1")
   );
 }
 

@@ -353,3 +353,7 @@ New explicitly pinned `initial-armies-v1` matches initialize one Infantry-specia
 ## 006D.2 movement drafts (Issue #51)
 
 A new creation-pinned runtime accepts only whole-formation private movement drafts for the unchanged initial army. Numbering follows queue order; Euclidean distance is cumulative <=250, with integer destinations in actual map bounds. Drafts remain unready, actual positions stay immutable, and deadline rejection leaves the turn OPEN. No Ready/closure/execution/encounter/combat or new radius/contact rule is included. See [MOVEMENT_DRAFTS.md](MOVEMENT_DRAFTS.md).
+
+## 006D.3 approved Ready lock and closure (Issue #59)
+
+For new creation-pinned `turn-closure-v1` matches only, Ready locks order edits until explicit Unready. This supersedes the historical generic implicit-Ready-reset rule above for this cohort; old runtimes retain their original rules. Final Ready or server deadline atomically closes Turn 1 and freezes every last committed queue. A bounded in-process worker and authorized mutating requests observe deadlines; GET and browser countdowns remain observational. CLOSED does not execute movement or open Turn 2. See [TURN_CLOSURE.md](TURN_CLOSURE.md).

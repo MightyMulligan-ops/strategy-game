@@ -35,7 +35,7 @@ export function validateMovementDraftSnapshot(input: unknown, archive: unknown, 
   return freeze(snapshot);
 }
 /** Complete candidate assessment. Authoritative positions, unit membership and source never change. */
-export function previewMovementDraft(snapshot: MovementDraftSnapshot, archive: InitialWorldArchive, actor: string, input: unknown): MovementRoute {
+export function previewMovementDraft(snapshot: Pick<MovementDraftSnapshot, "config" | "formations" | "units">, archive: InitialWorldArchive, actor: string, input: unknown): MovementRoute {
   const parsed = MovementDraftOrdersSchema.safeParse(input);
   const formation = snapshot.formations.find((f) => f.ownerPlayerId === actor);
   if (!parsed.success || !formation || parsed.data.some((o) => o.stackId !== formation.formationId)) throw new MovementDraftFailure("INVALID_DRAFT");

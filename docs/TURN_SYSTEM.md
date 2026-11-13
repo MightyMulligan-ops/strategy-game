@@ -152,3 +152,7 @@ The new creation-pinned `initial-armies/1` / `initial-armies-v1` profile and v3 
 ## Revisioned movement drafts (006D.2 / Issue #51)
 
 `movement-drafts-v1` / strict snapshot v4 `movement_drafts` is a new creation-only cohort. Existing lifecycle commands remain refused; dedicated ordered replacement/cancellation validates the actual intact formation and cumulative 250 budget, advances only own revision/orders/history and leaves Turn metadata OPEN/immutable. Restoration replays complete history; GET stays read-only. A new queue GET/POST preserves old DTOs and has normal session/membership/Origin/CSRF controls. See [MOVEMENT_DRAFTS.md](MOVEMENT_DRAFTS.md) for contracts, deadlines, SQL and verification limits.
+
+## 006D.3 production closure cohort (Issue #59)
+
+[TURN_CLOSURE.md](TURN_CLOSURE.md) specifies strict v5 initialization, explicit Ready locks, atomic OPEN→CLOSED plus immutable frozen-v2 input, own-only APIs/UI and a bounded in-process deadline observer. Historical runtime behavior stays unchanged. No movement, resolution or Turn 2 runs; migration authoring and hosted disposable CI do not authorize existing-environment deployment.

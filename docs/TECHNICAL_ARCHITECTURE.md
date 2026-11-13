@@ -419,3 +419,7 @@ Do not report checks as passed unless they were actually run.
 ## 006D.2 private movement drafts
 
 [MOVEMENT_DRAFTS.md](MOVEMENT_DRAFTS.md) specifies the separate creation-pinned v4 runtime, dedicated no-closure validation, parent-first revision transaction, complete audit replay, additive new-profile SQL guards and own-only queue GET/POST. The old engine command path, resolver and immutable cohorts remain unchanged. React shows only accepted planned routes beside the fixed own formation. No execution or storage architecture change is introduced.
+
+## 006D.3 production closure cohort (Issue #59)
+
+[TURN_CLOSURE.md](TURN_CLOSURE.md) specifies strict v5 initialization, explicit Ready locks, atomic OPEN→CLOSED plus immutable frozen-v2 input, own-only APIs/UI and a bounded in-process deadline observer. Historical runtime behavior stays unchanged. No movement, resolution or Turn 2 runs; migration authoring and hosted disposable CI do not authorize existing-environment deployment.

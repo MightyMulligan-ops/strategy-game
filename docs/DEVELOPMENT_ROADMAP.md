@@ -33,7 +33,7 @@ Assignment 007 / Issue #2 is merged: issue templates, status labels, a human-sta
 
 - [x] Automation 011 / Issue #53: one-issue short cloud launch, explicit B/C+D+P approval bundle and standardized evidence handoff; PR #54 owner-merged as `4c299af1f92fb4068d81dee432b1a5e5cfaa7272`, verified before Issue #55. Documentation/templates/static policy tests only; CI privileges, app/gameplay, schemas and dependencies unchanged. Five implementation passes and separate two-owner-attempt repairs persist across transfers; E/F remain separate decisions. See [CODEX_PIPELINE.md](CODEX_PIPELINE.md).
 - [x] Automation 012 / Issue #55: read-only acceptance packet, [PR #56](https://github.com/MightyMulligan-ops/strategy-game/pull/56) merged as `03a122a6556f68c8e1406737602bdb89a9c50853`, independently verified for Issue #57. Same artifacts/permissions, conservative source/base/CI/count/migration/cleanup evidence. Merge does not establish live reporter validation; record that separately. See [PR_REVIEW.md](PR_REVIEW.md#read-only-acceptance-packet-automation-012--issue-55).
-- [ ] Automation 013 / Issue #57: deterministic read-only evidence triage and bounded exact-head owner review text in the existing reporter/artifacts. No automatic launch, repair, acceptance or merge; live 012 validation recorded only from eligible existing runs. In progress / unmerged pending owner review.
+- [x] Automation 013 / Issue #57: deterministic read-only evidence triage and bounded exact-head owner review text in the existing reporter/artifacts. No automatic launch, repair, acceptance or merge; live 012 validation recorded only from eligible existing runs. PR #58 merged as `1c4c1348a786c50843181ca16c61e97a56d1bcdc`, independently verified before Issue #59.
 
 **Exit criteria:** A clean install, type-check, and test command work; web and server can start locally; core design docs are discoverable.
 
@@ -330,3 +330,5 @@ Implementation prepared / unmerged: strict versioned units/formations, one Lieut
 ## Milestone 006D.2 — Movement drafts (Issue #51)
 
 Prepared locally / unmerged: creation-pinned v4, authenticated revisioned complete-draft replacement/cancellation, cumulative 250-unit validation and dotted route/Movement Queue UI. Gates B/C authorize code and additive SQL authoring only. Hosted integration tests are authored but unrun; no publication or CI is authorized. Movement execution, Ready/closure, encounters and runtime transition remain separate. See [MOVEMENT_DRAFTS.md](MOVEMENT_DRAFTS.md).
+
+- [ ] 006D.3 / Issue #59: production Ready/Unready, authoritative Turn 1 closure, frozen-v2 input and bounded deadline worker. Issue branch implementation / pending draft review; [TURN_CLOSURE.md](TURN_CLOSURE.md). No movement execution, Turn 2 or deployment.

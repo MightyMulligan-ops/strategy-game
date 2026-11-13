@@ -15,3 +15,5 @@ export { FormationReadRepository } from "./formation-read-repository.js";
 export { MovementDraftRepository, MovementDraftError } from "./movement-draft-repository.js";
 export { localTestIdentity, isLocalTestIdentity } from "./local-test-identities.js";
 export type { LocalTestPlayer, LocalTestLoginPersistence } from "./local-test-identities.js";
+
+export { TurnClosureRepository } from "./turn-closure-repository.js";
