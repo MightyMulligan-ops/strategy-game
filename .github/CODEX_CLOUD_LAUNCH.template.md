@@ -6,7 +6,8 @@ Use the published Sovereign cloud environment. Follow trusted AGENTS.md and
 its frozen scope and active claims before starting; this template grants nothing.
 Use only the operations explicitly approved for this issue. Preserve exclusions,
 the five-pass implementation history and the separate two-attempt repair history.
-Deliver the standardized cloud handoff and stop for owner review.
+Deliver the standardized cloud handoff, link the read-only acceptance packet
+(PR review summary / report.md / handoff.md), and stop for owner review.
 
 Explicit owner overrides: NONE. (If supplied, identify the operation, issue and
 owner source. An override cannot grant itself authority or silently widen scope.)

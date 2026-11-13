@@ -49,6 +49,11 @@ identity and freshness; do not duplicate the reporter or treat its summary as au
   confirm zero DB skips with the actual count source:
 - Container/network cleanup evidence; warnings/failures/unverified behavior:
 - Head-bound CI does not establish current-base compliance or permission to merge.
+- Automation 012 packet: sovereign-pr-acceptance-v1 in the existing read-only
+  PR review run summary and report.md / handoff.md artifact. Record its source
+  HEAD versus synthetic checkout/parents/current-main evidence and each
+  PASS / FAIL / UNKNOWN / NEEDS_OWNER_REVIEW check; no overall acceptance is granted.
+  Approval links remain UNVERIFIED; inspect the frozen scope and relevant diff.
 
 ## Correction and transfer history
 
