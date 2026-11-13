@@ -90,14 +90,23 @@ BEGIN
   IF TG_TABLE_NAME IN ('OrderDependency','FrozenTurnInputRecord','ResolutionResult') THEN RAISE EXCEPTION 'Draft runtime cannot execute lifecycle/gameplay'; END IF;
   IF TG_TABLE_NAME IN ('MatchWorld','GameSnapshotRecord','Turn') THEN
     IF TG_OP <> 'INSERT' OR lifecycle <> 'OPEN' THEN RAISE EXCEPTION 'Initial world, snapshot and turn are immutable'; END IF;
-    IF TG_TABLE_NAME = 'GameSnapshotRecord' AND (NEW."stateVersion" = 0 AND NEW."completedTurnNumber" = 0 AND NEW."snapshotId" ~ '^movement-drafts:[a-f0-9]{64}$') IS NOT TRUE THEN RAISE EXCEPTION 'Invalid v4 snapshot'; END IF;
-    IF TG_TABLE_NAME = 'Turn' AND (NEW."number" = 1 AND NEW."startingStateVersion" = 0 AND NEW."status" = 'OPEN' AND NEW."lastObservedAtMs" = NEW."openedAtMs" AND NEW."closedAtMs" IS NULL AND NEW."closeReason" IS NULL) IS NOT TRUE THEN RAISE EXCEPTION 'Only immutable OPEN Turn 1 is allowed'; END IF;
+    -- Boolean expressions cannot safely short-circuit fields absent from NEW's table.
+    IF TG_TABLE_NAME = 'GameSnapshotRecord' THEN
+      IF (NEW."stateVersion" = 0 AND NEW."completedTurnNumber" = 0 AND NEW."snapshotId" ~ '^movement-drafts:[a-f0-9]{64}$') IS NOT TRUE THEN RAISE EXCEPTION 'Invalid v4 snapshot'; END IF;
+    END IF;
+    IF TG_TABLE_NAME = 'Turn' THEN
+      IF (NEW."number" = 1 AND NEW."startingStateVersion" = 0 AND NEW."status" = 'OPEN' AND NEW."lastObservedAtMs" = NEW."openedAtMs" AND NEW."closedAtMs" IS NULL AND NEW."closeReason" IS NULL) IS NOT TRUE THEN RAISE EXCEPTION 'Only immutable OPEN Turn 1 is allowed'; END IF;
+    END IF;
     RETURN NEW;
   END IF;
   IF lifecycle = 'OPEN' THEN
     IF TG_OP <> 'INSERT' THEN RAISE EXCEPTION 'Initialization permits inserts only'; END IF;
-    IF TG_TABLE_NAME = 'PlayerTurnState' AND (NEW."turnNumber" = 1 AND NEW."active" AND NEW."revision" = 0 AND NOT NEW."ready") IS TRUE THEN RETURN NEW; END IF;
-    IF TG_TABLE_NAME = 'PlayerSubmissionRevision' AND (NEW."turnNumber" = 1 AND NEW."revision" = 0 AND NEW."kind" = 'INITIAL' AND NOT NEW."ready" AND NEW."orders" = '[]'::jsonb AND NEW."command" IS NULL) IS TRUE THEN RETURN NEW; END IF;
+    IF TG_TABLE_NAME = 'PlayerTurnState' THEN
+      IF (NEW."turnNumber" = 1 AND NEW."active" AND NEW."revision" = 0 AND NOT NEW."ready") IS TRUE THEN RETURN NEW; END IF;
+    END IF;
+    IF TG_TABLE_NAME = 'PlayerSubmissionRevision' THEN
+      IF (NEW."turnNumber" = 1 AND NEW."revision" = 0 AND NEW."kind" = 'INITIAL' AND NOT NEW."ready" AND NEW."orders" = '[]'::jsonb AND NEW."command" IS NULL) IS TRUE THEN RETURN NEW; END IF;
+    END IF;
     RAISE EXCEPTION 'Only empty unready revision-zero initialization is allowed';
   END IF;
   IF TG_OP = 'DELETE' THEN RAISE EXCEPTION 'Draft/history deletion is prohibited'; END IF;

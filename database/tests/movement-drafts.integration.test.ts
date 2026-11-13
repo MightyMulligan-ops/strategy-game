@@ -47,6 +47,19 @@ describe.skipIf(process.env.RUN_DATABASE_TESTS !== "1")("movement drafts (separa
     turns: { include: { players: { include: { orders: true, revisions: true } }, frozenInput: true, resolution: true } } } });
   it.each([2, 4, 10, 40])("initializes/restores %i-player v4 and persists only the caller draft", async (count) => {
     const f = await fresh(count), before = await inspect(f.id);
+    expect(before.status).toBe("RUNNING");
+    expect(before.world).toMatchObject({ matchId: f.id, schemaVersion: 1, generatorVersion: "territory-grid-v1" });
+    expect(before.snapshots).toHaveLength(1);
+    expect(before.snapshots[0]).toMatchObject({ stateVersion: 0n, completedTurnNumber: 0n,
+      snapshotId: expect.stringMatching(/^movement-drafts:[a-f0-9]{64}$/), payload: { schemaVersion: 4, kind: "movement_drafts" } });
+    expect(before.turns).toHaveLength(1);
+    expect(before.turns[0]).toMatchObject({ number: 1n, startingStateVersion: 0n, status: "OPEN", closedAtMs: null, closeReason: null });
+    expect(before.turns[0]!.players).toHaveLength(count);
+    for (const player of before.turns[0]!.players) {
+      expect(player).toMatchObject({ turnNumber: 1n, active: true, revision: 0n, ready: false, orders: [] });
+      expect(player.revisions).toHaveLength(1);
+      expect(player.revisions[0]).toMatchObject({ revision: 0n, kind: "INITIAL", ready: false, orders: [], command: null });
+    }
     const accepted = await f.submit([f.order("first", 250)]); expect(accepted.route.remaining).toBe(0);
     const second = createDatabaseClient(testDatabaseUrl(process.env.TEST_DATABASE_URL));
     try {
@@ -57,6 +70,33 @@ describe.skipIf(process.env.RUN_DATABASE_TESTS !== "1")("movement drafts (separa
     const after = await inspect(f.id); expect(after.world).toEqual(before.world); expect(after.snapshots).toEqual(before.snapshots); expect(after.configuration).toEqual(before.configuration);
     expect(after.turns[0]).toMatchObject({ status: "OPEN", openedAtMs: before.turns[0]!.openedAtMs, lastObservedAtMs: before.turns[0]!.openedAtMs, frozenInput: null, resolution: null });
     expect((await new MatchRepository(client).loadTurn(f.id, 1)).kind).toBe("movement_drafts");
+  });
+  it.each([
+    ["MatchWorld", "update", "Initial worlds are immutable"],
+    ["MatchWorld", "delete", "Initial worlds are immutable"],
+    ["GameSnapshotRecord", "update", "Immutable record in GameSnapshotRecord cannot be updated"],
+    ["GameSnapshotRecord", "delete", "Initial world, snapshot and turn are immutable"],
+    ["Turn", "update", "Initial world, snapshot and turn are immutable"],
+    ["Turn", "delete", "Initial world, snapshot and turn are immutable"],
+  ] as const)("initializes %s legitimately but rejects its %s through the intended immutable guard", async (table, operation, message) => {
+    // A successful start exercises every attached row shape before testing rejection.
+    // MatchWorld lacks snapshot/Turn fields; player rows lack history-specific fields.
+    const f = await fresh(), before = await inspect(f.id);
+    const action = async () => {
+      if (table === "MatchWorld") return operation === "delete"
+        ? client.matchWorld.delete({ where: { matchId: f.id } })
+        : client.matchWorld.update({ where: { matchId: f.id }, data: { seed: before.world!.seed } });
+      if (table === "GameSnapshotRecord") return operation === "delete"
+        ? client.gameSnapshotRecord.deleteMany({ where: { matchId: f.id } })
+        : client.gameSnapshotRecord.updateMany({ where: { matchId: f.id }, data: { snapshotId: before.snapshots[0]!.snapshotId } });
+      return operation === "delete"
+        ? client.turn.deleteMany({ where: { matchId: f.id } })
+        : client.turn.updateMany({ where: { matchId: f.id }, data: { lastObservedAtMs: before.turns[0]!.lastObservedAtMs } });
+    };
+    // Checking the deliberate guard message prevents an unrelated missing-column
+    // failure from masquerading as successful immutability enforcement.
+    await expect(action()).rejects.toThrow(message);
+    expect(await inspect(f.id)).toEqual(before);
   });
   it("serializes concurrent revisions across connections and preserves independent players", async () => {
     const f = await fresh(), second = createDatabaseClient(testDatabaseUrl(process.env.TEST_DATABASE_URL));

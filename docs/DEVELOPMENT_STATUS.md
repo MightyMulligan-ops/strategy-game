@@ -272,3 +272,33 @@ Delivery: one dedicated local branch `issue/51-movement-drafts` and one coherent
 - `packages/shared-types/src/index.ts`
 - `packages/shared-types/src/movement-drafts.ts`
 - `packages/shared-types/src/server.ts`
+
+### Issue #51 owner-authorized corrective pass 1 — local only
+
+This append-only entry supersedes the prepublication delivery state above without erasing the original five implementation passes. The owner subsequently authorized exact publication of `914be9ec0d45968e2cd640ae51c70a8a91befdcb`; [draft PR #52](https://github.com/MightyMulligan-ops/strategy-game/pull/52) remains open/unmerged. [CI run #75, attempt 1](https://github.com/MightyMulligan-ops/strategy-game/actions/runs/43365830862) passed application checks (1205 passed / 0 failed / 185 deliberately skipped database cases) but failed PostgreSQL integration (160 passed / 25 failed / 0 skipped). All eight migrations installed in fresh disposable PostgreSQL; 25 of the 26 new cases failed, predominantly during initialization with `record "new" has no field "stateVersion"`. The disposable container/network were removed. No retry was performed.
+
+The current owner request authorizes **one additional narrowly scoped corrective pass**, on the existing local `issue/51-movement-drafts` branch from that exact baseline, with no publication, PR update, CI, database access or migration execution. This is corrective pass **1 of this separate authorization**; the earlier **5/5 implementation passes remain exhausted**.
+
+Diagnosis and changes: PostgreSQL resolves record fields within a Boolean expression without the assumed table-name short circuit. In `guard_movement_draft_artifact()`, split four combined conditions into explicit outer table checks and unchanged inner predicates: snapshot metadata; Turn 1 metadata; revision-zero PlayerTurnState; and revision-zero PlayerSubmissionRevision. The existing `IS TRUE`/`IS NOT TRUE` NULL handling, error text, runtime/lifecycle gates, immutability, deadline checks, locking, revision rules and transaction boundaries stay unchanged. No other migration or application code changes.
+
+Regression authoring strengthens initialization checks for all four roster sizes (including the exact initial world, v4 snapshot, OPEN Turn 1 and empty/unready player/history rows), and adds six PostgreSQL cases covering UPDATE/DELETE refusal for MatchWorld, GameSnapshotRecord and Turn after legitimate initialization. Tests require the intended immutable-guard message and an unchanged aggregate, so an unrelated missing-column error cannot count as protection. These gated database tests must not execute in this task.
+
+Shared-trigger static review includes the historical initial-world/initial-turn/initial-armies guards and new initialization/deferred draft guards. The four affected predicates above were the only combined table-name conditions referencing table-specific NEW fields. Other combined conditions use trigger metadata or explicitly typed configuration rows; other NEW/OLD accesses are in separate table/operation branches or use columns common to all reachable attached tables. No additional same-class defect was identified. Static review is not PostgreSQL execution evidence; fresh disposable integration verification still requires separate authorization. Editing this unmerged migration changes its checksum; do not apply it to any database where the prior version was recorded, repair migration history or use it to upgrade existing matches.
+
+Corrective pass 1 completed with the following database-free verification. Every task check used `AUTH_ENABLED=false` and `RUN_DATABASE_TESTS=0`; database URL variables were unset for the build/test command runner. The shell initially resolved environment fallback pnpm 11.25.0; a temporary Corepack cache and native-binary shim outside Git restored pinned pnpm 12.18.0 for checks and nested scripts. The initial toolchain assertion stopped before running checks, with no source correction or test failure.
+
+| Command/check | Actual result |
+|---|---|
+| `pnpm --version` | Pinned 12.18.0 verified before checks |
+| `corepack pnpm install --frozen-lockfile --store-dir /workspace/.pnpm-store` | Exit 0, pnpm 12.18.0; dependency/lock files unchanged |
+| `pnpm db:generate` | Exit 0; Prisma Client 7.10.1 generated without a database connection |
+| `pnpm build` | Exit 0; full application build |
+| `pnpm typecheck` | Exit 0; includes compilation of authored integration regression tests |
+| `pnpm lint` | Exit 0 |
+| `pnpm test` | Exit 0; **1205 passed / 0 failed / 191 deliberately skipped database cases**, **44 passed / 0 failed / 11 skipped files** |
+| Static SQL/scope review | Passed; nine functions / twenty triggers retained; zero combined table-name/NEW-or-OLD-field conditions in migration function bodies. Reversing the four branch restructures recovers the baseline migration byte-for-byte apart from the explanatory comment |
+| `git diff --check` | Exit 0 |
+
+The six new regression cases are authored and compiled, **not executed**. The movement database suite now contains 30 cases; its unchanged live HTTP suite contains 2, for 32 Issue #51 PostgreSQL cases. All 191 workspace database cases remain deliberately skipped in this local pass. Migration application, live trigger/rejection behavior, deadline/concurrency/rollback/isolation and cascade verification on the corrective head remain unverified pending separately authorized fresh disposable hosted CI. No claim that the previous hosted failure is resolved by execution evidence is made.
+
+Delivery is one corrective commit on the existing local branch, with only `database/prisma/migrations/202611130002_movement_drafts/migration.sql`, `database/tests/movement-drafts.integration.test.ts` and this status record changed. Its parent is the approved baseline `914be9ec0d45968e2cd640ae51c70a8a91befdcb`. PR #52 remains draft and unchanged at that baseline; its previous CI failure is still the current published result. **No database was accessed, no migration executed, no PostgreSQL/Docker or database-backed server started, no corrective commit pushed, no PR updated/created, no hosted CI run/retry initiated, no workflow/settings changed, and no merge or deployment performed in this corrective pass.** Stop after reporting the local corrective SHA and await explicit owner publication/Gate D authorization.
