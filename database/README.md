@@ -141,3 +141,7 @@ New explicitly creation-pinned `initial-armies-v1` uses snapshot v3 in existing 
 ## Movement drafts (006D.2 / Issue #51)
 
 Existing snapshot/turn/player/order/history tables store the separately pinned v4 cohort. New `202611130002_movement_drafts` authoring retains historical guards and permits only new-runtime unready revisioned draft writes before the trusted deadline; world/snapshot/army/Turn stay immutable. Repository writes use parent-first serialization and full history restoration. SQL is not executed and integration tests remain disabled with RUN_DATABASE_TESTS=0. See [MOVEMENT_DRAFTS.md](../docs/MOVEMENT_DRAFTS.md).
+
+## Issue #59 closure cohort
+
+[TURN_CLOSURE.md](../docs/TURN_CLOSURE.md) describes the additive `202611130003_turn_closure` guard migration, strict v5 restoration and frozen-v2 lifecycle. No table/model changes or old-match upgrades. Task-side SQL execution is prohibited; only explicitly authorized fresh disposable hosted CI applies the committed migration chain. Existing-environment rollout is a separate owner gate.

@@ -48,14 +48,13 @@ export class TurnReadRepository {
         }
         if (!match.world || match.currentStateVersion !== 0n || match.turns.length !== 1 || match.turns[0]?.number !== 1n) return invalid();
         const aggregate = await readStoredTurn(tx, matchId, 1);
-        if (aggregate.kind !== "initial_world" && aggregate.kind !== "initial_armies" && aggregate.kind !== "movement_drafts") return invalid();
+        if (aggregate.kind !== "initial_world" && aggregate.kind !== "initial_armies" && aggregate.kind !== "movement_drafts" && aggregate.kind !== "turn_closure") return invalid();
         const own = aggregate.state.drafts.find((draft) => draft.playerId === member.playerId);
         if (!own || !aggregate.state.players.some((player) => player.playerId === member.playerId && player.active)) return invalid();
         const turn = aggregate.state.turn;
         // Explicit public allowlist. Never spread the archive, aggregate or private player draft.
         return ReadTurnResponseSchema.parse({ ...envelope, state: "READY",
-          turn: { schemaVersion: 1, gameId: matchId, turnNumber: turn.turnNumber, status: turn.status,
-            openedAtMs: turn.openedAtMs, deadlineAtMs: turn.deadlineAtMs },
+          turn,
           own: { schemaVersion: 1, gameId: matchId, turnNumber: turn.turnNumber,
             revision: own.revision, ready: own.ready, orders: own.orders }
         });

@@ -16,3 +16,4 @@ export type { InitialTurnInitialization } from "./turn-initialization.js";
 export { planInitialArmies, initializeArmiesTurnOne, validateInitialArmiesSnapshot, InitialArmiesError } from "./initial-armies.js";
 export { squaredDistance, geographicDistance, evaluateLeadership, evaluateStartingFootMovement, classifyEncounter, MovementInputError } from "./army-movement.js";
 export { planMovementDrafts, initializeMovementDrafts, validateMovementDraftSnapshot, previewMovementDraft, reviseMovementDraft, MovementDraftFailure } from "./movement-drafts.js";
+export { planTurnClosure, initializeTurnClosure, validateTurnClosureSnapshot, reviseClosureDraft, applyClosureCommand, observeClosureDeadline, freezeClosureInput } from "./turn-closure.js";

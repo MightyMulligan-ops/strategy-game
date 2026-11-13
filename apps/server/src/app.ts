@@ -16,15 +16,19 @@ import type { TurnReadPersistence } from "./turns/read-routes.js";
 import { registerMovementDraftRoutes } from "./turns/movement-routes.js";
 import type { MovementDraftPersistence } from "./turns/movement-routes.js";
 
+import { registerTurnReadyRoutes } from "./turns/ready-routes.js";
+import type { TurnReadyPersistence } from "./turns/ready-routes.js";
+
 export async function buildApp(options: {
   auth?: Authentication; lobbies?: LobbyPersistence; worlds?: WorldPersistence;
   turnFixtures?: { service: FixtureTurnService };
   turnReads?: TurnReadPersistence;
   formationReads?: FormationReadPersistence;
   movementDrafts?: MovementDraftPersistence;
+  turnReady?: TurnReadyPersistence;
   logger?: FastifyServerOptions["logger"]; trustProxy?: FastifyServerOptions["trustProxy"]
 } = {}) {
-  if (options.turnFixtures && options.turnReads) throw new Error("Fixture and production turn readers are mutually exclusive");
+  if (options.turnFixtures && (options.turnReads || options.turnReady)) throw new Error("Fixture and production turn readers are mutually exclusive");
   if (options.turnFixtures && process.env.NODE_ENV !== "test") throw new Error("Turn fixtures require NODE_ENV=test");
   const app = Fastify({ logger: options.logger ?? false,
     logController: new LogController({ disableRequestLogging: true }), trustProxy: options.trustProxy ?? false });
@@ -43,6 +47,7 @@ export async function buildApp(options: {
       restrictLocalTestServer(app, options.trustProxy);
     }
     await registerAuthentication(app, options.auth);
+    if (options.turnReady) await registerTurnReadyRoutes(app, { origin: options.auth.config.origin, accounts: options.auth.persistence, turns: options.turnReady });
     if (options.movementDrafts) await registerMovementDraftRoutes(app, { origin: options.auth.config.origin, accounts: options.auth.persistence, drafts: options.movementDrafts });
     if (options.turnReads) await registerTurnReadRoutes(app, { accounts: options.auth.persistence, turns: options.turnReads });
     if (options.formationReads) await registerFormationReadRoutes(app, { accounts: options.auth.persistence, formations: options.formationReads });

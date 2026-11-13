@@ -2,7 +2,7 @@
 import { act, StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { MovementDraftRequestSchema, PublicWorldSchema, OwnFormationSchema } from '@strategy-game/shared-types'
+import { SetTurnReadyRequestSchema, MovementDraftRequestSchema, PublicWorldSchema, OwnFormationSchema } from '@strategy-game/shared-types'
 import type { MovementDraftOrder, MovementRoute } from '@strategy-game/shared-types'
 import MovementQueue from './MovementQueue'
 
@@ -20,13 +20,14 @@ const json = (value: unknown, status = 200) => new Response(JSON.stringify(value
 let orders: readonly MovementDraftOrder[], revision: number, host: HTMLDivElement, root: ReturnType<typeof createRoot>
 const request = vi.fn(), session = vi.fn(async () => {})
 let currentMatch = 'match'
+let closureEnabled = false, turnReady = false, closed = false
 function response() {
   let from = formation.position, distance = 0
   const segments = orders.map((o, i) => { const length = Math.sqrt((from.x - o.destination.x) ** 2 + (from.y - o.destination.y) ** 2); distance += length
     const s = { orderId: o.orderId, moveNumber: i + 1, from, destination: o.destination, distance: length, cumulative: distance }; from = o.destination; return s })
-  return { schemaVersion: 1, matchId: currentMatch, state: 'READY',
-    turn: { schemaVersion: 1, gameId: currentMatch, turnNumber: 1, status: 'open', openedAtMs: 1000, deadlineAtMs: 2000 },
-    own: { schemaVersion: 1, gameId: currentMatch, turnNumber: 1, revision, ready: false, orders },
+  return { schemaVersion: closureEnabled ? 2 : 1, matchId: currentMatch, state: 'READY',
+    turn: { schemaVersion: 1, gameId: currentMatch, turnNumber: 1, status: closed ? 'closed' : 'open', openedAtMs: 1000, deadlineAtMs: 2000, ...(closed ? { closedAtMs: 2000, closeReason: 'deadline' } : {}) },
+    own: { schemaVersion: 1, gameId: currentMatch, turnNumber: 1, revision, ready: turnReady, orders },
     route: { formationId: formation.formationId, range: 250, distance, remaining: 250 - distance, segments } }
 }
 const map = (route: MovementRoute | null, choose: ((p: { x: number; y: number }) => void) | null) => <div>
@@ -34,9 +35,15 @@ const map = (route: MovementRoute | null, choose: ((p: { x: number; y: number })
   {choose && <button onClick={() => choose({ x: 350, y: 250 })}>Mock map destination</button>}
 </div>
 beforeEach(() => {
-  orders = []; revision = 0; currentMatch = 'match'; request.mockReset(); session.mockReset().mockResolvedValue(undefined)
+  closureEnabled = false; turnReady = false; closed = false; orders = []; revision = 0; currentMatch = 'match'; request.mockReset(); session.mockReset().mockResolvedValue(undefined)
   request.mockImplementation(async (path: string, options: RequestInit) => {
     if (path === '/auth/csrf') return json({ csrfToken: 'synthetic-current-token' })
+    if (options?.method === 'POST' && path.endsWith('/ready')) {
+      const input = SetTurnReadyRequestSchema.parse(JSON.parse(options.body as string))
+      if (input.expectedRevision !== revision) return json({ schemaVersion: 1, error: 'STALE_REVISION' }, 409)
+      turnReady = input.ready; revision++
+      const value = response(); return json({ schemaVersion: 1, matchId: currentMatch, state: 'READY', turn: value.turn, own: value.own })
+    }
     if (options.method === 'POST') {
       const input = MovementDraftRequestSchema.parse(JSON.parse(options.body as string))
       if (input.expectedRevision !== revision) return json({ schemaVersion: 1, error: 'STALE_REVISION' }, 409)
@@ -162,3 +169,31 @@ describe('authoritative Movement Queue', () => {
     await add('300'); expect(host.textContent).toContain('deadline has passed'); expect(planned()).toBe('')
   })
 });
+
+describe('closure-capable queue', () => {
+  it('allows empty Ready, locks all editing and explicitly Unready unlocks', async () => {
+    closureEnabled = true; await mount(); await click('Mark Ready')
+    expect(turnReady).toBe(true); expect(revision).toBe(1); expect(host.textContent).toContain('Editing is locked')
+    expect(host.querySelector('select')!.disabled).toBe(true)
+    expect([...host.querySelectorAll('input')].every(i => i.disabled)).toBe(true)
+    await click('Become Unready'); expect(turnReady).toBe(false); expect(revision).toBe(2); expect(host.querySelector('select')!.disabled).toBe(false)
+    expect(request.mock.calls.filter(([path, options]) => path.endsWith('/ready') && options.method === 'POST')).toHaveLength(2)
+  })
+  it('keeps accepted dotted route while Ready and displays authoritative CLOSED without execution', async () => {
+    closureEnabled = true; await mount(); await select(); await add('350'); const route = planned()
+    await click('Mark Ready'); expect(planned()).toBe(route); expect([...host.querySelectorAll('button')].find(b => b.textContent === 'Cancel Move 1')!.disabled).toBe(true)
+    closed = true; await click('Refresh movement queue'); expect(planned()).toBe(route); expect(host.textContent).toContain('Turn 1 is closed')
+    expect(host.textContent).toContain('formations have not moved'); expect(host.textContent).toContain('Turn 2 has not opened'); expect(host.textContent).not.toContain('Become Unready')
+  })
+  it('refreshes after stale readiness once without replaying the mutation', async () => {
+    closureEnabled = true; await mount(); revision = 3; await click('Mark Ready'); expect(host.textContent).toContain('Revision 3')
+    expect(host.textContent).toContain('Your draft changed'); expect(request.mock.calls.filter(([, o]) => o.method === 'POST')).toHaveLength(1)
+  })
+  it('refreshes after reconnect and never closes from informational countdown', async () => {
+    closureEnabled = true; await mount(); expect(host.textContent).toContain('Informational countdown: 0 seconds'); expect(host.textContent).toContain('OPEN')
+    closed = true; await act(async () => window.dispatchEvent(new Event('online'))); expect(host.textContent).toContain('CLOSED'); expect(request.mock.calls.some(([, o]) => o.method === 'POST')).toBe(false)
+  })
+  it('keeps historical v1 drafts free of readiness controls', async () => {
+    await mount(); expect(host.textContent).not.toContain('Mark Ready'); expect(host.textContent).not.toContain('Become Unready')
+  })
+})

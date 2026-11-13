@@ -53,7 +53,7 @@ export const ReadMovementDraftSchema = z.union([MovementDraftReadySchema,
 ]);
 export const MovementDraftErrorSchema = z.strictObject({ schemaVersion: version,
   error: z.enum(["UNAUTHENTICATED", "USERNAME_REQUIRED", "NOT_FOUND", "INVALID_REQUEST", "INVALID_DRAFT", "INVALID_ORIGIN", "CSRF_REJECTED",
-    "RATE_LIMITED", "INTERNAL_ERROR", "UNSUPPORTED_RUNTIME", "TURN_UNAVAILABLE", "WRONG_TURN", "DEADLINE_PASSED", "STALE_REVISION", "ORDER_NOT_FOUND", "REVISION_EXHAUSTED"])
+    "RATE_LIMITED", "INTERNAL_ERROR", "UNSUPPORTED_RUNTIME", "TURN_UNAVAILABLE", "WRONG_TURN", "DEADLINE_PASSED", "STALE_REVISION", "ORDER_NOT_FOUND", "REVISION_EXHAUSTED", "READY_LOCKED", "READY_UNCHANGED", "TURN_CLOSED"])
 }).readonly();
 export type MovementDraftRequest = z.infer<typeof MovementDraftRequestSchema>;
 export type MovementDraftCommand = z.infer<typeof MovementDraftCommandSchema>;
@@ -62,3 +62,16 @@ export type MovementDraftReady = z.infer<typeof MovementDraftReadySchema>;
 export type ReadMovementDraft = z.infer<typeof ReadMovementDraftSchema>;
 export type MovementRoute = z.infer<typeof MovementRouteSchema>;
 export type MovementDraftErrorCode = z.infer<typeof MovementDraftErrorSchema>["error"];
+
+// Explicit new transport version; the historical v1 OPEN/unready contract is not widened.
+export const ClosureMovementReadySchema = z.strictObject({ ...MovementDraftReadySchema.unwrap().shape,
+  schemaVersion: z.literal(2), own: z.strictObject({ ...MovementDraftReadySchema.unwrap().shape.own.unwrap().shape, ready: z.boolean() }).readonly()
+}).superRefine((view, ctx) => {
+  if ((view.turn.status !== "open" && view.turn.status !== "closed") || !MovementDraftReadySchema.safeParse({ ...view,
+    schemaVersion: 1, turn: { schemaVersion: 1, gameId: view.turn.gameId, turnNumber: view.turn.turnNumber, status: "open",
+      openedAtMs: view.turn.openedAtMs, deadlineAtMs: view.turn.deadlineAtMs }, own: { ...view.own, ready: false } }).success) {
+    ctx.addIssue({ code: "custom", message: "Invalid closure movement projection" });
+  }
+}).readonly();
+export const ReadMovementQueueSchema = z.union([ReadMovementDraftSchema, ClosureMovementReadySchema]);
+export type ReadMovementQueue = z.infer<typeof ReadMovementQueueSchema>;

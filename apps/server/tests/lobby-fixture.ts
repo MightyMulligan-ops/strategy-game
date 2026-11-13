@@ -8,6 +8,7 @@ import type { FixtureTurnService } from "../src/turns/service.js";
 import type { TurnReadPersistence } from "../src/turns/read-routes.js";
 import type { FormationReadPersistence } from "../src/formations/read-routes.js";
 import type { MovementDraftPersistence } from "../src/turns/movement-routes.js";
+import type { TurnReadyPersistence } from "../src/turns/ready-routes.js";
 import { buildApp } from "../src/app.js";
 import { readAuthConfig } from "../src/auth/config.js";
 
@@ -16,14 +17,14 @@ export const origin = "http://127.0.0.1:5173";
 export type Browser = { cookie: string; csrf: string; remoteAddress?: string };
 
 /** Real cookie/session/CSRF plugins; only the external OAuth provider is mocked. */
-export async function lobbyFixture(persistence: AuthPersistence, lobbies: LobbyPersistence, worlds?: WorldPersistence, turnFixtures?: { service: FixtureTurnService }, turnReads?: TurnReadPersistence, formationReads?: FormationReadPersistence, movementDrafts?: MovementDraftPersistence) {
+export async function lobbyFixture(persistence: AuthPersistence, lobbies: LobbyPersistence, worlds?: WorldPersistence, turnFixtures?: { service: FixtureTurnService }, turnReads?: TurnReadPersistence, formationReads?: FormationReadPersistence, movementDrafts?: MovementDraftPersistence, turnReady?: TurnReadyPersistence) {
   const config = readAuthConfig({ AUTH_ENABLED: "true", AUTH_ORIGIN: origin,
     SESSION_SECRET: "isolated-http-tests-session-signing-secret", GOOGLE_CLIENT_ID: "fixture-client", GOOGLE_CLIENT_SECRET: "fixture-secret" })!;
   const logs: string[] = [];
   const app = await buildApp({ auth: { config, persistence, oauth: {
     async begin() { const state = randomUUID(); return { state, authorizationUrl: `https://provider.example/authorize?state=${state}`, codeVerifier: "p".repeat(43), nonce: "fixture-nonce" }; },
     async complete(_provider, callback) { return callback.searchParams.get("code")!; }
-  } }, lobbies, ...(worlds ? { worlds } : {}), ...(turnFixtures ? { turnFixtures } : {}), ...(turnReads ? { turnReads } : {}), ...(formationReads ? { formationReads } : {}), ...(movementDrafts ? { movementDrafts } : {}), logger: { stream: new Writable({ write(chunk, _encoding, done) { logs.push(String(chunk)); done(); } }) } });
+  } }, lobbies, ...(worlds ? { worlds } : {}), ...(turnFixtures ? { turnFixtures } : {}), ...(turnReads ? { turnReads } : {}), ...(formationReads ? { formationReads } : {}), ...(movementDrafts ? { movementDrafts } : {}), ...(turnReady ? { turnReady } : {}), logger: { stream: new Writable({ write(chunk, _encoding, done) { logs.push(String(chunk)); done(); } }) } });
   async function request(browser: Browser, method: HTTPMethods, url: string, payload?: object) {
     const response = await app.inject({ method, url, ...(browser.remoteAddress ? { remoteAddress: browser.remoteAddress } : {}), headers: { cookie: browser.cookie, origin, "x-csrf-token": browser.csrf }, ...(payload ? { payload } : {}) });
     const cookies = response.headers["set-cookie"];

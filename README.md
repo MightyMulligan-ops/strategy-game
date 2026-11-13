@@ -4,7 +4,7 @@ A browser-based, multiplayer 2D grand strategy game inspired by the broad gamepl
 
 ## Project status
 
-**Pre-production / foundation.** Sovereign has authenticated account/lobby UI, atomic host start, persisted world maps, read-only Turn 1 status and versioned starting armies. PR #50 / 006D.1 is merged. Issue #51 prepares a new creation-pinned movement-draft cohort with private revisioned route planning and an accessible Movement Queue; this local change remains unmerged and unpublished. Drafts never move formations or enable Ready/closure, resolution, encounters, combat or scheduling. Existing cohorts/archives remain unchanged, with no upgrade or repair. Database and deployment operations require separate owner approval. See [MOVEMENT_DRAFTS.md](docs/MOVEMENT_DRAFTS.md) and [DEVELOPMENT_STATUS.md](docs/DEVELOPMENT_STATUS.md).
+**Pre-production / foundation.** Authenticated lobbies, world/army initialization and private movement drafts are merged. Issue #59 prepares a separate creation-pinned closure runtime with Ready/Unready, immutable frozen Turn 1 inputs and bounded deadline observation for draft review. Formations remain at their capitals; movement execution, resolution and Turn 2 remain future work. Historical matches stay unchanged. See [TURN_CLOSURE.md](docs/TURN_CLOSURE.md) and [DEVELOPMENT_STATUS.md](docs/DEVELOPMENT_STATUS.md).
 
 ## Product direction
 

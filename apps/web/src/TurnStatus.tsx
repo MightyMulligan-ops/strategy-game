@@ -38,6 +38,12 @@ function MatchTurnStatus({ matchId, onSessionError }: { matchId: string; onSessi
     return () => { cancelled = true; read.current?.abort() }
   }, [refresh])
 
+  useEffect(() => {
+    const update = (event: Event) => { if (event instanceof CustomEvent && event.detail === matchId) void refresh() }
+    const reconnect = () => { void refresh() }
+    window.addEventListener('sovereign-turn-refresh', update); window.addEventListener('online', reconnect)
+    return () => { window.removeEventListener('sovereign-turn-refresh', update); window.removeEventListener('online', reconnect) }
+  }, [matchId, refresh])
   return <section className="panel" aria-labelledby={title} aria-busy={loading}>
     <div className="section-heading"><h2 id={title}>Turn status</h2>
       <button type="button" disabled={loading} onClick={() => void refresh()}>Refresh turn</button></div>
@@ -54,7 +60,7 @@ function MatchTurnStatus({ matchId, onSessionError }: { matchId: string; onSessi
               <div><dt>Your turn readiness</dt><dd>{result.own.ready ? 'Ready' : 'Not ready'}</dd></div>
               <div><dt>Your revision</dt><dd>{result.own.revision}</dd></div>
             </dl>
-            <p className="small muted">Stored status only; this view does not advance turns. Gameplay processing and turn controls are not available.</p>
+            <p className="small muted">Stored status only; this view does not advance turns. {result.turn.status === 'closed' ? 'CLOSED records frozen orders only; formations have not moved and Turn 2 has not opened.' : 'Gameplay processing is not available.'}</p>
           </> : null}
   </section>
 }

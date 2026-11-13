@@ -1,9 +1,10 @@
 // Authoritative contracts for server code and tests only. Never broadcast these
 // records or import this entry point into the browser; use filtered DTOs instead.
 import { z } from "zod";
-import { GameConfigSchema, GamePlayerSchema, OrderListSchema, TurnRecordSchema } from "./index.js";
+import { GameConfigSchema, GamePlayerSchema, ReadyChangeSchema, OrderListSchema, TurnRecordSchema } from "./index.js";
 import { identifier, nonnegativeInteger, positiveInteger, version } from "./primitives.js";
 import { GeneratedWorldSchema } from "./world.js";
+import { MovementDraftOrdersSchema, MovementDraftCommandSchema } from "./movement-drafts.js";
 import { ArmyUnitIdSchema, FormationIdSchema } from "./formations-view.js";
 import { WorldPointSchema } from "./world-geometry.js";
 export {
@@ -256,3 +257,38 @@ export const EncounterInputSchema = z.strictObject({
   relationship: z.enum(["friendly", "hostile", "unknown"]),
   situation: z.enum(["occupied_destination", "converging_destinations", "crossing_paths", "vacating_position"])
 });
+
+// Separate v5 closure cohort; v1-v4 parsing and identities remain unchanged.
+export const TURN_CLOSURE_RUNTIME_PROFILE = Object.freeze({ schemaVersion: 1 as const,
+  ruleset: Object.freeze({ rulesetId: "turn-closure" as const, version: "1" as const }),
+  simulationVersion: "turn-closure-v1" as const, movementTieBreakPolicy: "seeded-shuffle-v1" as const });
+export const TurnClosureRuntimeProfileSchema = z.strictObject({ schemaVersion: version,
+  ruleset: z.strictObject({ rulesetId: z.literal("turn-closure"), version: z.literal("1") }).readonly(),
+  simulationVersion: z.literal("turn-closure-v1"), movementTieBreakPolicy: z.literal("seeded-shuffle-v1") }).readonly();
+export const TurnClosureSnapshotSchema = z.strictObject({ ...MovementDraftSnapshotSchema.unwrap().shape,
+  schemaVersion: z.literal(5), kind: z.literal("turn_closure"), snapshotId: z.string().regex(/^turn-closure:[a-f0-9]{64}$/),
+  ruleset: TurnClosureRuntimeProfileSchema.unwrap().shape.ruleset, simulationVersion: z.literal("turn-closure-v1"),
+  movementDraftSnapshotId: z.string().regex(/^movement-drafts:[a-f0-9]{64}$/)
+}).superRefine((snapshot, ctx) => {
+  const { movementDraftSnapshotId, ...base } = snapshot;
+  if (!MovementDraftSnapshotSchema.safeParse({ ...base, schemaVersion: 4, kind: "movement_drafts",
+    snapshotId: movementDraftSnapshotId, ruleset: MOVEMENT_DRAFT_RUNTIME_PROFILE.ruleset, simulationVersion: "movement-drafts-v1" }).success) {
+    ctx.addIssue({ code: "custom", message: "Invalid v5 initial army structure" });
+  }
+}).readonly();
+export type TurnClosureSnapshot = z.infer<typeof TurnClosureSnapshotSchema>;
+export const ClosureFrozenInputSchema = z.strictObject({ schemaVersion: z.literal(2), kind: z.literal("turn_closure"),
+  runtimeProfile: TurnClosureRuntimeProfileSchema, startingSnapshotId: z.string().regex(/^turn-closure:[a-f0-9]{64}$/),
+  startingStateVersion: z.literal(0), worldRef: InitialWorldReferenceSchema, worldSeed: SeedSchema,
+  turn: TurnRecordSchema.refine((t) => t.turnNumber === 1 && t.status === "closed"),
+  players: z.array(z.strictObject({ playerId: identifier.max(128), revision: nonnegativeInteger,
+    ready: z.boolean(), orders: z.lazy(() => MovementDraftOrdersSchema) }).readonly()).min(2).max(40).readonly()
+}).superRefine((input, ctx) => {
+  if (input.worldRef.matchId !== input.turn.gameId || input.players.some((p, i) => i > 0 && input.players[i - 1]!.playerId >= p.playerId) ||
+    (input.turn.status === "closed" && input.turn.closeReason === "all_ready" && input.players.some((p) => !p.ready))) {
+    ctx.addIssue({ code: "custom", message: "Frozen roster/scope/closure mismatch" });
+  }
+}).readonly();
+export type ClosureFrozenInput = z.infer<typeof ClosureFrozenInputSchema>;
+
+export const ClosureCommandSchema = z.union([MovementDraftCommandSchema, ReadyChangeSchema.refine((c) => c.turnNumber === 1)]);
