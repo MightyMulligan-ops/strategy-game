@@ -44,3 +44,16 @@ describe('atomic resolution transaction injection',()=>{
  it('commits exactly one snapshot/result/version and treats duplicate invocation as no-op',async()=>{const f=transactional();expect(await f.repo.resolveClosed(f.row.matchId)).toBe(true);expect(f.committed().status).toBe('RESOLVED');expect(await f.repo.resolveClosed(f.row.matchId)).toBe(false);expect(f.calls.filter(c=>c==='result')).toHaveLength(1)});
  it.each(['resolving','snapshot','result','resolved','version','commit'])('rolls %s back without replacing the seed',async(name)=>{const f=transactional(),before=structuredClone(f.committed());f.fail(name);await expect(f.repo.resolveClosed(f.row.matchId)).rejects.toThrow('injected');expect(f.committed()).toEqual(before);f.fail('');expect(await f.repo.resolveClosed(f.row.matchId)).toBe(true)});
 });
+
+describe('privacy-redacted defender contact timeline',()=>{
+ it('includes a stationary defender contact after its own completed movement without exposing enemy actions',()=>{
+  const f=fixture(),formations=f.plan.snapshot.formations,mid={x:(formations[0]!.position.x+formations[1]!.position.x)/2,y:(formations[0]!.position.y+formations[1]!.position.y)/2};
+  const frozen={...f.frozen,players:f.frozen.players.map((p,i)=>({...p,orders:[{type:'move' as const,orderId:`private-${p.playerId}`,stackId:formations[i]!.formationId,destination:mid}]}))};
+  const result=resolveMovement(f.plan.snapshot,frozen,f.archive),a=restoreStoredTurn(f.resolved());if(a.kind!=='movement_resolution')throw Error('fixture');
+  a.result=result;const defender=result.audits.find(r=>r.outcome==='executed')!,enemy=result.audits.find(r=>r.outcome==='blocked_encounter')!,v=ownResolutionView(a,defender.playerId);
+  if(v.state!=='RESOLVED')throw Error('fixture');expect(v.events.map(e=>e.type)).toEqual(['executed','hostile_contact']);expect(v.events.map(e=>e.sequence)).toEqual([0,1]);
+  expect(v.events[1]).toMatchObject({orderId:null,moveNumber:0,traveled:0});expect(v.events[1]!.from).toEqual(v.events[1]!.to);
+  expect(JSON.stringify(v)).not.toContain(enemy.orderId);expect(JSON.stringify(v)).not.toContain(enemy.formationId);
+  expect(ownResolutionView(a,defender.playerId,1)).toMatchObject({eventOffset:1,eventTotal:2,events:[{sequence:1,type:'hostile_contact'}]});
+ });
+});

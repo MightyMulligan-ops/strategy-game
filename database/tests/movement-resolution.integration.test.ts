@@ -90,7 +90,7 @@ describe.skipIf(process.env.RUN_DATABASE_TESTS !== "1")("movement resolution (se
     await f.repo.submitDraft(f.id,1,f.members[1]!,{schemaVersion:1,expectedRevision:0,kind:"replace_orders",orders:[{orderId:"enemy-private",type:"move",stackId:enemy.formationId,destination:mid}]});
     await f.ready(1);await f.ready(1,true,f.members[1]!);await f.resolver.resolveClosed(f.id);
     const view=await new TurnReadRepository(client).getResolution(f.id,f.host);expect(view.state).toBe("RESOLVED");if(view.state!=="RESOLVED")throw Error("missing");
-    expect(view.summary.pendingEncounters).toBe(1);expect(view.audits).toHaveLength(1);expect(view.events.map(e=>e.sequence)).toEqual([0]);
+    expect(view.summary.pendingEncounters).toBe(1);expect(view.audits).toHaveLength(1);expect(view.events.map(e=>e.sequence)).toEqual(view.events.map((_,i)=>i));expect(view.events.filter(e=>e.type==='hostile_contact')).toHaveLength(view.audits[0]!.outcome==='executed'?1:0);
     expect(JSON.stringify(view)).not.toContain(enemy.formationId);expect(JSON.stringify(view)).not.toContain("enemy-private");expect(JSON.stringify(view)).not.toMatch(/resolutionSeed|worldSeed|runtimeProfile|contacts|members/);
     expect(await new TurnReadRepository(client).getResolution(f.id,f.host)).toEqual(view);
     const formations=await new FormationReadRepository(client).getFormations(f.id,f.host);expect(formations).toMatchObject({schemaVersion:2,pendingEncounter:true,collisionRadius:10});

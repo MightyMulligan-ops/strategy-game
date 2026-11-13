@@ -9,7 +9,7 @@ export const ReadFormationViewSchema=z.union([ReadFormationsResponseSchema,z.str
  collisionRadius:z.literal(10),pendingEncounter:z.boolean(),formations:z.array(ResolvedOwnFormationSchema).length(1)}).readonly()]);
 export type ReadFormationView=z.infer<typeof ReadFormationViewSchema>;
 const event=z.strictObject({eventId:identifier,sequence:nonnegativeInteger,orderId:identifier.nullable(),moveNumber:nonnegativeInteger,
- type:z.enum(["executed","blocked_encounter","not_executed_after_encounter","initial_contact"]),from:ResolvedPointSchema,to:ResolvedPointSchema,
+ type:z.enum(["executed","blocked_encounter","not_executed_after_encounter","initial_contact","hostile_contact"]),from:ResolvedPointSchema,to:ResolvedPointSchema,
  traveled:z.number().finite().min(0).max(250),encounterId:identifier.nullable()}).readonly();
 const audit=z.strictObject({auditId:identifier,orderId:identifier,moveNumber:nonnegativeInteger.min(1),
  outcome:z.enum(["executed","blocked_encounter","not_executed_after_encounter"]),from:ResolvedPointSchema,to:ResolvedPointSchema,

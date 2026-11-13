@@ -16,3 +16,10 @@ describe('read-only authoritative movement summary and timeline',()=>{
  it('reconnects using GET and clears stale private results on session failure',async()=>{await mount();fetcher.mockResolvedValue(new Response('{}',{status:401}));await act(async()=>window.dispatchEvent(new Event('online')));expect(session).toHaveBeenCalledOnce();expect(host.textContent).not.toContain('Move 2: Stopped by enemy');expect(fetcher.mock.calls.every(([,o])=>o.method==='GET')).toBe(true)});
  it('shows waiting separately from movement completion',async()=>{fetcher.mockResolvedValue(new Response(JSON.stringify({schemaVersion:1,matchId:'match',state:'WAITING'})));await mount();expect(host.textContent).toContain('waits for authoritative');expect(host.textContent).not.toContain('Turn 1 RESOLVED')});
 });
+
+it('renders the defender contact event without inventing a move number or enemy detail',async()=>{
+ const original=resolved(),audit=original.audits[0]!,event=original.events[0]!;
+ const v={...original,summary:{completed:1,stopped:0,notExecuted:0,pendingEncounters:1},audits:[audit],eventTotal:2,
+ events:[event,{eventId:'own-contact',sequence:1,orderId:null,moveNumber:0,type:'hostile_contact',from:{x:0,y:100},to:{x:0,y:100},traveled:0,encounterId:'encounter-own'}]};
+ fetcher.mockResolvedValue(new Response(JSON.stringify(v)));await mount();expect(host.textContent).toContain('Hostile contact — pending battle');expect(host.textContent).not.toContain('Move 0');
+});

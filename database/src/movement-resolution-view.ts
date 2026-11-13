@@ -16,10 +16,19 @@ export function ownResolutionView(a:MovementAggregate,actor:string,eventOffset=0
  const formation=ownResolvedFormation(a,actor),point=(p:{xMilli:number;yMilli:number})=>({x:p.xMilli/1000,y:p.yMilli/1000});
  const own=a.result.audits.filter(r=>r.playerId===actor),encounters=a.result.encounters.filter(e=>e.members.some(m=>m.playerId===actor));
  const audits=own.map(r=>({auditId:r.auditId,orderId:r.orderId,moveNumber:r.moveNumber,outcome:r.outcome,from:point(r.from),to:point(r.to),traveled:r.traveled,remaining:r.remaining,encounterId:r.encounterId}));
- const initial=encounters.filter(e=>e.contacts.some(c=>c.kind==="initial_contact"&&(c.mover===formation.formationId||c.defender===formation.formationId)));
- const events=[...initial.map(e=>({eventId:`initial-contact:${e.encounterId}:${formation.formationId}`,sequence:0,orderId:null,moveNumber:0,
-  type:"initial_contact" as const,from:formation.position,to:formation.position,traveled:0,encounterId:e.encounterId})),
-  ...audits.map(r=>({eventId:r.auditId,sequence:0,orderId:r.orderId,moveNumber:r.moveNumber,type:r.outcome,from:r.from,to:r.to,traveled:r.traveled,encounterId:r.encounterId}))].map((e,i)=>({...e,sequence:i}));
+
+ // One first-contact effect per own encounter. Later enemy arrivals must not
+ // reveal enemy formation/action counts through extra timeline records.
+ const contactEvents=encounters.flatMap(e=>{
+  const first=e.contacts.filter(c=>c.mover===formation.formationId||c.defender===formation.formationId).sort((a,b)=>a.sequence-b.sequence)[0];
+  if(!first||(first.kind!=="initial_contact"&&first.mover===formation.formationId))return [];
+  return [{eventId:`contact:${e.encounterId}:${formation.formationId}`,at:first.sequence,orderId:null,moveNumber:0,
+   type:first.kind==="initial_contact"?"initial_contact" as const:"hostile_contact" as const,
+   from:formation.position,to:formation.position,traveled:0,encounterId:e.encounterId}];
+ });
+ const events=[...contactEvents,...audits.map((r,i)=>({eventId:r.auditId,at:own[i]!.sequence,orderId:r.orderId,moveNumber:r.moveNumber,
+  type:r.outcome,from:r.from,to:r.to,traveled:r.traveled,encounterId:r.encounterId}))]
+  .sort((a,b)=>a.at-b.at||(a.eventId<b.eventId?-1:a.eventId>b.eventId?1:0)).map(({at,...e},i)=>{void at;return {...e,sequence:i}});
  if(!Number.isSafeInteger(eventOffset)||eventOffset<0||eventOffset>events.length)throw new MovementEventCursorError("Invalid event cursor");
  const page=events.slice(eventOffset,eventOffset+256),nextEventCursor=eventOffset+page.length<events.length?eventOffset+page.length:null;
  return ResolutionViewSchema.parse({schemaVersion:1,matchId:a.row.matchId,state:"RESOLVED",formation,eventOffset,eventTotal:events.length,nextEventCursor,

@@ -31,7 +31,7 @@ describe.skipIf(process.env.RUN_DATABASE_TESTS !== "1")("production resolved mov
   });
   beforeEach(async () => {
     address = 0;
-    f = await lobbyFixture(new Accounts(client), new Lobbies(client, undefined, Date.now, MOVEMENT_RESOLUTION_RUNTIME_PROFILE), undefined, undefined, new TurnReadRepository(client), undefined, new MovementDraftRepository(client), new TurnClosureRepository(client));
+    f = await lobbyFixture(new Accounts(client), new Lobbies(client, undefined, Date.now, MOVEMENT_RESOLUTION_RUNTIME_PROFILE), undefined, undefined, new TurnReadRepository(client), new FormationReadRepository(client), new MovementDraftRepository(client), new TurnClosureRepository(client));
   });
   afterEach(async () => {
     if (f) await f.app.close();
