@@ -1,44 +1,27 @@
-# Sovereign autonomous Codex — independent review handoff
+# Sovereign autonomous Codex — current review handoff
 
-**Prepared by implementation author; NOT an independent security review.**
-**Review targets:** draft PR #78 (disabled worker), draft PR #80 (offline policy foundation).
-**Date:** 2026-11-14. **Owner E/F:** NOT_GRANTED. **Paid execution:** NOT_GRANTED.
+**Author-prepared evidence; NOT independent certification.** Review draft PR80 and disabled worker PR78. Paid pilot remains blocked. E/F (merge/deployment) remain prohibited.
 
-## Reviewer instructions
+## Current change
 
-Freeze exact source HEAD, PR base and current main; inspect all changed paths and GitHub Actions permissions/triggers, action SHA and downstream CLI/proxy package versions. Re-run actionlint and synthetic adversarial tests against **the published source**, then inspect newest hosted CI run/attempt, both jobs, source/base association, and actual skip counts. Do not substitute historical green CI or local author's tests for independent evidence.
+PR80 adds trusted-controller candidate modules for persistent Git-ref claims/budget reservations, current GitHub owner-grant/source authentication, a bounded model gateway, signed exact-tree publication and a sandbox preflight. See CODEX_AUTONOMOUS_PIPELINE.md for exact delivered/missing boundaries. This increment does not install a running service, initialize a live ledger, enroll a signer, read a credential, mint a grant, dispatch a workflow or make a paid call.
 
-## Current evidence
+## Local evidence
 
-- PR #78 hard-disabled the paid job with a literal `false` gate and removed raw report/artifact publication. It is not an operational worker; process isolation and secret exposure remain unproven.
-- PR #80 adds offline pure policy primitives and tests. Local Node 22 synthetic tests on the candidate module passed 13/13 before publication. It also adds a separate credential-free Git-index patch replay validator and nine synthetic Python fixtures, which passed 9/9 locally before publication. Neither authenticates its own scope or proves worker/publisher isolation. The published tests were adapted to Vitest for repository CI; **published-head CI remains a separate verification**.
-- No Codex API request, workflow dispatch, token retrieval, existing/production DB access, migration, merge or deployment was intentionally initiated by this implementation. GitHub automatically runs the repository's existing PR CI, including its configured disposable PostgreSQL service, when a draft PR is published; this is the existing D-authorized path, not a task-side DB operation.
+Six relevant Vitest suites: 49 passed, one skipped (50 total). The skipped Unix-socket fixture is blocked by host EPERM; it remains an activation blocker. Python replay fixtures run through the existing wrapper: 18 passed. Targeted tsc 6.0.3 passed using strict, noUncheckedIndexedAccess, exactOptionalPropertyTypes, verbatimModuleSyntax, noImplicitOverride and noFallthroughCasesInSwitch. Initial narrower typechecks did not establish the stricter workspace flags; those errors were subsequently corrected. Existing hosted CI must be inspected on the new exact source, with actual skip counts. Passing mocked/provider fixtures are not live transaction or sandbox evidence.
 
-## Blocking findings — request changes
+The namespace probe on this Work host returns unavailable. Docker/Podman are absent; required API/GitHub token variables are absent (presence-only inspection). No insecure fallback was attempted. Diagnostic TS execution needs compiled JS or Node24 transform-types; strip-only parsing rejects parameter properties.
 
-1. **HIGH — No trusted agent-to-validator isolation.** Upstream recommends the Codex action last in its job; a same-job validator and upload cannot assume descendant/proxy termination. Need a reviewed secure handoff and proof of effective filesystem, process and network boundaries, including job logs.
-2. **HIGH — No authenticated owner grant or durable idempotency.** The offline policy receives trusted booleans as input but does not verify GitHub actor permissions, scope/expiry/revocation, designated run or competing claim from authoritative sources. Never treat a JSON flag, label or typed confirmation as authorization.
-3. **HIGH — No enforceable paid spending control.** The $45 operational cutoff and $50 preference remain advisory. Verify actual hard-limit semantics, current spend freshness, worst-case session estimate, safe cancellation and no automatic retry.
-4. **HIGH — No end-to-end authenticated patch handoff or trusted publisher.** PR #80 now includes a standalone Git-index patch replay check, but its supplied scope is not authenticated, ignored-file changes are not proven absent, and no live publisher or isolated runner integration exists. Metadata checks alone remain insufficient. Do not give a token to an untrusted worker or test process.
-5. **MEDIUM — Dependency/toolchain verification incomplete.** PR #78 pins the action commit, but the CLI/proxy versions and package integrity have not been independently reviewed or pinned.
-6. **MEDIUM — Offline tests are not end-to-end security evidence.** Test authenticated grant failures, source drift, staged/unstaged/untracked/ignored changes, symlinks/hardlinks, rename/deletion, traversal, secrets/logs, malicious artifacts, reruns, cancellations and partial outputs under the actual deployment boundary.
+## Required independent review and remaining blockers
 
-## Acceptance criteria before activation
+1. Audit the real executable worker/bridge/exporter/validator lifecycle once implemented on a compatible executor. None is wired yet. Verify filesystem, PID and network isolation; broker-only model egress; no credentials/host processes in children; complete termination on cancellation; no raw log exposure; no worker-controlled Git/config execution; complete output inventory.
+2. Inspect Git-ref ledger CAS, nonce uniqueness for identical concurrent mutations, bootstrap authority, reset/rollback protections, monthly baselines, exclusive project routing, price provenance, project-key binding, conservative accounting and crash/unknown outcomes. Synthetic races are not live concurrency certification. No production ledger/rate card is initialized.
+3. Verify owner grant intake against existing active Work authority, immutable comment/source/issue binding, actual permission and revocation/expiry. Do not let a worker create or supply its own approval, evidence, price card or RuntimeVerifier. In-flight calls cannot be retroactively revoked.
+4. Enroll the validator public key through a trusted operator path; audit its private-key isolation and signer implementation. Receipt signature checking does not prove tests or sandbox execution when the signer/lifecycle are absent. Verify exact complete tested tree, required checks and expiry before publication.
+5. Verify provider token counting and pricing semantics, chosen immutable model/toolchain integrity, stream/backpressure/disconnect behavior, request limits and real CLI compatibility. API schemas/prices may change; unknown cases must block.
+6. Recheck signed publisher provenance, grant/source drift, every Git write's one-shot claim, tree SHA comparison, dedicated branch and draft-only PR, duplicate historical PR rejection and manual reconciliation after ambiguous writes. No untrusted code may run in the credential-bearing publisher.
+7. Inspect exact published source/base, existing workflow/job/run/attempt provenance, root build/typecheck/lint/test results, all deliberate application DB skips, separate hosted PostgreSQL zero-skip execution and cleanup. Do not automatically retry CI or paid calls.
 
-A separate reviewer must establish authenticated, fresh issue-specific owner grant and revocation handling; atomic durable one-run claim; verified billing enforcement and immutable dependencies; independent worker/validator/publisher isolation; complete patch reconstruction and exact tested tree; bounded artifact and job-log confidentiality; explicit least-privilege GitHub publisher; successful adversarial tests/actionlint and exact-head CI; and a separately approved paid pilot. If any of these is UNKNOWN, keep paid execution disabled.
+Browser evidence previously established project spending around $0.11 and an enforced $45 project limit. Provider UI warns enforcement may lag and spend exceed the configured threshold. That is defense in depth, not a verified strict financial ceiling. Other key access and authoritative starting spend remain unverified.
 
-The implementation author cannot certify their own independent review. No reviewer decision, E merge or F deployment is implied by this handoff.
-
-
-## 2026-11-14 continuation evidence (supersedes current-state claims above)
-
-The owner has explicitly authorized paid execution subject to safeguards and the $45 cutoff. Authorization is present in the active Work request; technical activation remains blocked. No new reviewer certification is claimed.
-
-Published-head review reproduced unsafe handling of unknown revocation/claim observations, NaN publication counts and null manifest input. This correction adds runtime strictness, bounded artifact reads, linked-artifact rejection, ignored-source checks and exact reconstructed tree SHA. Local verification: 18 policy tests and 18 Python fixtures pass (19 Vitest tests including the Python wrapper), targeted strict TypeScript checking passes. These are author tests of the correction, not independent review.
-
-Original source CI was green for PR78 run43634935997 and PR80 run43635341414. Publishing invalidates those runs as evidence for changed source. Inspect the new exact head and CI before accepting this increment.
-
-Still BLOCKED: authenticated live issue/source/grant admission and revocation, durable one-run claim, authoritative spend and enforceable budget reservation, immutable CLI/proxy packages, worker/validator/publisher isolation, termination and log confidentiality, complete trusted source/artifact provenance and publisher integration. The new ignored-file check covers only a pristine validator checkout, not completeness of original worker output. Artifacts require trusted parent directories. No security control was disabled to obtain a pilot.
-
-Platform authentication is blocked by automatic browser approval review at accounts.google.com after the user selected Google through the secure sign-in prompt. Current billing remains UNKNOWN. PR78 remains unchanged and disabled.
-
+Outcome: **BLOCKED for live paid activation; ready only for draft code review after new-head CI.** The implementation author cannot provide the required independent security acceptance. Preserve the five-pass/two-attempt history in DEVELOPMENT_STATUS.md and do not merge or deploy.
