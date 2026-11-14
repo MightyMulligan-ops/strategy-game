@@ -52,4 +52,18 @@ describe("Stage 2 signed durable ledger boundary",()=>{
     expect(stale).toMatchObject({ok:false,reason:"CHECKPOINT_MISMATCH"});
     expect(events).toHaveLength(2);
   });
+  it("durably appends revocation, then blocks further starts",async()=>{
+    let events=history([["task-claimed",null]]);
+    const store:DurableLedgerStore={
+      async read(){return events;},
+      async compareAndAppend(_key,expected,e){if(events.at(-1)?.digest!==expected)return false;events=[...events,e];return true;}
+    };
+    const revoked=await appendLedgerEvent(store,"stage2",identity,body(2,"owner-revocation"),key,checkpoint(events));
+    expect(revoked).toMatchObject({ok:true,state:{revoked:true}});
+    expect(events).toHaveLength(2);
+    expect(verifyLedger(events,identity,key,checkpoint(events))).toMatchObject({ok:false,reason:"TASK_REVOKED_OR_CLOSED"});
+    expect(await appendLedgerEvent(store,"stage2",identity,body(3,"implementation-attempt-started",1),key,checkpoint(events)))
+      .toMatchObject({ok:false,reason:"TASK_REVOKED_OR_CLOSED"});
+  });
+
 });
