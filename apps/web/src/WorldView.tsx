@@ -5,10 +5,11 @@ import type { MovementRoute, OwnFormation, PublicWorld, ReadWorldResponse } from
 import { lobbyRequest, LobbyRequestError } from './lobby-api'
 import TurnStatus from './TurnStatus'
 import Formations from './Formations'
+import type { FormationInspection } from './Formations'
 import MovementQueue from './MovementQueue'
 import MovementResolution from './MovementResolution'
 
-function MapView({ world, formation, route, choose,policy }: { world: PublicWorld; formation: OwnFormation | null; route: MovementRoute | null; choose: ((point: { x: number; y: number }) => void) | null;policy?:{radius:10;pending:boolean} }) {
+function MapView({ world, formation, route, choose, inspection,policy }: { inspection: FormationInspection; world: PublicWorld; formation: OwnFormation | null; route: MovementRoute | null; choose: ((point: { x: number; y: number }) => void) | null;policy?:{radius:10;pending:boolean} }) {
   const [selection, setSelection] = useState(0)
   const mapId = useId()
   const refs = useRef(new Map<string, SVGPolygonElement>())
@@ -42,7 +43,7 @@ function MapView({ world, formation, route, choose,policy }: { world: PublicWorl
   }
   const adjacent = world.links.filter((e) => e.a === selected.territoryId || e.b === selected.territoryId).map((e) => e.a === selected.territoryId ? e.b : e.a)
   return <>
-    <p className="muted" id={`${mapId}-instructions`}>Initial map shared with active participants. Tab enters the map at the selected territory. Arrow keys select neighboring territories without wrapping; Enter or Space selects. Tab or Shift+Tab leaves the map. Scroll to explore. Borders show adjacency; {policy?'movement outcomes are server-authoritative.':'movement is not implemented.'}</p>
+    <p className="muted" id={`${mapId}-instructions`}>Initial map shared with active participants. Tab enters the map at the selected territory. Arrow keys select neighboring territories without wrapping; Enter or Space selects. Tab reaches your own formation marker when available, or leaves the map; Shift+Tab moves back. Enter or Space on the marker opens formation details; Escape in details returns to the marker. Scroll to explore. Borders show adjacency; {policy?'movement outcomes are server-authoritative.':'movement is not implemented.'}</p>
     <ul className="world-legend" aria-label="Player identifiers">{world.players.map((p) => <li key={p.playerId}><span aria-hidden="true" style={{ color: color(p.playerId) }}>■</span> {ownerId(p.playerId)}: {p.username}</li>)}<li>★ Capital · Unmarked territories are neutral</li></ul>
     <p className="small muted">Terrain patterns: dots = plains, diagonal lines = forest, peaks = hills. Selection has a solid gold border; keyboard focus has an inset dashed outline.</p>
     <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">Selected {selected.territoryId}.</p>
@@ -77,10 +78,16 @@ function MapView({ world, formation, route, choose,policy }: { world: PublicWorl
             {t.ownerPlayerId !== null && <tspan x={t.center.x} dy={t.capital ? 26 : 7}>{ownerId(t.ownerPlayerId)}</tspan>}
           </text>}
         </g>)}
-        {formation && <g className="formation-marker" transform={`translate(${formation.position.x} ${formation.position.y})`} aria-hidden="true" pointerEvents="none">
+        {formation && <g id={inspection.markerId} className="formation-marker" transform={`translate(${formation.position.x} ${formation.position.y})`}
+          role="button" tabIndex={0} aria-label="Your formation: Lieutenant, Infantry specialization, 5 Infantry. Inspect details"
+          aria-expanded={inspection.expanded} aria-controls={inspection.detailsId}
+          onFocus={(event) => event.currentTarget.scrollIntoView?.({ block: 'nearest', inline: 'nearest', behavior: 'auto' })}
+          onClick={(event) => { event.stopPropagation(); inspection.inspect() }}
+          onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); inspection.inspect() } }}>
+          <path className="formation-hit-target" d="M0 -36L36 0L0 36L-36 0Z" />
           {policy&&<circle r={policy.radius} fill="none" stroke="#D4AF37" strokeWidth="1" data-testid="collision-circle"/>}
           {policy?.pending&&<text x="0" y="-42" textAnchor="middle" fill="#fff">Pending battle</text>}
-          <path d="M0 -36L36 0L0 36L-36 0Z" fill="none" stroke="#fff" strokeWidth="3" vectorEffect="non-scaling-stroke" />
+          <path className="formation-symbol" d="M0 -36L36 0L0 36L-36 0Z" fill="none" stroke="#fff" strokeWidth="3" vectorEffect="non-scaling-stroke" />
         </g>}
         <g className="planned-route" aria-hidden="true" pointerEvents="none">{route?.segments.map((s) => <g key={s.orderId}>
           <line x1={s.from.x} y1={s.from.y} x2={s.destination.x} y2={s.destination.y} stroke="#D4AF37" strokeWidth="3" strokeDasharray="2 6" vectorEffect="non-scaling-stroke" />
@@ -105,9 +112,10 @@ function MatchWorldView({ matchId, onClose, onSessionError }: { matchId: string;
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [sessionUnavailable, setSessionUnavailable] = useState(false)
+  const [selectedFormationId, setSelectedFormationId] = useState<string | null>(null)
   const read = useRef<AbortController | null>(null)
   const sessionError = useCallback(async () => {
-    read.current?.abort(); setResult(null); setSessionUnavailable(true)
+    read.current?.abort(); setResult(null); setSelectedFormationId(null); setSessionUnavailable(true)
     try { await onSessionError() } catch { /* Do not retain private match data on account failure. */ }
   }, [onSessionError])
   const refresh = useCallback(async () => {
@@ -116,9 +124,10 @@ function MatchWorldView({ matchId, onClose, onSessionError }: { matchId: string;
     try {
       const response = await lobbyRequest(`/api/matches/${encodeURIComponent(matchId)}/world`, ReadWorldResponseSchema, controller.signal)
       if (response.matchId !== matchId) throw new Error('Mismatched response')
-      if (!controller.signal.aborted) setResult(response)
+      if (!controller.signal.aborted) { setResult(response); if (response.state !== 'READY') setSelectedFormationId(null) }
     } catch (failure) {
       if (controller.signal.aborted) return
+      setSelectedFormationId(null)
       if (failure instanceof LobbyRequestError && ['UNAUTHENTICATED', 'USERNAME_REQUIRED'].includes(failure.code ?? '')) await sessionError()
       if (!controller.signal.aborted) setError(failure instanceof LobbyRequestError && failure.code === 'NOT_FOUND'
         ? 'World unavailable or you no longer have access to this match.' : 'Unable to load the world. Refresh to try again.')
@@ -137,8 +146,9 @@ function MatchWorldView({ matchId, onClose, onSessionError }: { matchId: string;
     <div className="section-heading"><h1 id="world-title">Initial world</h1><button onClick={onClose}>Back to lobbies</button><button disabled={loading} onClick={() => void refresh()}>Refresh world</button></div>
     {loading ? <p role="status">Loading world…</p> : error ? <p role="alert">{error}</p>
       : result?.state === 'READY' ? <Formations matchId={matchId} world={result.world} onSessionError={sessionError}
-        map={(formation,policy) => <><MovementQueue matchId={matchId} world={result.world} formation={formation} onSessionError={sessionError}
-          map={(route, choose) => <MapView world={result.world} formation={formation} route={route} choose={choose} {...(policy?{policy}:{})} />} />{policy&&<MovementResolution matchId={matchId} onSessionError={sessionError}/>}</>} />
+        selectedFormationId={selectedFormationId} onSelectionChange={setSelectedFormationId}
+        map={(formation,inspection,policy) => <><MovementQueue matchId={matchId} world={result.world} formation={formation} onSessionError={sessionError}
+          map={(route, choose) => <MapView inspection={inspection} world={result.world} formation={formation} route={route} choose={choose} {...(policy?{policy}:{})} />} />{policy&&<MovementResolution matchId={matchId} onSessionError={sessionError}/>}</>} />
         : result?.state === 'UNINITIALIZED' ? <section className="panel" role="status" aria-live="polite" aria-atomic="true" aria-labelledby="world-unavailable-title">
           <h2 id="world-unavailable-title">Map unavailable for this match</h2>
           <p>This match started before world-map support was added and has no saved map to display.</p>
