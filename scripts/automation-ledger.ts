@@ -81,8 +81,8 @@ export function verifyLedger(events: readonly SignedLedgerEvent[] | null | undef
       const key=impl ? `implementation:${e.attempt}` : `repair:${e.failureId}:${e.attempt}`;
       if (e.kind.endsWith("-started")) {
         if (revoked || closed || starts.has(key)) return fail("DUPLICATE_OR_REVOKED_START");
-        if (impl) {if (e.attempt !== used+1 || e.attempt>5) return fail("IMPLEMENTATION_LIMIT");used=e.attempt!;}
-        else {if (e.attempt !== (repairs[e.failureId!]??0)+1 || e.attempt>2) return fail("REPAIR_LIMIT");repairs[e.failureId!]=e.attempt!;}
+        if (impl) {if (e.attempt !== used+1 || e.attempt!>5) return fail("IMPLEMENTATION_LIMIT");used=e.attempt!;}
+        else {if (e.attempt !== (repairs[e.failureId!]??0)+1 || e.attempt!>2) return fail("REPAIR_LIMIT");repairs[e.failureId!]=e.attempt!;}
         starts.add(key);
       } else {if (!starts.has(key) || outcomes.has(key)) return fail("ORPHAN_OR_DUPLICATE_OUTCOME");outcomes.add(key);}
     } else if (e.attempt !== null || e.failureId !== null) return fail("INVALID_NON_ATTEMPT");
