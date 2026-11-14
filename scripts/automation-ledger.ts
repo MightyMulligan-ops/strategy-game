@@ -43,7 +43,8 @@ export function signLedgerEvent(e: Omit<SignedLedgerEvent,"digest"|"mac">, secre
 }
 export function verifyLedger(events: readonly SignedLedgerEvent[] | null | undefined,
   identity: Pick<LedgerBody,"repository"|"issue"|"taskId">, secret: Uint8Array,
-  checkpoint: { sequence: number; digest: string } | null): LedgerResult {
+  checkpoint: { sequence: number; digest: string } | null,
+  allowTerminalState = false): LedgerResult {
   const fail = (reason: string): LedgerResult => ({ok:false,reason});
   if (!events || !Array.isArray(events) || !events.length || events.length > 1000 ||
       !checkpoint || !Number.isSafeInteger(checkpoint.sequence) || !digestRe.test(checkpoint.digest) ||
@@ -89,7 +90,7 @@ export function verifyLedger(events: readonly SignedLedgerEvent[] | null | undef
     if (e.kind==="owner-revocation") revoked=true;
     if (e.kind==="task-closed") closed=true;
   }
-  if (revoked || closed) return fail("TASK_REVOKED_OR_CLOSED");
+  if ((revoked || closed) && !allowTerminalState) return fail("TASK_REVOKED_OR_CLOSED");
   return {ok:true,state:{implementationUsed:used,repairUsed:{...repairs},revoked,closed},head:previous!};
 }
 export async function appendLedgerEvent(store: DurableLedgerStore, taskKey: string,
@@ -104,7 +105,8 @@ export async function appendLedgerEvent(store: DurableLedgerStore, taskKey: stri
     return {ok:false,reason:"IDENTITY_MISMATCH"};
   const next=signLedgerEvent({...body,sequence:history.length+1,previousDigest:verified.head},secret);
   const candidate=verifyLedger([...history,next],identity,secret,
-    {sequence:history.length+1,digest:next.digest});
+    {sequence:history.length+1,digest:next.digest},
+    next.kind === "owner-revocation" || next.kind === "task-closed");
   if (!candidate.ok) return candidate;
   // Fail closed on race; never automatically retry a consumed attempt.
   if (!await store.compareAndAppend(taskKey,verified.head,next)) return {ok:false,reason:"CONCURRENT_WRITE"};
