@@ -24,6 +24,15 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ github.sha }}
+      - name: Require configured API key
+        env:
+          OPENAI_KEY_PRESENT: ${{ secrets.OPENAI_API_KEY != '' }}
+        run: |
+          if [ "$OPENAI_KEY_PRESENT" != "true" ]; then
+            echo "::error::Repository Actions secret OPENAI_API_KEY is missing or unavailable to this workflow. Check Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          echo "OpenAI API key is configured (value not exposed)."
       - name: Inspect Stage 2 automation with Codex
         id: codex
         uses: openai/codex-action@v1
