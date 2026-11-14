@@ -4,6 +4,7 @@ import { acceptancePacket, object } from "../pr-review.ts";
 import type { Json } from "../pr-review.ts";
 import { collectReview } from "../pr-review-github.ts";
 import { acceptanceFixture } from "./pr-acceptance-fixture.ts";
+import { reviewDigest } from "../pr-orchestration.ts";
 import type { Observation, ManualVerification, OrchestrationInput } from "../pr-orchestration.ts";
 
 export async function orchestrationFixture() {
@@ -12,7 +13,7 @@ export async function orchestrationFixture() {
     currentMain: p.identity.currentMain!, branch: p.identity.branch!, workflowId: 1, runId: 100, attempt: 1, jobIds: [201, 202], scopeDigest: p.issue!.snapshotDigest!, taskId: "synthetic-task", now: "2026-11-14T12:00:00Z" };
   const m: ManualVerification = { owner: { source: "owner-chat:synthetic-scope", repository: o.repository, issue: o.issue, pr: o.pr, head: o.head, base: o.base,
     scopeDigest: o.scopeDigest, taskId: o.taskId, expiresAt: "2026-11-15T12:00:00Z", revoked: false, ended: false, claimAvailable: true, protectedScopeCovered: true },
-    independentReview: { source: "owner-chat:synthetic-independent-review", head: o.head, base: o.base, independent: true }, historySource: "owner-chat:synthetic-history" };
+    independentReview: { source: "owner-chat:synthetic-independent-review", head: o.head, base: o.base, independent: true, reviewer: "synthetic-reviewer", implementationAuthor: "synthetic-author", taskId: o.taskId }, historySource: "owner-chat:synthetic-history" };
   const history: Json = { repository: o.repository, issueNumber: o.issue, prNumber: o.pr, taskId: o.taskId, implementationPassLimit: 5, implementationPasses: [], postReviewRepairLimitPerFailure: 2, repairs: [], transferSources: [] };
   const review = structuredClone(template) as unknown as Json;
   const syncReview = () => {
@@ -23,7 +24,12 @@ export async function orchestrationFixture() {
     review.outcome = { decision: "READY", remainingLimitations: [] }; review.findings = []; review.missingEvidence = []; review.conflictingFeedback = []; review.repairHistory = history.repairs;
   };
   syncReview();
-  const input = (): OrchestrationInput => ({ packet: JSON.stringify(p), review: JSON.stringify(review), history: JSON.stringify(history) });
+  m.independentReview!.reviewDigest = reviewDigest(JSON.stringify(review));
+  m.verifyReviewProvenance = v => v.reviewer === "synthetic-reviewer" && v.implementationAuthor === "synthetic-author" && v.taskId === o.taskId && v.reviewDigest === reviewDigest(JSON.stringify(review));
+  const input = (): OrchestrationInput => {
+    if (m.independentReview) m.independentReview.reviewDigest = reviewDigest(JSON.stringify(review));
+    return { packet: JSON.stringify(p), review: JSON.stringify(review), history: JSON.stringify(history) };
+  };
   return { p, o, m, history, review, input, syncReview, apiFixture };
 }
 export type OrchestrationFixture = Awaited<ReturnType<typeof orchestrationFixture>>;

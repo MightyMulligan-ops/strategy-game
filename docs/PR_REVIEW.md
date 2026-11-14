@@ -255,3 +255,12 @@ automatically. A triage hint never establishes independent review; old head-boun
 evidence is invalid after a repair. Scope, five implementation corrections, two
 owner-started repair attempts, transfer safety and separate E/F gates are preserved.
 The disabled delegation proposal is design only. No report starts the next task.
+
+Automation015 Stage1 adds unified source-bound evidence and review intake to that
+same handoff. The raw review digest, stable task, reviewer/author separation and
+source/CI tuple must be externally corroborated through a trusted pure caller
+verification function; serialized claims cannot enable it. Missing provenance is
+UNKNOWN. Claim/history comment references are UNVERIFIED_METADATA, not locks,
+ledgers or grants. The existing structured-review and012/013 formats remain, as
+do the five implementation/two post-review bounds and owner E/F gates. No Stage2
+storage, unattended agent, automatic repair or CI retry is added.

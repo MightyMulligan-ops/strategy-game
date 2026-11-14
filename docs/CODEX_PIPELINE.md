@@ -184,3 +184,10 @@ from triage or receipt-shaped JSON. See [the owner guide](AUTOMATION_014.md).
 The guide covers changed-head invalidation, append-only 5/2 histories, scoped
 proposals, recommendation reason codes, conditional input trust and the disabled
 future-delegation design. No agent/repair/write/CI retry/E/F operation is launched.
+
+Automation015 Stage1 (Issue66) consolidates the existing report with candidate
+claim/history references and stronger independent-review provenance intake; see
+the Automation015 section of the existing owner guide above. A reviewer receipt
+or PASS cannot supply the separately corroborated verification function. No new
+packet, collector, workflow/permission or service is introduced.015C/015E remain
+excluded; history remains manual, delegation disabled, E/F separately NOT_GRANTED.
