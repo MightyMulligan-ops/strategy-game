@@ -392,3 +392,102 @@ export function reportOrchestration(p: AcceptancePacket, now: string, includeRev
     return "## Owner orchestration — Automation 014\n\nUNKNOWN: current evidence unavailable. Independent review and owner/history verification required. No repair or E/F authority.\n";
   }
 }
+
+
+/**
+ * Automation 015C: pure, fail-closed ledger preflight. This validates a
+ * caller-provided snapshot; it does NOT authenticate its origin, writer, clock,
+ * signatures, checkpoints, approvals or completeness. No execution authority.
+ */
+export type LedgerEvent = {
+  version: 1; repository: string; issue: number; taskId: string;
+  sequence: number; eventId: string;
+  eventType: "implementation-attempt-started" | "implementation-attempt-outcome" |
+    "repair-attempt-started" | "repair-attempt-outcome" | "task-transfer" | "task-closed" |
+    "owner-grant" | "owner-revocation" | "evidence-checkpoint";
+  failureId: string | null; attempt: number | null;
+  sourceHead: string; baseHead: string; previousDigest: string | null;
+  payloadDigest: string;
+};
+export type LedgerPreflight = {
+  status: "VALID_UNTRUSTED" | "UNKNOWN" | "BLOCKED";
+  reason: string; implementationUsed: number | null;
+  repairUsed: Record<string, number> | null;
+};
+const ledgerHex = /^[a-f0-9]{40}$/;
+const ledgerDigest = /^sha256:[a-f0-9]{64}$/;
+const ledgerKey = /^[a-z0-9][a-z0-9-]{0,79}$/;
+const ledgerFailure = /^[A-Z][A-Z0-9_-]{0,79}$/;
+const ledgerEventId = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,99}$/;
+const ledgerTypes = new Set<LedgerEvent["eventType"]>([
+  "implementation-attempt-started", "implementation-attempt-outcome",
+  "repair-attempt-started", "repair-attempt-outcome", "task-transfer",
+  "task-closed", "owner-grant", "owner-revocation", "evidence-checkpoint"
+]);
+export function validateLedgerSnapshot(
+  events: readonly LedgerEvent[] | null | undefined,
+  identity: { repository: string; issue: number; taskId: string },
+  trustedCheckpoint?: { sequence: number; digest: string }
+): LedgerPreflight {
+  const fail = (reason: string, status: LedgerPreflight["status"] = "UNKNOWN"): LedgerPreflight =>
+    ({ status, reason, implementationUsed: null, repairUsed: null });
+  if (!events || !Array.isArray(events) || !events.length || events.length > 1000)
+    return fail("LEDGER_MISSING_OR_OVERSIZED");
+  if (!trustedCheckpoint || !Number.isSafeInteger(trustedCheckpoint.sequence) ||
+      !ledgerDigest.test(trustedCheckpoint.digest))
+    return fail("TRUSTED_CHECKPOINT_REQUIRED");
+  if (trustedCheckpoint.sequence !== events.length ||
+      trustedCheckpoint.digest !== events[events.length - 1]?.payloadDigest)
+    return fail("CHECKPOINT_MISMATCH");
+  const ids = new Set<string>(), started = new Set<string>(), completed = new Set<string>();
+  const repairs: Record<string, number> = Object.create(null) as Record<string, number>;
+  let implementation = 0, previous: string | null = null, revoked = false, closed = false;
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i];
+    if (!e || typeof e !== "object" || e.version !== 1 ||
+      e.repository !== identity.repository || e.issue !== identity.issue ||
+      e.taskId !== identity.taskId || !ledgerKey.test(e.taskId) ||
+      !Number.isSafeInteger(e.sequence) || e.sequence !== i + 1 ||
+      !ledgerEventId.test(e.eventId) || ids.has(e.eventId) ||
+      !ledgerTypes.has(e.eventType) || !ledgerHex.test(e.sourceHead) ||
+      !ledgerHex.test(e.baseHead) || !ledgerDigest.test(e.payloadDigest) ||
+      e.previousDigest !== previous)
+      return fail("LEDGER_INVALID_OR_BROKEN_CHAIN");
+    ids.add(e.eventId);
+    previous = e.payloadDigest;
+    const repair = e.eventType.startsWith("repair-attempt-");
+    const impl = e.eventType.startsWith("implementation-attempt-");
+    if (repair || impl) {
+      if (!Number.isSafeInteger(e.attempt) || e.attempt! < 1 ||
+        (repair ? !e.failureId || !ledgerFailure.test(e.failureId) : e.failureId !== null))
+        return fail("ATTEMPT_INVALID");
+      const key = repair ? `repair:${e.failureId}:${e.attempt}` : `implementation:${e.attempt}`;
+      if (e.eventType.endsWith("-started")) {
+        if (started.has(key) || revoked || closed) return fail("DUPLICATE_OR_REVOKED_START", "BLOCKED");
+        if (repair) {
+          if (e.attempt !== (repairs[e.failureId!] ?? 0) + 1 || e.attempt > 2)
+            return fail("REPAIR_BUDGET_OR_ORDER", "BLOCKED");
+          repairs[e.failureId!] = e.attempt;
+        } else {
+          if (e.attempt !== implementation + 1 || e.attempt > 5)
+            return fail("IMPLEMENTATION_BUDGET_OR_ORDER", "BLOCKED");
+          implementation = e.attempt;
+        }
+        started.add(key);
+      } else {
+        if (!started.has(key) || completed.has(key))
+          return fail("OUTCOME_WITHOUT_UNIQUE_START");
+        completed.add(key);
+      }
+    } else if (e.failureId !== null || e.attempt !== null) {
+      return fail("NON_ATTEMPT_FIELDS_INVALID");
+    }
+    if (e.eventType === "owner-revocation") revoked = true;
+    if (e.eventType === "task-closed") closed = true;
+  }
+  if (revoked || closed) return fail("TASK_REVOKED_OR_CLOSED", "BLOCKED");
+  // The caller must authenticate the checkpoint and source separately. A
+  // self-supplied checkpoint matching self-supplied data proves nothing.
+  return { status: "VALID_UNTRUSTED", reason: "SOURCE_AND_SIGNATURE_NOT_AUTHENTICATED",
+    implementationUsed: implementation, repairUsed: { ...repairs } };
+}
