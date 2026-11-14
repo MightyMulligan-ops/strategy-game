@@ -32,3 +32,12 @@ GitHub Actions provides the durable job coordinator, not a permanently running A
 ## Current decision
 
 Do not activate a workflow or configure a billable model key yet. Continue developing testable coordinator/ledger components without broadening GitHub permissions. This is the most direct supported technical path, but it is not free or operational by default.
+
+
+## Owner budget preference — November 2026
+
+The owner stated willingness to spend **up to USD $50/month** on Sovereign's autonomous development pipeline. This is a budget preference and authorization ceiling, **not** permission to expose an API key, enable an unverified paid workflow, or assume that the provider enforces a hard cap.
+
+Proposed initial operating controls: one coding agent at a time, two repairs per stable failure, stop scheduling new paid runs at USD $45 of conservative estimated monthly usage, reserve USD $5 for reporting lag/in-flight work, and require verified provider billing controls before activation. Track usage by task and month, including retries and reviews; if provider usage is delayed or unavailable, fail closed on further launches. Do not claim the estimate is a hard billing stop.
+
+Before enabling paid execution, confirm actual model pricing, credential isolation, supported invocation, a user-configured provider budget, and end-to-end ledger/revocation safeguards. The user's stated ceiling does not remove those prerequisites.
