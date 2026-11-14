@@ -8,7 +8,7 @@ const body=(id:number,kind:LedgerBody["kind"],attempt:number|null=null,failureId
   version:1,...identity,eventId:"event-"+id,kind,attempt,failureId,sourceHead:sha,baseHead:sha,
   actorId:"owner",approvalSource:"verified-owner-source",timestamp:"2026-11-14T00:00:00Z"
 });
-function history(spec: Array<[LedgerBody["kind"],number|null,string|null?]>) {
+function history(spec: Array<[LedgerBody["kind"],number|null,(string|null)?]>) {
   const events:SignedLedgerEvent[]=[];
   for(const [kind,attempt,failure] of spec) events.push(signLedgerEvent({...body(events.length+1,kind,attempt,failure??null),
     sequence:events.length+1,previousDigest:events.at(-1)?.digest??null},key));
