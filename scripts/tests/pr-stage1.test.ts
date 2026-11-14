@@ -53,6 +53,23 @@ describe("Automation015 Stage1 unified intake and owner handoff", () => {
     if(kind==='rename omitted')object(list(object(f.review.diff).files).at(-1)).previousPath=null;
     expect(orchestrate(f.input(),f.o,f.m).recommendation).not.toBe('READY');
   });
+  it('rejects duplicate CI job IDs even when both names and matching job URLs are supplied', async () => {
+    const f = await orchestrationFixture();
+    const jobs = list(object(f.p.ci).jobs).map(object);
+    expect(jobs).toHaveLength(2);
+    const duplicateId = jobs[0]!.id;
+    jobs[1]!.id = duplicateId;
+    jobs[1]!.url = jobs[0]!.url;
+    // Both names remain distinct, while the missing observed job ID is silently omitted.
+    expect(jobs[0]!.name).not.toBe(jobs[1]!.name);
+    expect(orchestrate(f.input(), f.o, f.m).recommendation).toBe('UNKNOWN');
+    expect(orchestrate(f.input(), f.o, f.m).reasons.some(v => v.code === 'EVIDENCE_INVALID_OR_CHANGED')).toBe(true);
+  });
+  it('rejects duplicate observed CI job IDs', async () => {
+    const f = await orchestrationFixture();
+    f.o.jobIds = [f.o.jobIds[0]!, f.o.jobIds[0]!];
+    expect(orchestrate(f.input(), f.o, f.m).recommendation).toBe('UNKNOWN');
+  });
   it('uses a newer failed attempt instead of the older success through the existing collector',async()=>{
     const f=acceptanceFixture();f.run.run_attempt=2;f.run.conclusion='failure';f.quality.run_attempt=f.database.run_attempt=2;f.quality.conclusion='failure';
     const r=await collectReview(f.api,f.request);expect(r.ci?.attempt).toBe(2);expect(r.ci?.conclusion).toBe('failure');expect(r.ci?.jobs[0]?.conclusion).toBe('failure');
