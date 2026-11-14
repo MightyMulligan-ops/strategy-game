@@ -17,7 +17,7 @@ MAX_MANIFEST = 32 * 1024
 MAX_FILES = 25
 SHA = re.compile(r'^[0-9a-f]{40}$')
 DIGEST = re.compile(r'^[0-9a-f]{64}$')
-SAFE_PATH = re.compile(r'^(?:apps|packages)/[A-Za-z0-9_./-]+\\.(?:ts|tsx)$')
+SAFE_PATH = re.compile(r'^(?:apps|packages)/[A-Za-z0-9_./-]+\.(?:ts|tsx)$')
 SECRETS = re.compile(rb'(?:sk-proj-|github_pat_|-----BEGIN .*PRIVATE KEY-----)', re.I)
 
 
