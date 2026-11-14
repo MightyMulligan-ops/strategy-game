@@ -110,3 +110,15 @@
 .movement-list li { margin-block: 1rem; }
 .formation-list summary { cursor: pointer; padding: .5rem; min-height: 44px; }
 .formation-list details[open] { border-inline-start: 2px solid currentColor; padding-inline-start: .75rem; }
+
+.formation-marker { cursor: pointer; }
+.formation-hit-target { fill: transparent; stroke: none; }
+.formation-marker[aria-expanded="true"] .formation-symbol { stroke: var(--gold); stroke-width: 5; }
+.formation-marker:focus-visible .formation-symbol { stroke-dasharray: 5 3; stroke-width: 5; }
+.formation-details { border-inline-start: 2px solid var(--gold); padding-inline-start: .75rem; margin-top: 1rem; }
+.formation-details h3:focus { outline: 3px dashed #F4F1E8; outline-offset: 4px; }
+@media (forced-colors: active) {
+  .formation-symbol { stroke: CanvasText; }
+  .formation-marker[aria-expanded="true"] .formation-symbol { stroke: Highlight; }
+  .formation-details h3:focus { outline-color: CanvasText; }
+}

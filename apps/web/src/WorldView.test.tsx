@@ -106,7 +106,7 @@ describe('read-only initial map', () => {
   })
   it('announces only a concise selection summary and keeps the detailed inspector separately readable', async () => {
     const polygons = await mountGrid(); const map = host.querySelector('svg')!
-    expect(document.getElementById(map.getAttribute('aria-describedby')!)?.textContent).toContain('Tab or Shift+Tab leaves the map')
+    expect(document.getElementById(map.getAttribute('aria-describedby')!)?.textContent).toContain('Tab reaches your own formation marker when available')
     expect(polygons[4]!.getAttribute('aria-label')).toBe('Territory t4, row 2, column 2, forest, Neutral')
     expect(polygons[0]!.getAttribute('aria-label')).toContain('P1: Commander, capital')
     const status = host.querySelector('[role="status"]')!
@@ -246,19 +246,19 @@ const ownArmy = { schemaVersion: 1, matchId: 'match', state: 'READY', formations
   units: Array.from({ length: 6 }, (_, i) => ({ schemaVersion: 1, unitId: `unit:${String(i).repeat(64)}`, originalSpawnNodeId: 'n0',
     ...(i === 0 ? { kind: 'LEADER', rank: 'LIEUTENANT', specialization: 'INFANTRY' } : { kind: 'INFANTRY' }) })) }] }
 describe('own formation integration', () => {
-  it('anchors one nonfocusable diamond at the capital and supplies a native keyboard inspector', async () => {
+  it('anchors one selectable diamond at the capital and supplies an accessible inspector', async () => {
     formationRequest.mockImplementation(async () => json(ownArmy)); await mount()
     const marker = host.querySelector('.formation-marker')!
-    expect(marker.getAttribute('transform')).toBe('translate(50 50)'); expect(marker.getAttribute('aria-hidden')).toBe('true')
-    expect(marker.querySelector('[tabindex]')).toBeNull(); expect(host.querySelectorAll('svg [tabindex="0"]')).toHaveLength(1)
-    const summary = host.querySelector('summary')!; expect(summary.textContent).toContain('Lieutenant + 5 Infantry')
+    expect(marker.getAttribute('transform')).toBe('translate(50 50)'); expect(marker.getAttribute('role')).toBe('button')
+    expect(marker.getAttribute('tabindex')).toBe('0'); expect(host.querySelectorAll('svg [tabindex="0"]')).toHaveLength(2)
+    const summary = host.querySelector<HTMLButtonElement>('.formation-list button')!; expect(summary.textContent).toContain('Lieutenant + 5 Infantry')
     summary.focus(); expect(document.activeElement).toBe(summary)
-    await act(async () => summary.click()); expect(host.querySelector('details')!.open).toBe(true)
+    await act(async () => summary.click()); expect(host.querySelector<HTMLElement>('.formation-details')!.hidden).toBe(false)
     expect(host.querySelectorAll('.formation-list li li')).toHaveLength(6)
     expect(host.textContent).toContain('Infantry specialization'); expect(host.textContent).toContain('Original spawn node')
     expect(host.querySelector('svg')!.textContent).not.toContain('unit:')
     await key(host.querySelector('polygon')!, 'ArrowRight')
-    expect(host.querySelectorAll('svg [tabindex="0"]')).toHaveLength(1)
+    expect(host.querySelectorAll('svg [tabindex="0"]')).toHaveLength(2)
     for (const [path, options] of formationRequest.mock.calls) {
       expect(path).toBe('/api/matches/match/formations'); expect(options).toMatchObject({ method: 'GET', cache: 'no-store', credentials: 'same-origin' }); expect(options.body).toBeUndefined()
     }
@@ -313,3 +313,130 @@ describe('versioned authoritative movement formation overlay',()=>{
   await mount();expect(host.querySelector('.formation-marker')!.textContent).not.toContain('Pending battle');
  });
 });
+
+
+describe('own formation selection and private lifecycle (Issue 74)', () => {
+  const marker = () => host.querySelector<SVGGElement>('.formation-marker')!
+  const details = () => host.querySelector<HTMLElement>('.formation-details')!
+  async function inspect() { await act(async () => marker().dispatchEvent(new MouseEvent('click', { bubbles: true }))) }
+  const current = (pendingEncounter = false) => ({ ...ownArmy, schemaVersion: 2, collisionRadius: 10, pendingEncounter,
+    formations: [{ ...ownArmy.formations[0], position: { x: 79.999, y: 50 } }] })
+
+  it.each(['mouse', 'Enter', ' '])('opens and focuses the single real roster by %s and returns with Escape', async (input) => {
+    formationRequest.mockImplementation(async () => json(ownArmy)); await mount()
+    expect(details().hidden).toBe(true)
+    const calls = transport.mock.calls.length
+    if (input === 'mouse') await inspect()
+    else expect((await key(marker(), input)).defaultPrevented).toBe(true)
+    expect(marker().getAttribute('aria-label')).toContain('Your formation: Lieutenant, Infantry specialization, 5 Infantry')
+    expect(marker().getAttribute('aria-expanded')).toBe('true')
+    expect(marker().getAttribute('aria-controls')).toBe(details().id)
+    expect(details().hidden).toBe(false); expect(document.activeElement).toBe(details().querySelector('h3'))
+    expect(details().textContent).toContain('50, 50 (authoritative starting capital position)')
+    expect(details().textContent).not.toContain('Pending battle:')
+    expect(details().querySelectorAll('li')).toHaveLength(6)
+    expect(host.querySelectorAll('.formation-list')).toHaveLength(1)
+    expect(transport.mock.calls).toHaveLength(calls)
+    expect((await key(document.activeElement!, 'Escape')).defaultPrevented).toBe(true)
+    expect(details().hidden).toBe(true); expect(document.activeElement).toBe(marker())
+    await key(marker(), 'Enter'); await click('Return to map marker')
+    expect(details().hidden).toBe(true); expect(document.activeElement).toBe(marker())
+    await key(host.querySelector('polygon')!, 'ArrowRight')
+    expect(host.querySelector('.territory-inspector h3')?.textContent).toBe('t1')
+    expect(host.querySelectorAll('polygon[tabindex="0"]')).toHaveLength(1)
+  })
+
+  it.each([false, true])('shows stored moved coordinates and only the current pending flag (%s)', async (pending) => {
+    formationRequest.mockImplementation(async () => json(current(pending))); await mount(); await inspect()
+    expect(details().textContent).toContain('79.999, 50 (stored authoritative position)')
+    expect(details().textContent).not.toContain('(capital)')
+    expect(details().textContent).toContain(`Pending battle: ${pending ? 'Yes' : 'No'}.`)
+    expect(details().textContent).not.toContain('opponent')
+  })
+
+  it('preserves selection across successful formation/world refresh and reconnect without stealing focus', async () => {
+    formationRequest.mockImplementation(async () => json(current())); await mount(); await inspect()
+    await click('Refresh formations'); expect(marker().getAttribute('aria-expanded')).toBe('true')
+    await click('Refresh world'); expect(marker().getAttribute('aria-expanded')).toBe('true')
+    let finish!: (response: Response) => void
+    formationRequest.mockImplementation(() => new Promise<Response>((resolve) => { finish = resolve }))
+    await act(async () => { window.dispatchEvent(new Event('online')) })
+    expect(marker()).toBeNull(); expect(details()).toBeNull()
+    const refreshButton = [...host.querySelectorAll('button')].find((b) => b.textContent === 'Back to lobbies')!
+    refreshButton.focus()
+    await act(async () => finish(json(current(true))))
+    expect(marker().getAttribute('aria-expanded')).toBe('true')
+    expect(document.activeElement).toBe(refreshButton); expect(details().textContent).toContain('Pending battle: Yes.')
+  })
+
+  it.each(['UNSUPPORTED', 'UNINITIALIZED', 'NOT_STARTED', 'failure', 'malformed'])('clears selection after %s and never restores it on later success', async (state) => {
+    formationRequest.mockImplementation(async () => json(ownArmy)); await mount(); await inspect()
+    formationRequest.mockImplementation(async () => state === 'failure' ? json({}, 500) : state === 'malformed' ? json({ ...ownArmy, schemaVersion: 99 }) : json({ schemaVersion: 1, matchId: 'match', state }))
+    await click('Refresh formations'); expect(marker()).toBeNull(); expect(details()).toBeNull()
+    formationRequest.mockImplementation(async () => json(ownArmy)); await click('Refresh formations')
+    expect(marker().getAttribute('aria-expanded')).toBe('false'); expect(details().hidden).toBe(true)
+  })
+
+  it('clears selection on world read failure', async () => {
+    formationRequest.mockImplementation(async () => json(ownArmy)); await mount(); await inspect()
+    request.mockImplementation(async () => json({}, 500)); await click('Refresh world')
+    expect(details()).toBeNull(); expect(marker()).toBeNull()
+    request.mockImplementation(async () => json(ready)); await click('Refresh world')
+    expect(marker().getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('aborts obsolete reconnect reads and ignores late successes or auth failures', async () => {
+    formationRequest.mockImplementation(async () => json(ownArmy)); await mount(); await inspect()
+    let finish!: (response: Response) => void
+    formationRequest.mockImplementationOnce(() => new Promise<Response>((resolve) => { finish = resolve }))
+    await act(async () => { window.dispatchEvent(new Event('online')) })
+    const signal = formationRequest.mock.lastCall![1].signal as AbortSignal
+    await act(async () => { window.dispatchEvent(new Event('online')) })
+    expect(signal.aborted).toBe(true); expect(marker().getAttribute('aria-expanded')).toBe('true')
+    await act(async () => finish(json({}, 401)))
+    expect(session).not.toHaveBeenCalled(); expect(marker().getAttribute('aria-expanded')).toBe('true')
+  })
+
+  it('clears selection on match change and aborts pending reads on unmount', async () => {
+    formationRequest.mockImplementation(async () => json(ownArmy)); await mount(); await inspect()
+    let finish!: (response: Response) => void
+    formationRequest.mockImplementationOnce(() => new Promise<Response>((resolve) => { finish = resolve }))
+    await act(async () => { window.dispatchEvent(new Event('online')) })
+    const signal = formationRequest.mock.lastCall![1].signal as AbortSignal
+    request.mockImplementation(async () => json({ ...ready, matchId: 'other' }))
+    formationRequest.mockImplementation(async () => json({ ...ownArmy, matchId: 'other' }))
+    await act(async () => root.render(<WorldView matchId="other" onClose={close} onSessionError={session} />))
+    expect(signal.aborted).toBe(true); expect(marker().getAttribute('aria-expanded')).toBe('false')
+    await act(async () => finish(json(ownArmy)))
+    expect(marker().getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it.each([[401, 'UNAUTHENTICATED'], [403, 'USERNAME_REQUIRED']] as const)('revokes selection on HTTP %i even if account recovery rejects', async (status, error) => {
+    session.mockRejectedValueOnce(new Error('offline'))
+    formationRequest.mockImplementation(async () => json(ownArmy)); await mount(); await inspect()
+    formationRequest.mockImplementation(async () => json({ schemaVersion: 1, error }, status))
+    await act(async () => { window.dispatchEvent(new Event('online')) })
+    expect(marker()).toBeNull(); expect(details()).toBeNull(); expect(host.textContent).toContain('Your session is unavailable')
+  })
+
+  it('keeps a marker click out of destination picking and preserves dotted previews/territory clicks', async () => {
+    formationRequest.mockImplementation(async () => json(ownArmy))
+    const order = { type: 'move', orderId: 'order', stackId: ownArmy.formations[0]!.formationId, destination: { x: 75, y: 50 } }
+    movementRequest.mockImplementation(async () => json({ schemaVersion: 1, matchId: 'match', state: 'READY',
+      turn: turnReady.turn, own: { ...turnReady.own, orders: [order] }, route: { formationId: order.stackId, range: 250, distance: 25, remaining: 225,
+        segments: [{ orderId: 'order', moveNumber: 1, from: { x: 50, y: 50 }, destination: order.destination, distance: 25, cumulative: 25 }] } }))
+    await mount()
+    const select = host.querySelector('select')!
+    await act(async () => { select.value = order.stackId; select.dispatchEvent(new Event('change', { bubbles: true })) })
+    await click('Choose destination on map')
+    const calls = transport.mock.calls.length
+    await inspect(); await key(details().querySelector('h3')!, 'Escape')
+    expect(host.querySelector<HTMLInputElement>('input[type="number"]')!.value).toBe('')
+    expect(host.textContent).toContain('Click the map to fill coordinates')
+    expect(host.querySelector('.planned-route line')!.getAttribute('stroke-dasharray')).toBe('2 6')
+    expect(transport.mock.calls).toHaveLength(calls)
+    await click('Use selected territory center as destination')
+    expect(host.querySelector<HTMLInputElement>('input[type="number"]')!.value).toBe('50')
+    expect(transport.mock.calls.every(([, options]) => options.method !== 'POST')).toBe(true)
+  })
+})

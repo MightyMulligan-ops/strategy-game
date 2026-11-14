@@ -318,3 +318,44 @@ describe('Sovereign account and lobby UI', () => {
     await act(async () => resolve(json({ schemaVersion: 1, lobby: room() }))); expect(text()).toBe('Different screen')
   })
 })
+
+
+describe('selected own formation account boundary (Issue 74)', () => {
+  it.each(['Sign out', 'Sign out everywhere'])('clears selected private details and pending reads on %s', async (action) => {
+    Object.assign(redirect, { hash: '#world=council' })
+    const army = { schemaVersion: 1, matchId: 'council', state: 'READY', formations: [{ schemaVersion: 1,
+      formationId: `formation:${'a'.repeat(64)}`, ownerPlayerId: 'a', position: { x: 50, y: 50 },
+      units: Array.from({ length: 6 }, (_, i) => ({ schemaVersion: 1, unitId: `unit:${String(i).repeat(64)}`, originalSpawnNodeId: 'private-spawn',
+        ...(i ? { kind: 'INFANTRY' } : { kind: 'LEADER', rank: 'LIEUTENANT', specialization: 'INFANTRY' }) })) }] }
+    let pending = false, signal!: AbortSignal, finish!: (response: Response) => void
+    intercept = (path, init) => {
+      if (path.endsWith('/world')) return json({ schemaVersion: 1, matchId: 'council', state: 'READY', world: {
+        visibility: 'INITIAL_SHARED', bounds: { width: 200, height: 100 }, grid: { columns: 2, rows: 1 },
+        players: [{ playerId: 'a', username: 'Commander' }, { playerId: 'b', username: 'Captain' }],
+        territories: [0, 1].map((i) => ({ territoryId: `t${i}`, row: 0, column: i,
+          polygon: [{ x: i * 100, y: 0 }, { x: i * 100 + 100, y: 0 }, { x: i * 100 + 100, y: 100 }, { x: i * 100, y: 100 }],
+          center: { x: i * 100 + 50, y: 50 }, terrain: 'PLAINS', ownerPlayerId: i ? 'b' : 'a', capital: true,
+          city: { cityId: `c${i}`, kind: 'CAPITAL' }, resources: [] })), links: [{ a: 't0', b: 't1' }] } })
+      if (path.endsWith('/formations')) {
+        if (!pending) return json(army)
+        signal = init.signal as AbortSignal
+        return new Promise<Response>((resolve) => { finish = resolve })
+      }
+      if (path.endsWith('/orders') || path.endsWith('/turn')) return json({ schemaVersion: 1, matchId: 'council', state: 'UNSUPPORTED' })
+    }
+    await mount()
+    await act(async () => host.querySelector('.formation-marker')!.dispatchEvent(new MouseEvent('click', { bubbles: true })))
+    expect(host.querySelector<HTMLElement>('.formation-details')!.hidden).toBe(false)
+    expect(text()).toContain('private-spawn')
+    pending = true; await click('Refresh formations'); await click(action)
+    expect(redirect.replace).toHaveBeenCalledWith('/')
+    // The location mock cannot navigate; emulate the real full-page teardown.
+    await act(async () => root.unmount())
+    root = createRoot(host); user = null
+    await mount()
+    expect(signal.aborted).toBe(true)
+    await act(async () => finish(json(army)))
+    expect(host.querySelector('.formation-marker')).toBeNull(); expect(text()).not.toContain('private-spawn')
+    expect(text()).toContain('Sign in to continue')
+  })
+})
