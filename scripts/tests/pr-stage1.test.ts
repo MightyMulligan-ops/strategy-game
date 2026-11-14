@@ -139,7 +139,7 @@ describe("Automation015 Stage2 ledger preflight — synthetic, untrusted data", 
     expect(check(impl)).toMatchObject({status:"BLOCKED",reason:"IMPLEMENTATION_BUDGET_OR_ORDER"});
     const repairs=Array.from({length:3},(_,i)=>event(i+1,"repair-attempt-started",i+1,"FAILURE_A"));
     expect(check(repairs)).toMatchObject({status:"BLOCKED",reason:"REPAIR_BUDGET_OR_ORDER"});
-    expect(check([event(1,"repair-attempt-started",1,"FAILURE_A"),event(2,"repair-attempt-started",1,"FAILURE_A")]).reason).toBe("REPAIR_BUDGET_OR_ORDER");
+    expect(check([event(1,"repair-attempt-started",1,"FAILURE_A"),event(2,"repair-attempt-started",1,"FAILURE_A")])).toMatchObject({status:"BLOCKED",reason:"DUPLICATE_OR_REVOKED_START"});
   });
   it("blocks revoked work and rejects orphaned or repeated outcomes", () => {
     expect(check([event(1,"owner-revocation",null),event(2,"implementation-attempt-started",1)]).status).toBe("BLOCKED");
