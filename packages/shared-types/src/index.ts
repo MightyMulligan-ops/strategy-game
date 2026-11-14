@@ -189,3 +189,8 @@ export type { MovementDraftRequest, MovementDraftCommand, MovementDraftOrder, Mo
 
 export { ClosureMovementReadySchema, ReadMovementQueueSchema } from "./movement-drafts.js";
 export type { ReadMovementQueue } from "./movement-drafts.js";
+
+export { ResolutionMovementReadySchema, ReadMovementPlanSchema } from "./movement-drafts.js";
+export type { ReadMovementPlan } from "./movement-drafts.js";
+export {ReadFormationViewSchema,ResolvedOwnFormationSchema,ResolutionViewSchema} from "./movement-resolution-view.js";
+export type {ReadFormationView,ResolutionView} from "./movement-resolution-view.js";

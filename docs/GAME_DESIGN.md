@@ -357,3 +357,7 @@ A new creation-pinned runtime accepts only whole-formation private movement draf
 ## 006D.3 approved Ready lock and closure (Issue #59)
 
 For new creation-pinned `turn-closure-v1` matches only, Ready locks order edits until explicit Unready. This supersedes the historical generic implicit-Ready-reset rule above for this cohort; old runtimes retain their original rules. Final Ready or server deadline atomically closes Turn 1 and freezes every last committed queue. A bounded in-process worker and authorized mutating requests observe deadlines; GET and browser countdowns remain observational. CLOSED does not execute movement or open Turn 2. See [TURN_CLOSURE.md](TURN_CLOSURE.md).
+
+## 006D.4 movement resolution (Issue #61)
+
+[MOVEMENT_RESOLUTION.md](MOVEMENT_RESOLUTION.md) specifies the new movement-resolution-v1 cohort, strict initial/frozen/result/resolved contracts, exact swept contact, strict-before-contact milliworld stopping, hostile-edge encounter components, atomic Turn 1 resolution and participant-only audit/event UI. Different active owners are hostile only in this new cohort. Historical runtimes remain unchanged. No combat, Turn 2, existing-environment migration or deployment is included.

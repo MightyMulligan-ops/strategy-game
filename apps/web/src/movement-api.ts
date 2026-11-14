@@ -1,4 +1,4 @@
-import { MovementDraftErrorSchema, ReadMovementQueueSchema, MovementDraftRequestSchema, SetTurnReadyRequestSchema, SetTurnReadyResponseSchema } from '@strategy-game/shared-types'
+import { MovementDraftErrorSchema, ReadMovementPlanSchema, MovementDraftRequestSchema, SetTurnReadyRequestSchema, SetTurnReadyResponseSchema } from '@strategy-game/shared-types'
 import type { MovementDraftErrorCode, MovementDraftRequest } from '@strategy-game/shared-types'
 
 export class MovementRequestError extends Error {
@@ -28,7 +28,7 @@ export async function readMovementDraft(matchId: string, signal: AbortSignal) {
   try {
     const response = await fetch(path(matchId), { method: 'GET', credentials: 'same-origin', cache: 'no-store', signal })
     await checked(response, false)
-    const result = ReadMovementQueueSchema.parse(await response.json())
+    const result = ReadMovementPlanSchema.parse(await response.json())
     if (result.matchId !== matchId) throw new MovementRequestError()
     return result
   } catch (error) { if (error instanceof MovementRequestError) throw error; throw new MovementRequestError() }
@@ -46,7 +46,7 @@ export async function writeMovementDraft(matchId: string, input: MovementDraftRe
     const response = await fetch(path(matchId), { method: 'POST', credentials: 'same-origin', cache: 'no-store', signal,
       headers: { 'Content-Type': 'application/json', 'x-csrf-token': data.csrfToken }, body: JSON.stringify(body) })
     await checked(response, true)
-    const result = ReadMovementQueueSchema.parse(await response.json())
+    const result = ReadMovementPlanSchema.parse(await response.json())
     if (result.state !== 'READY' || result.matchId !== matchId || result.own.revision !== input.expectedRevision + 1) throw new MovementRequestError(undefined, true)
     return result
   } catch (error) { if (error instanceof MovementRequestError) throw error; throw new MovementRequestError(undefined, true) }

@@ -1,4 +1,4 @@
-import { ReadFormationsRequestSchema, ReadFormationsResponseSchema, TurnErrorResponseSchema, UsernameSchema } from "@strategy-game/shared-types";
+import { ReadFormationsRequestSchema, ReadFormationViewSchema, TurnErrorResponseSchema, UsernameSchema } from "@strategy-game/shared-types";
 import { TurnReadError } from "@strategy-game/database";
 import type { AuthPersistence, FormationReadRepository } from "@strategy-game/database";
 import type { FastifyInstance } from "fastify";
@@ -28,7 +28,7 @@ export async function registerFormationReadRoutes(app: FastifyInstance, options:
       if (request.body !== undefined || Object.keys(query).some((key) => key !== "schemaVersion")) throw new TurnReadError("INVALID_REQUEST");
       const input = ReadFormationsRequestSchema.safeParse({ schemaVersion: version, ...request.params as object });
       if (!input.success) throw new TurnReadError("INVALID_REQUEST");
-      const result = ReadFormationsResponseSchema.parse(await options.formations.getFormations(input.data.matchId, request.session.playerIdentityId!));
+      const result = ReadFormationViewSchema.parse(await options.formations.getFormations(input.data.matchId, request.session.playerIdentityId!));
       if (result.matchId !== input.data.matchId) throw new TurnReadError("INTERNAL_ERROR");
       return result;
     });

@@ -17,3 +17,5 @@ export { localTestIdentity, isLocalTestIdentity } from "./local-test-identities.
 export type { LocalTestPlayer, LocalTestLoginPersistence } from "./local-test-identities.js";
 
 export { TurnClosureRepository } from "./turn-closure-repository.js";
+
+export { MovementResolutionRepository } from "./movement-resolution-repository.js";

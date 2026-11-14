@@ -156,3 +156,7 @@ The new creation-pinned `initial-armies/1` / `initial-armies-v1` profile and v3 
 ## 006D.3 production closure cohort (Issue #59)
 
 [TURN_CLOSURE.md](TURN_CLOSURE.md) specifies strict v5 initialization, explicit Ready locks, atomic OPEN→CLOSED plus immutable frozen-v2 input, own-only APIs/UI and a bounded in-process deadline observer. Historical runtime behavior stays unchanged. No movement, resolution or Turn 2 runs; migration authoring and hosted disposable CI do not authorize existing-environment deployment.
+
+## 006D.4 movement resolution (Issue #61)
+
+[MOVEMENT_RESOLUTION.md](MOVEMENT_RESOLUTION.md) specifies the new movement-resolution-v1 cohort, strict initial/frozen/result/resolved contracts, exact swept contact, strict-before-contact milliworld stopping, hostile-edge encounter components, atomic Turn 1 resolution and participant-only audit/event UI. Different active owners are hostile only in this new cohort. Historical runtimes remain unchanged. No combat, Turn 2, existing-environment migration or deployment is included.

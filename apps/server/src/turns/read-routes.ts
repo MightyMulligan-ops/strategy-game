@@ -1,10 +1,10 @@
-import { ReadTurnRequestSchema, ReadTurnResponseSchema, TurnErrorResponseSchema, UsernameSchema } from "@strategy-game/shared-types";
+import { ResolutionViewSchema, ReadTurnRequestSchema, ReadTurnResponseSchema, TurnErrorResponseSchema, UsernameSchema } from "@strategy-game/shared-types";
 import { TurnReadError } from "@strategy-game/database";
 import type { AuthPersistence, TurnReadRepository } from "@strategy-game/database";
 import type { FastifyInstance } from "fastify";
 import { privateResponseHeaders, sessionPlayer } from "../auth/security.js";
 
-export type TurnReadPersistence = Pick<TurnReadRepository, "getTurn">;
+export type TurnReadPersistence = Pick<TurnReadRepository, "getTurn"> & Partial<Pick<TurnReadRepository,"getResolution">>;
 /** Independent GET-only router; never registers the fixture command service. */
 export async function registerTurnReadRoutes(app: FastifyInstance, options: { accounts: AuthPersistence; turns: TurnReadPersistence }) {
   await app.register(async (routes) => {
@@ -22,6 +22,15 @@ export async function registerTurnReadRoutes(app: FastifyInstance, options: { ac
       const user = await sessionPlayer(request, options.accounts);
       if (!user) throw new TurnReadError("UNAUTHENTICATED");
       if (!UsernameSchema.safeParse(user.username).success) throw new TurnReadError("USERNAME_REQUIRED");
+    });
+    if(options.turns.getResolution)routes.get("/api/matches/:matchId/turns/1/resolution",async(request)=>{
+      const query=request.query as Record<string,unknown>;
+      if(request.body!==undefined||Object.keys(query).some(k=>k!=="schemaVersion"&&k!=="eventOffset")||(query.schemaVersion!==undefined&&query.schemaVersion!=="1"))throw new TurnReadError("INVALID_REQUEST");
+      const parsed=ReadTurnRequestSchema.safeParse({schemaVersion:1,...request.params as object});if(!parsed.success)throw new TurnReadError("INVALID_REQUEST");
+      const offset=query.eventOffset===undefined?0:typeof query.eventOffset==="string"&&/^(0|[1-9]\d*)$/.test(query.eventOffset)?Number(query.eventOffset):NaN;
+      if(!Number.isSafeInteger(offset)||offset<0)throw new TurnReadError("INVALID_REQUEST");
+      const result=ResolutionViewSchema.parse(await options.turns.getResolution!(parsed.data.matchId,request.session.playerIdentityId!,offset));
+      if(result.matchId!==parsed.data.matchId)throw new TurnReadError("INTERNAL_ERROR");return result;
     });
     routes.get("/api/matches/:matchId/turn", async (request) => {
       const query = request.query as Record<string, unknown>;

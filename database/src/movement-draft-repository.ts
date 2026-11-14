@@ -1,5 +1,5 @@
 import { GameConfigSchema, MovementDraftPathSchema, MovementDraftRequestSchema, MovementDraftReadySchema, UsernameSchema } from "@strategy-game/shared-types";
-import type { MovementDraftErrorCode, MovementDraftRequest, ReadMovementQueue } from "@strategy-game/shared-types";
+import type { MovementDraftErrorCode, MovementDraftRequest, ReadMovementPlan } from "@strategy-game/shared-types";
 import { MovementDraftFailure, previewMovementDraft, reviseMovementDraft } from "@strategy-game/game-engine";
 import { Prisma } from "./generated/prisma/client.js";
 import type { PrismaClient } from "./generated/prisma/client.js";
@@ -55,13 +55,13 @@ async function context(tx: Transaction, matchId: string) {
     return { match, runtime, state: "UNINITIALIZED" as const };
   }
   if (runtime === "empty") return { match, runtime, state: "UNSUPPORTED" as const };
-  if (!match.world || match.currentStateVersion !== 0n || match.turns.length !== 1 || match.turns[0]?.number !== 1n) return invalid();
+  if (!match.world || (match.currentStateVersion !== 0n && runtime!=="movement_resolution") || match.turns.length !== 1 || match.turns[0]?.number !== 1n) return invalid();
   return { match, runtime, state: "READY" as const };
 }
 /** Dedicated production adapter. Does not use lifecycle commands, clocks or writes on GET. */
 export class MovementDraftRepository {
   constructor(private readonly client: PrismaClient, private readonly clock: () => number = Date.now) {}
-  async getDraft(matchId: string, turnNumber: number, identityId: string): Promise<ReadMovementQueue> {
+  async getDraft(matchId: string, turnNumber: number, identityId: string): Promise<ReadMovementPlan> {
     if (!MovementDraftPathSchema.safeParse({ matchId, turnNumber }).success) throw new MovementDraftError("INVALID_REQUEST");
     try {
       return await this.client.$transaction(async (tx) => {
@@ -71,7 +71,7 @@ export class MovementDraftRepository {
         const metadata = await context(tx, matchId);
         if (metadata.state !== "READY") return { schemaVersion: 1, matchId, state: metadata.state };
         const aggregate = await readStoredTurn(tx, matchId, 1);
-        if (aggregate.kind === "turn_closure") return closureView(aggregate, member.playerId);
+        if ((aggregate.kind === "turn_closure" || aggregate.kind === "movement_resolution")) return closureView(aggregate, member.playerId);
         if (aggregate.kind !== "movement_drafts") return { schemaVersion: 1, matchId, state: "UNSUPPORTED" };
         return view(aggregate, member.playerId);
       }, { isolationLevel: "RepeatableRead" });
@@ -80,7 +80,7 @@ export class MovementDraftRepository {
   async submitDraft(matchId: string, turnNumber: number, identityId: string, input: MovementDraftRequest) {
     if (!MovementDraftPathSchema.safeParse({ matchId, turnNumber }).success || !MovementDraftRequestSchema.safeParse(input).success) throw new MovementDraftError("INVALID_REQUEST");
     const existing = await this.getDraft(matchId, turnNumber, identityId);
-    if (existing.schemaVersion === 2) return new TurnClosureRepository(this.client, this.clock).mutate(matchId, turnNumber, identityId, input);
+    if (existing.schemaVersion === 2 || existing.schemaVersion === 3) return new TurnClosureRepository(this.client, this.clock).mutate(matchId, turnNumber, identityId, input);
     try {
       return await this.client.$transaction(async (tx) => {
         await participant(tx, matchId, identityId); // Deny before locks or private metadata.

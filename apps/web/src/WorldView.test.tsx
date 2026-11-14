@@ -298,3 +298,18 @@ describe('own formation integration', () => {
     expect(session).toHaveBeenCalledOnce(); expect(host.textContent).toContain('Your session is unavailable')
   })
 })
+
+describe('versioned authoritative movement formation overlay',()=>{
+ const f={schemaVersion:1,formationId:`formation:${'a'.repeat(64)}`,ownerPlayerId:'a',position:{x:79.999,y:50},units:Array.from({length:6},(_,i)=>({schemaVersion:1,unitId:`unit:${String(i).repeat(64)}`,originalSpawnNodeId:'n0',...(i?{kind:'INFANTRY'}:{kind:'LEADER',rank:'LIEUTENANT',specialization:'INFANTRY'})}))};
+ it('draws the radius-10 world-space circle at stored fractional coordinates and retains native navigation',async()=>{
+  formationRequest.mockImplementation(async()=>json({schemaVersion:2,matchId:'match',state:'READY',collisionRadius:10,pendingEncounter:true,formations:[f]}));
+  await mount();const marker=host.querySelector('.formation-marker')!,circle=marker.querySelector('circle')!;
+  expect(marker.getAttribute('transform')).toBe('translate(79.999 50)');expect(circle.getAttribute('r')).toBe('10');
+  expect(marker.textContent).toContain('Pending battle');expect(host.querySelectorAll('polygon[tabindex="0"]')).toHaveLength(1);
+  const svg=host.querySelector('svg')!;svg.style.width='400px';expect(circle.getAttribute('r')).toBe('10');svg.style.width='800px';expect(circle.getAttribute('r')).toBe('10');
+ });
+ it('does not infer a pending encounter from geometric overlap or paths',async()=>{
+  formationRequest.mockImplementation(async()=>json({schemaVersion:2,matchId:'match',state:'READY',collisionRadius:10,pendingEncounter:false,formations:[{...f,position:{x:50,y:50}}]}));
+  await mount();expect(host.querySelector('.formation-marker')!.textContent).not.toContain('Pending battle');
+ });
+});

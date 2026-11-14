@@ -1,6 +1,7 @@
-import { GameConfigSchema, ReadFormationsRequestSchema, ReadFormationsResponseSchema, UsernameSchema } from "@strategy-game/shared-types";
-import type { ReadFormationsResponse } from "@strategy-game/shared-types";
+import { GameConfigSchema, ReadFormationsRequestSchema, ReadFormationViewSchema, UsernameSchema } from "@strategy-game/shared-types";
+import type { ReadFormationView } from "@strategy-game/shared-types";
 import type { PrismaClient } from "./generated/prisma/client.js";
+import { ownResolvedFormation } from "./movement-resolution-view.js";
 import { configurationRuntime, readStoredTurn } from "./turn-storage.js";
 import { TurnReadError } from "./turn-read-repository.js";
 
@@ -8,7 +9,7 @@ function invalid(): never { throw new TurnReadError("INTERNAL_ERROR"); }
 /** Own-only immutable formation read. No initialization, clock observation, locks or repair. */
 export class FormationReadRepository {
   constructor(private readonly client: PrismaClient) {}
-  async getFormations(matchId: string, identityId: string): Promise<ReadFormationsResponse> {
+  async getFormations(matchId: string, identityId: string): Promise<ReadFormationView> {
     if (!ReadFormationsRequestSchema.safeParse({ schemaVersion: 1, matchId }).success) throw new TurnReadError("INVALID_REQUEST");
     try {
       return await this.client.$transaction(async (tx) => {
@@ -31,22 +32,27 @@ export class FormationReadRepository {
         if (runtime === "empty") return invalid();
         if (match.status === "OPEN") {
           if (match.world || match.turns.length || match.currentStateVersion !== 0n) return invalid();
-          return ReadFormationsResponseSchema.parse({ ...envelope, state: "NOT_STARTED" });
+          return ReadFormationViewSchema.parse({ ...envelope, state: "NOT_STARTED" });
         }
         if (match.status !== "RUNNING") return invalid();
         if (runtime === "legacy") {
           if (match.turns.length) return invalid();
-          return ReadFormationsResponseSchema.parse({ ...envelope, state: "UNINITIALIZED" });
+          return ReadFormationViewSchema.parse({ ...envelope, state: "UNINITIALIZED" });
         }
-        if (!match.world || match.currentStateVersion !== 0n || match.turns.length !== 1 || match.turns[0]?.number !== 1n) return invalid();
+        if (!match.world || (match.currentStateVersion !== 0n && runtime!=="movement_resolution") || match.turns.length !== 1 || match.turns[0]?.number !== 1n) return invalid();
         const stored = await readStoredTurn(tx, matchId, 1);
         if (!stored.state.players.some((p) => p.playerId === member.playerId && p.active)) return invalid();
-        if (stored.kind === "initial_world") return ReadFormationsResponseSchema.parse({ ...envelope, state: "UNSUPPORTED" });
-        if (stored.kind !== "initial_armies" && stored.kind !== "movement_drafts" && stored.kind !== "turn_closure") return invalid();
+        if(stored.kind==="movement_resolution"){
+          const f=stored.result?ownResolvedFormation(stored,member.playerId):null;
+          if(f)return ReadFormationViewSchema.parse({...envelope,schemaVersion:2,state:"READY",collisionRadius:10,
+            pendingEncounter:stored.result!.encounters.some(e=>e.members.some(m=>m.playerId===member.playerId)),formations:[f]});
+        }
+        if (stored.kind === "initial_world") return ReadFormationViewSchema.parse({ ...envelope, state: "UNSUPPORTED" });
+        if (stored.kind !== "initial_armies" && stored.kind !== "movement_drafts" && stored.kind !== "turn_closure" && stored.kind !== "movement_resolution") return invalid();
         const formation = stored.snapshot.formations.find((f) => f.ownerPlayerId === member.playerId);
         if (!formation) return invalid();
         const members = new Map(stored.snapshot.units.map((u) => [u.unitId, u]));
-        return ReadFormationsResponseSchema.parse({ ...envelope, state: "READY", formations: [{
+        return ReadFormationViewSchema.parse({ ...envelope, ...(stored.kind==="movement_resolution"?{schemaVersion:2,collisionRadius:10,pendingEncounter:false}:{}),state: "READY", formations: [{
           schemaVersion: 1, formationId: formation.formationId, ownerPlayerId: member.playerId,
           position: { x: formation.position.x, y: formation.position.y },
           units: formation.unitIds.map((id) => {

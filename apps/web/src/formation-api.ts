@@ -1,4 +1,4 @@
-import { ReadFormationsRequestSchema, ReadFormationsResponseSchema } from '@strategy-game/shared-types'
+import { ReadFormationsRequestSchema, ReadFormationViewSchema } from '@strategy-game/shared-types'
 
 export class FormationReadError extends Error {
   readonly reason: 'session' | 'username' | 'denied' | 'malformed' | 'unavailable'
@@ -21,7 +21,7 @@ export async function readFormations(matchId: string, signal: AbortSignal) {
     throw new FormationReadError(response.status === 401 ? 'session' : username ? 'username' : response.status === 404 || response.status === 403 ? 'denied' : 'unavailable')
   }
   try {
-    const result = ReadFormationsResponseSchema.parse(await response.json())
+    const result = ReadFormationViewSchema.parse(await response.json())
     if (result.matchId !== matchId) throw new Error('Mismatched match')
     return result
   } catch { throw new FormationReadError('malformed') }

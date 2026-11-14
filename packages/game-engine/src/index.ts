@@ -17,3 +17,5 @@ export { planInitialArmies, initializeArmiesTurnOne, validateInitialArmiesSnapsh
 export { squaredDistance, geographicDistance, evaluateLeadership, evaluateStartingFootMovement, classifyEncounter, MovementInputError } from "./army-movement.js";
 export { planMovementDrafts, initializeMovementDrafts, validateMovementDraftSnapshot, previewMovementDraft, reviseMovementDraft, MovementDraftFailure } from "./movement-drafts.js";
 export { planTurnClosure, initializeTurnClosure, validateTurnClosureSnapshot, reviseClosureDraft, applyClosureCommand, observeClosureDeadline, freezeClosureInput } from "./turn-closure.js";
+export { planMovementResolution, validateMovementInitialSnapshot, freezeMovementInput, resolveMovement } from "./movement-resolution.js";
+export { sweptContact, compareContact, strictStoppingPoint, squaredMilliDistance } from "./swept-contact.js";

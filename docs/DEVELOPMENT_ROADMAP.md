@@ -332,3 +332,5 @@ Implementation prepared / unmerged: strict versioned units/formations, one Lieut
 Prepared locally / unmerged: creation-pinned v4, authenticated revisioned complete-draft replacement/cancellation, cumulative 250-unit validation and dotted route/Movement Queue UI. Gates B/C authorize code and additive SQL authoring only. Hosted integration tests are authored but unrun; no publication or CI is authorized. Movement execution, Ready/closure, encounters and runtime transition remain separate. See [MOVEMENT_DRAFTS.md](MOVEMENT_DRAFTS.md).
 
 - [ ] 006D.3 / Issue #59: production Ready/Unready, authoritative Turn 1 closure, frozen-v2 input and bounded deadline worker. Issue branch implementation / pending draft review; [TURN_CLOSURE.md](TURN_CLOSURE.md). No movement execution, Turn 2 or deployment.
+
+- [ ] 006D.4 / Issue #61: new-runtime deterministic Turn 1 movement, conservative swept contact, pending encounter components, immutable result/audits and own-only result UI. In progress / unmerged on the issue branch; [MOVEMENT_RESOLUTION.md](MOVEMENT_RESOLUTION.md). No combat or Turn 2.
