@@ -1,0 +1,92 @@
+name: Sovereign Codex manual worker (DISABLED candidate)
+
+# Protected pilot: paid job hard-disabled (literal false). No triggers beyond manual dispatch.
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Explicitly authorized pilot issue number (currently 76 only)'
+        type: string
+        required: true
+      approval_confirmation:
+        description: 'Advisory only: paid execution is hard-disabled regardless of text'
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sovereign-manual-codex-paid-worker
+  cancel-in-progress: false
+
+jobs:
+  propose:
+    if: ${{ false && github.run_attempt == 1 && github.repository == 'MightyMulligan-ops/strategy-game' && github.ref == 'refs/heads/main' && github.actor == 'MightyMulligan-ops' && inputs.issue_number == '76' && inputs.approval_confirmation == 'APPROVE-76-ONE-PAID-RUN' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    env:
+      AUTH_ENABLED: 'false'
+      RUN_DATABASE_TESTS: '0'
+    steps:
+      - name: Check out reviewed main with no persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Set up trusted toolchain
+        uses: pnpm/action-setup@f53f5227a9e83886ab598c617f3c170fab62f0d3 # v6
+        with:
+          run_install: false
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Prepare workspace before API key is exposed
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile
+          pnpm db:generate
+          mkdir -p .cache/codex-worker
+          printf '%s\n' "issue=76" "base_sha=${GITHUB_SHA}" "run=${GITHUB_RUN_ID}" > .cache/codex-worker/identity.txt
+
+      # The action's API-key proxy is isolated from the read-only checkout token.
+      # No repository write token, issue body, external PR text, or existing DB credentials
+      # are supplied to the agent. No automatic retries or additional agents.
+      - name: Implement a bounded local proposal (one paid invocation)
+        id: codex
+        uses: openai/codex-action@bdf19a4a223ec2549a3e2274a0cf61556bc07675
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          permission-profile: ':workspace'
+          safety-strategy: drop-sudo
+          codex-args: '["--ephemeral"]'
+          prompt: |
+            Implement only Sovereign Issue #76, Combat 1A, from trusted main.
+            Read AGENTS.md, docs/GAME_DESIGN.md, docs/DEVELOPMENT_ROADMAP.md,
+            and the committed issue-scope handoff in docs/CODEX_WORKER_PILOT.md.
+            This run may modify the checkout only; it may NOT commit, push,
+            create a branch or PR, alter workflows, retrieve secrets, use an
+            existing database, execute migrations, or access deployment.
+            No external network access is required for gameplay implementation.
+            Implement only the pure two-formation deterministic combat module
+            and its database-free tests; report open design ambiguities rather
+            than inventing multiplayer/air/naval mechanics.
+            Run build, typecheck, lint and unit tests with
+            AUTH_ENABLED=false RUN_DATABASE_TESTS=0. Never invoke Docker,
+            PostgreSQL, db:migrate, or production endpoints.
+            Do not amend README, AGENTS.md, CI, workflows, dependencies,
+            schemas/migrations or security/authorization systems.
+            Finish with tests run/results, remaining limitations and a compact
+            plain-text handoff. No secrets or raw logs in the final message.
+
+      # IMPORTANT: No artifact publication is wired in this disabled candidate.
+      # The original post-agent same-job validator and raw report uploader were
+      # removed because their trust/process boundaries are unverified.
+      # This is not an operational paid worker. Separate independent validation,
+      # trusted handoff and billing/authorization integration are still required.
