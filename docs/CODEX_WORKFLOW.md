@@ -142,3 +142,12 @@ Automation 008 adds a separate read-only PR summary and bounded CI-diagnostics w
 - After merge, provision/reconcile labels with the workflow dispatch if needed. No OpenAI secret, API account, self-hosted runner, repository dispatch integration, auto-merge, or deployment configuration is needed.
 
 References: [GitHub metadata event/security semantics](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request_target), [issue label APIs](https://docs.github.com/en/rest/issues/labels), and [GitHub Script](https://github.com/actions/github-script).
+
+## Automation 014 owner decision handoff
+
+Use [AUTOMATION_014.md](AUTOMATION_014.md) to combine the existing CI/triage packet,
+independently corroborated review findings and retained histories into one advisory
+owner decision. Copyable review/repair text launches nothing. The live reporter
+leaves absent owner/review/history evidence explicit; it cannot promote green CI
+to READY. No standing delegation is enabled, and the local VS Code fallback and
+separately authorized five-pass/two-attempt/E/F boundaries above remain unchanged.

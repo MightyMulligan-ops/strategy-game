@@ -11,7 +11,7 @@ const repair = read(".github/CODEX_REPAIR_PROMPT.md").replace(/\s+/g, " ");
 const guide = read("docs/PR_REVIEW.md");
 const handoff = object(JSON.parse(read(".github/PR_REVIEW_HANDOFF.template.json")));
 const allowedLinks = new Set([".github/CODEX_ISSUE_PROMPT.md", ".github/CODEX_CLOUD_PROMPT.md", ".github/CODEX_REVIEW_PROMPT.md", ".github/CODEX_REPAIR_PROMPT.md",
-  ".github/PR_REVIEW_HANDOFF.template.json", "docs/PR_REVIEW.md", "docs/CI.md", "docs/CODEX_WORKFLOW.md", "docs/CODEX_PIPELINE.md"]);
+  ".github/PR_REVIEW_HANDOFF.template.json", "docs/PR_REVIEW.md", "docs/CI.md", "docs/CODEX_WORKFLOW.md", "docs/CODEX_PIPELINE.md", "docs/AUTOMATION_014.md"]);
 function localLink(source: string, target: string): string {
   const path = resolve(root, dirname(source), target);
   // Validate before any existence/content read; links cannot probe credentials or arbitrary files.

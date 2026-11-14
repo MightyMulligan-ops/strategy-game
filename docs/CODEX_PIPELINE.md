@@ -172,3 +172,15 @@ claims, identity, revocation/expiry and owner launch on the receiving side. Tran
 does not reset 5/2 limits or renew expired approval. Never copy .env, GitHub/Codex
 tokens, session files or database credentials. Preserve the local fallback. A label,
 handoff, failed check or owner approval record never starts the next task.
+
+## Integrated owner orchestration — Automation 014
+
+Issue #63 adds deterministic review/repair proposal preparation and a single advisory
+acceptance handoff to the existing trusted-main reporter. It consumes the same
+Automation 012/013 packets and the Automation 009 review template; no second
+collector, evidence format, workflow or permission is added. Independent review
+and actual owner/history verification are separate manual inputs, never inferred
+from triage or receipt-shaped JSON. See [the owner guide](AUTOMATION_014.md).
+The guide covers changed-head invalidation, append-only 5/2 histories, scoped
+proposals, recommendation reason codes, conditional input trust and the disabled
+future-delegation design. No agent/repair/write/CI retry/E/F operation is launched.

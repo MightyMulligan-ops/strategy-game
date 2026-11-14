@@ -7,6 +7,8 @@ import {
   renderReview, renderHandoff, executionFacts
 } from "./pr-review.ts";
 import type { Json, ReviewReport } from "./pr-review.ts";
+import { acceptancePacket } from "./pr-review.ts";
+import { reportOrchestration } from "./pr-orchestration.ts";
 
 export interface ReadGitHub { get(path: string): Promise<unknown>; log(jobId: number): Promise<string> }
 export type ReviewRequest = { repository: string; ref: string; event: string; actor: string; pr?: unknown; run?: unknown };
@@ -269,6 +271,13 @@ export function githubReader(token: string, fetcher: typeof fetch = fetch): Read
   };
 }
 
+/** Same artifacts/summary, pure rendering; no new collector or write path. */
+export function reviewArtifacts(report: ReviewReport, now: string) {
+  const packet = acceptancePacket(report);
+  return { markdown: renderReview(report) + "\n" + reportOrchestration(packet, now),
+    handoff: renderHandoff(report) + "\n" + reportOrchestration(packet, now, false) };
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   try {
     const eventFile = process.env.GITHUB_EVENT_PATH;
@@ -280,8 +289,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
       actor: process.env.GITHUB_ACTOR ?? "", pr: event.inputs ? object(event.inputs).pr_number : undefined,
       run: event.workflow_run ? object(event.workflow_run).id : undefined
     });
-    const markdown = renderReview(report); mkdirSync(".cache/pr-review", { recursive: true });
-    writeFileSync(".cache/pr-review/report.md", markdown); writeFileSync(".cache/pr-review/handoff.md", renderHandoff(report));
+    const { markdown, handoff } = reviewArtifacts(report, new Date().toISOString()); mkdirSync(".cache/pr-review", { recursive: true });
+    writeFileSync(".cache/pr-review/report.md", markdown); writeFileSync(".cache/pr-review/handoff.md", handoff);
     if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown);
     console.log("Read-only PR summary generated. No repository writes or repair execution.");
   } catch (error) {
