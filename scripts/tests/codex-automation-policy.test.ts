@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test } from 'vitest';
 import { canonicalScope, evaluateAdmission, publicationDecision, sha256, validateProposal, validPath, REPOSITORY, OWNER, type TaskScope, type TrustedAdmission } from '../codex-automation-policy.ts';
 const scope: TaskScope = { repository: REPOSITORY, issue: 76, sourceSha: 'a'.repeat(40), baseSha: 'b'.repeat(40), approvedPaths: ['packages/game-engine/src/combat.ts','packages/game-engine/tests/combat.test.ts'], acceptanceDigest: 'c'.repeat(64), expiresAt: '2027-01-01T00:00:00Z' };
 const digest = sha256(canonicalScope(scope));
