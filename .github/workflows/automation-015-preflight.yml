@@ -1,0 +1,57 @@
+name: Automation 015 Runner — Offline Preflight
+
+# Safe infrastructure smoke test only. This workflow NEVER starts Codex,
+# loads API credentials, writes to GitHub, or spends API tokens.
+on:
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: 'Approved issue number (offline fixture only)'
+        required: true
+        default: '68'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: automation-015-offline-preflight
+  cancel-in-progress: false
+
+jobs:
+  offline-preflight:
+    name: Verify runner admission and ledger tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      AUTH_ENABLED: 'false'
+      RUN_DATABASE_TESTS: '0'
+    steps:
+      - name: Require fixed offline issue scope
+        env:
+          REQUESTED_ISSUE: ${{ inputs.issue }}
+        run: |
+          test "$REQUESTED_ISSUE" = '68' || {
+            echo 'Only the approved Stage 2 fixture is supported'; exit 1;
+          }
+      - name: Checkout exact workflow source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set up pnpm
+        uses: pnpm/action-setup@f53f5227a9e83886ab598c617f3c170fab62f0d3 # v6
+        with:
+          run_install: false
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install frozen dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run ledger and runner admission unit tests
+        run: pnpm exec vitest run scripts/tests/automation-ledger.test.ts scripts/tests/automation-ledger-postgres.test.ts scripts/tests/automation-runner-admission.test.ts
+      - name: Confirm no paid runner is enabled
+        run: |
+          echo 'OFFLINE_PREFLIGHT_ONLY: no Codex invocation, no API key, no PR publication'
