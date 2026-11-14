@@ -1,7 +1,7 @@
 // Stage 1 fixtures only: no live reviewer, authority, agent, CI or database.
 import { describe, it, expect } from "vitest";
 import { coordinationEvidence, object, list, reviewTriage, LIMITS } from "../pr-review.ts";
-import { orchestrate, renderOwnerHandoff, reviewDigest } from "../pr-orchestration.ts";
+import { orchestrate, renderOwnerHandoff, reviewDigest, validateLedgerSnapshot } from "../pr-orchestration.ts";
 import { collectReview, reviewArtifacts } from "../pr-review-github.ts";
 import { orchestrationFixture, confirmed, repairRecord } from "./pr-orchestration-fixture.ts";
 import { acceptanceFixture } from "./pr-acceptance-fixture.ts";
@@ -103,5 +103,47 @@ describe("Automation015 Stage1 unified intake and owner handoff", () => {
   it('rejects scope drift and contradictory/missing provenance even when caller flags PASS',async()=>{
     const f=await orchestrationFixture();f.m.owner!.scopeDigest='sha256:'+'b'.repeat(64);expect(orchestrate(f.input(),f.o,f.m).recommendation).toBe('BLOCKED');
     f.m.owner!.scopeDigest=f.o.scopeDigest;delete f.m.historySource;expect(orchestrate(f.input(),f.o,f.m).reviewCompleted).toBe(false);
+  });
+});
+
+
+describe("Automation015 Stage2 ledger preflight — synthetic, untrusted data", () => {
+  const identity = { repository: "MightyMulligan-ops/strategy-game", issue: 68, taskId: "issue-68-stage2" };
+  const sha = "a".repeat(40);
+  const digest = (n: number) => "sha256:" + n.toString(16).padStart(64, "0");
+  const event = (n: number, eventType: "implementation-attempt-started" | "implementation-attempt-outcome" | "repair-attempt-started" | "repair-attempt-outcome" | "owner-revocation" | "task-transfer" = "implementation-attempt-started", attempt: number | null = n, failureId: string | null = null) =>
+    ({ version: 1 as const, ...identity, sequence: n, eventId: `event-${n}`, eventType, failureId, attempt,
+       sourceHead: sha, baseHead: sha, previousDigest: n === 1 ? null : digest(n - 1), payloadDigest: digest(n) });
+  const check = (events: ReturnType<typeof event>[]) =>
+    validateLedgerSnapshot(events, identity, { sequence: events.length, digest: events[events.length - 1]!.payloadDigest });
+  it("rejects absent data, unsigned/untrusted checkpoint and self-contained snapshots without an authority claim", () => {
+    expect(validateLedgerSnapshot(null, identity).status).toBe("UNKNOWN");
+    expect(validateLedgerSnapshot([event(1)], identity).reason).toBe("TRUSTED_CHECKPOINT_REQUIRED");
+    expect(check([event(1)])).toMatchObject({status:"VALID_UNTRUSTED",implementationUsed:1,
+      reason:"SOURCE_AND_SIGNATURE_NOT_AUTHENTICATED"});
+  });
+  it("counts starts even when no outcome exists and preserves them across transfer", () => {
+    const events = [event(1),event(2,"task-transfer",null),event(3,"implementation-attempt-started",2)];
+    expect(check(events)).toMatchObject({status:"VALID_UNTRUSTED",implementationUsed:2});
+  });
+  it("rejects replay, chain changes, missing prefix, wrong identity and checkpoint drift", () => {
+    const events=[event(1),event(2,"implementation-attempt-started",2)];
+    expect(check([...events, {...event(3),eventId:"event-1"}]).reason).toBe("LEDGER_INVALID_OR_BROKEN_CHAIN");
+    expect(check([event(2)]) .reason).toBe("LEDGER_INVALID_OR_BROKEN_CHAIN");
+    expect(check([{...event(1),sourceHead:"x".repeat(40)}]).reason).toBe("LEDGER_INVALID_OR_BROKEN_CHAIN");
+    expect(validateLedgerSnapshot(events,identity,{sequence:2,digest:digest(1)}).reason).toBe("CHECKPOINT_MISMATCH");
+    expect(validateLedgerSnapshot(events,{...identity,taskId:"other"}, {sequence:2,digest:digest(2)}).reason).toBe("LEDGER_INVALID_OR_BROKEN_CHAIN");
+  });
+  it("blocks exhausted implementation and per-failure repair budgets", () => {
+    const impl=Array.from({length:6},(_,i)=>event(i+1,"implementation-attempt-started",i+1));
+    expect(check(impl)).toMatchObject({status:"BLOCKED",reason:"IMPLEMENTATION_BUDGET_OR_ORDER"});
+    const repairs=Array.from({length:3},(_,i)=>event(i+1,"repair-attempt-started",i+1,"FAILURE_A"));
+    expect(check(repairs)).toMatchObject({status:"BLOCKED",reason:"REPAIR_BUDGET_OR_ORDER"});
+    expect(check([event(1,"repair-attempt-started",1,"FAILURE_A"),event(2,"repair-attempt-started",1,"FAILURE_A")]).reason).toBe("REPAIR_BUDGET_OR_ORDER");
+  });
+  it("blocks revoked work and rejects orphaned or repeated outcomes", () => {
+    expect(check([event(1,"owner-revocation",null),event(2,"implementation-attempt-started",1)]).status).toBe("BLOCKED");
+    expect(check([event(1,"implementation-attempt-outcome",1)]).reason).toBe("OUTCOME_WITHOUT_UNIQUE_START");
+    expect(check([event(1),event(2,"implementation-attempt-outcome",1),event(3,"implementation-attempt-outcome",1)]).reason).toBe("OUTCOME_WITHOUT_UNIQUE_START");
   });
 });
