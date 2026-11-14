@@ -78,3 +78,18 @@ Rollout sequence:
 4. **Any agent execution, reviewer invocation, repair, merge or deployment:** separate explicit scope, security review and owner authorization; no inherited standing grant.
 
 The owner should receive one bounded handoff listing exact source/base, ledger checkpoint, claim, event budget, reviewer provenance, newest CI, proposed action, authority state and any stop reason. Do not silently interpret an owner instruction to “complete by any means” as a waiver of technical security prerequisites.
+
+
+### Stage 2 implementation status — owner-authorized work on PR #69
+
+Owner TASK_SCOPE authorization for Issue #68 / PR #69 permits implementation, CI repairs and a conditional merge, but **does not by itself authenticate a runtime owner grant or provision an agent service**.
+
+Implemented on the PR branch:
+- `scripts/automation-ledger.ts`: canonical field-order SHA-256 digests and HMAC-SHA256 authentication, complete-prefix and signed-checkpoint verification, five implementation starts / two starts per stable failure, revocation and closure rejection, and fail-closed compare-and-append. The HMAC secret must be held outside PR-controlled code and outside the audit database; a client-supplied secret or checkpoint is not an owner grant.
+- `scripts/automation-ledger-postgres.ts`: PostgreSQL transaction with `SELECT ... FOR UPDATE`, sequence/head CAS, rollback on failure, isolated genesis provisioning and append-only event inserts.
+- `scripts/sql/automation-ledger.sql`: **optional, not applied** isolated audit schema. The existing game database is unchanged. A trusted operator must provision storage and restrict schema/role privileges.
+- Synthetic tests for signatures, tampering, limits, transfer, revocation, concurrency preconditions and transaction rollback.
+
+**Still disabled / not production-ready:** no live audit database, trusted key provisioning or independently anchored checkpoint; no authenticated owner-grant verification, task runner, Codex invocation API, cancellation, notification service, independent reviewer identity or automatic merge/deploy integration. A database administrator can roll back both history and its checkpoint; HMAC catches unauthorized modifications without the key but does not by itself establish completeness after a rollback. No actual delegated execution is allowed until an independently anchored checkpoint, trusted caller identity and revocation checks are integrated and tested. These components are useful verified building blocks, **not** proof of completed Stage 2 or permission to turn on 015E.
+
+The earlier `validateLedgerSnapshot` in `pr-orchestration.ts` remains an explicitly **untrusted** diagnostic preflight; only authenticated `verifyLedger` with a trusted checkpoint can support decisions, and neither module alone grants authority.
