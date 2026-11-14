@@ -243,3 +243,15 @@ Issue #34's deterministic reproduction initially failed for both manual and auto
 The public unauthenticated commit lookup returned HTTP 404 during Issue #34 verification; the connected GitHub tools expose normalized metadata without raw association fields. No token or broader permission was obtained to bypass that limitation. PR #35 is now merged as `2224ba0`, but live recovery has not been independently observed during Issue #36. The owner can manually dispatch **PR review summary** from **main** for PR **33** and retain the result. Verify the head above, run **43265346907**, both CI job conclusions and any source-qualified test counts; unavailable logs must remain unknown. No dispatch or live-success claim is made by this documentation task. Missing token scope, rate limiting, held CI, stale events, ambiguous/missing associations and expired logs remain safe failure states. Do not enable privileged execution or weaken checks to recover a report. No repository settings change is required.
 
 For another project, review the explicit repository/base/workflow/job allowlist in `REVIEW_POLICY`, YAML repository/ref gates, protected paths, relationship convention, diagnostic vocabulary and test runner evidence format together. Keep project configuration in trusted reviewed code, never PR-supplied settings. Preserve generic report/provenance rules and injected API tests; do not infer another project's approval, database isolation or CI policy. A reusable package/workflow or independently attested structured evidence can be proposed later; this phase adds neither dependencies nor a multi-project service.
+
+## Owner orchestration — Automation 014
+
+The existing report/handoff now includes deterministic review, bounded repair-proposal
+and advisory acceptance orchestration. See [AUTOMATION_014.md](AUTOMATION_014.md).
+Structured independent findings use the existing sovereign-pr-review-v1 template;
+explicitly corroborated owner/reviewer/history inputs are required for a conditional
+READY recommendation. The reporter does not collect or authenticate those receipts
+automatically. A triage hint never establishes independent review; old head-bound
+evidence is invalid after a repair. Scope, five implementation corrections, two
+owner-started repair attempts, transfer safety and separate E/F gates are preserved.
+The disabled delegation proposal is design only. No report starts the next task.
