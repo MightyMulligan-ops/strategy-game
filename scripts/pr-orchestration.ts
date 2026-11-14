@@ -162,7 +162,9 @@ function validatePacket(raw: string, o: Observation): AcceptancePacket {
   const jobs = list(ci.jobs).map(object);
   if (jobs.length !== 2 || o.jobIds.length !== 2 || new Set(o.jobIds).size !== 2 ||
       !REVIEW_POLICY.jobs.every(name => jobs.filter(j => j.name === name).length === 1) ||
-      jobs.some(j => !o.jobIds.includes(positive(j.id)) || j.runId !== o.runId || j.attempt !== o.attempt || j.trust !== "UNTRUSTED_RUNNER_REPORT" ||
+      new Set(jobs.map(j => positive(j.id))).size !== jobs.length ||
+       o.jobIds.some(id => jobs.filter(j => j.id === id).length !== 1) ||
+       jobs.some(j => !o.jobIds.includes(positive(j.id)) || j.runId !== o.runId || j.attempt !== o.attempt || j.trust !== "UNTRUSTED_RUNNER_REPORT" ||
         j.url !== `${root}/actions/runs/${o.runId}/job/${j.id}`)) throw Error("jobs");
   for (const f of list(object(p.inventory).files).map(object)) {
     path(f.path); if (f.previous !== null) path(f.previous);
