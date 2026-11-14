@@ -19,7 +19,7 @@ const forbidden = /(?:^|\/)(?:\.github|\.git|node_modules|\.env|prisma|migration
 export const sha256 = (data: string | Uint8Array) => createHash('sha256').update(data).digest('hex');
 export function validPath(path: string): boolean {
   return path.length < 200 && pathPattern.test(path) && !path.includes('//') &&
-    !path.split('/').some(x => x === '..' || x === '.') && !forbidden.test(path);
+    !path.split('/').some(x => x === '..' || x === '.' || x.startsWith('.')) && !forbidden.test(path);
 }
 export type TaskScope = Readonly<{
   repository: string; issue: number; sourceSha: string; baseSha: string;
