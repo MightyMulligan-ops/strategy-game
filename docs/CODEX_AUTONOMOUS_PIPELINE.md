@@ -14,7 +14,9 @@
 
 - `scripts/codex-automation-policy.ts` implements pure, offline fail-closed checks for frozen scope, actor/ref/source/issue identity, grant digest, expiry/revocation, run assignment, duplicate claim, reported budget evidence, bounded patch manifest and publication prerequisites.
 - `scripts/tests/codex-automation-policy.test.ts` exercises adversarial synthetic policy cases using Node's built-in test runner. These tests do not authenticate GitHub identities or execute a Codex worker.
-- No agent runner, authenticated GitHub admission collector, durable lock/ledger, real-time billing checker, isolation boundary, Git tree validator or publisher is connected to these pure functions. **An input flag such as `authenticatedOwnerGrant: true` is not evidence of actual owner approval.** The caller must prove it independently.
+- `scripts/codex-proposal-replay.py` is a separate **offline, credential-free** patch replay validator. It applies an untrusted patch into a temporary Git index at the exact source SHA, rejects unauthorized paths, deletions/renames/type/mode changes, and verifies complete changed-file bytes against a manifest without executing generated code. It is not connected to a live worker or publisher. Its scope JSON is **not authenticated**; a trusted collector must provide it.
+- `scripts/tests/codex-proposal-replay.test.py` includes nine synthetic Git fixtures. Local Python unittest execution passed 9/9 before publication.
+- No agent runner, authenticated GitHub admission collector, durable lock/ledger, real-time billing checker, **trusted source-to-artifact handoff**, or GitHub publisher is connected to these components. **An input flag such as `authenticatedOwnerGrant: true` is not evidence of actual owner approval.** The caller must prove it independently.
 
 ## Admission and cost
 
@@ -22,7 +24,7 @@ An admission service must verify the actual owner identity/permission, frozen is
 
 ## Artifact and publisher boundary
 
-The current pure `validateProposal` verifies metadata and byte bounds **only**; it is insufficient to accept or execute a patch. The publisher MUST first obtain independently authenticated task/grant data, reconstruct the entire patch against the exact trusted source in a disposable no-credentials environment, compare file bytes/modes/path inventory, run required tests there, and recheck current source/grants/claims before writing. The untrusted worker must never share an execution environment with a publisher token. Never run agent-authored code in a token-bearing publisher job. Avoid unsafe `workflow_run` artifact handling, symlink traversal and unbounded extraction.
+The pure `validateProposal` verifies metadata and byte bounds **only**; the separate Python replay tool reconstructs a patch but does not authenticate its scope, validate ignored-file absence, establish isolation or authorize publication. The publisher MUST first obtain independently authenticated task/grant data, reconstruct the entire patch against the exact trusted source in a disposable no-credentials environment, compare file bytes/modes/path inventory, run required tests there, and recheck current source/grants/claims before writing. The untrusted worker must never share an execution environment with a publisher token. Never run agent-authored code in a token-bearing publisher job. Avoid unsafe `workflow_run` artifact handling, symlink traversal and unbounded extraction.
 
 A secure GitHub write integration has **not** been implemented. The `publicationDecision` function is a precondition checker, not a publishing tool or a security boundary. It does not open PRs.
 
