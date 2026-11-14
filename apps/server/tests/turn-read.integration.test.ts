@@ -66,7 +66,7 @@ describe.skipIf(process.env.RUN_DATABASE_TESTS !== "1")("production turn GET (fr
   }
   async function inspect(id: string) {
     return {
-      match: await client.match.findUniqueOrThrow({ where: { id }, include: { configuration: true, world: true, snapshots: true, participants: true,
+      match: await client.match.findUniqueOrThrow({ where: { id }, include: { configuration: true, world: true, snapshots: true, participants: { orderBy: { playerId: "asc" } },
         turns: { include: { players: { include: { orders: true, revisions: true } }, frozenInput: true, resolution: true } } } }),
       sessions: await client.authSession.findMany({ where: { id: { in: [...sessions] } }, orderBy: { id: "asc" } })
     };

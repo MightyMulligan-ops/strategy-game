@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 import { createHash } from "node:crypto";
 import {
   REVIEW_POLICY, LIMITS, object, list, positive, sha, conclusion, linkedIssue, protectedFlags, displayPath, safeStep, logFacts,
-  renderReview, renderHandoff, executionFacts
+  renderReview, renderHandoff, executionFacts, coordinationEvidence
 } from "./pr-review.ts";
 import type { Json, ReviewReport } from "./pr-review.ts";
 import { acceptancePacket } from "./pr-review.ts";
@@ -111,6 +111,7 @@ export async function collectReview(api: ReadGitHub, request: ReviewRequest): Pr
         number: issueNumber, state: String(issue.state), labels: list(issue.labels).map((v) => object(v).name).filter((v): v is string => typeof v === "string" && managed.has(v)).sort()
       };
       if (report.issue) {
+        report.evidence.coordination = coordinationEvidence([], typeof issue.comments === "number" ? issue.comments : -1, issueNumber);
         report.evidence.approvalSources.push(`https://github.com/${REVIEW_POLICY.repository}/issues/${issueNumber}`);
         if (typeof issue.body === "string" && Buffer.byteLength(issue.body, "utf8") <= 65_536) {
           report.evidence.issueDigest = `sha256:${createHash("sha256").update(issue.body).digest("hex")}`;
@@ -120,6 +121,7 @@ export async function collectReview(api: ReadGitHub, request: ReviewRequest): Pr
         if (typeof issue.comments === "number" && issue.comments > 0) {
           try {
             const comments = list(await api.get(`${repoPath}/issues/${issueNumber}/comments?per_page=100`));
+            report.evidence.coordination = coordinationEvidence(comments, issue.comments, issueNumber);
             if (comments.length > 100) throw new Error("Comment inventory exceeds limit");
             for (const value of comments) {
               const comment = object(value);
@@ -274,8 +276,8 @@ export function githubReader(token: string, fetcher: typeof fetch = fetch): Read
 /** Same artifacts/summary, pure rendering; no new collector or write path. */
 export function reviewArtifacts(report: ReviewReport, now: string) {
   const packet = acceptancePacket(report);
-  return { markdown: renderReview(report) + "\n" + reportOrchestration(packet, now),
-    handoff: renderHandoff(report) + "\n" + reportOrchestration(packet, now, false) };
+  return { markdown: renderReview(report) + "\n" + reportOrchestration(packet, now, true, report.evidence?.coordination),
+    handoff: renderHandoff(report) + "\n" + reportOrchestration(packet, now, false, report.evidence?.coordination) };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

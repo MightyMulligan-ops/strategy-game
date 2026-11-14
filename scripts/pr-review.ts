@@ -90,6 +90,27 @@ export function logFacts(raw: string): { tests: TestCounts | null; signals: stri
   return { tests: summaries.length === 1 ? summaries[0]! : null, signals: [...signals].sort().slice(0, 15) };
 }
 
+// Metadata references only; never an owner grant, claim lock or history ledger.
+export type CoordinationEvidence = { taskId: string | null; claimSources: string[]; historySources: string[]; complete: boolean; competing: boolean };
+export function coordinationEvidence(comments: unknown[], total: number, issue: number): CoordinationEvidence {
+  const tasks = new Set<string>(), claims: string[] = [], histories: string[] = [];
+  let complete = Number.isSafeInteger(total) && total >= 0 && comments.length === total && comments.length < 100;
+  for (const raw of comments.slice(0, 100)) {
+    try {
+      const c = object(raw);
+      if (typeof c.body !== "string" || Buffer.byteLength(c.body) > 65_536) { complete = false; continue; }
+      const matches = [...c.body.matchAll(/^Task ID: ([a-z0-9][a-z0-9-]{0,79})\r?$/gm)];
+      if (matches.length) {
+        const link = `https://github.com/${REVIEW_POLICY.repository}/issues/${positive(issue)}#issuecomment-${positive(c.id)}`;
+        claims.push(link); for (const m of matches) tasks.add(m[1]!);
+      }
+      if (/^(?:History|Correction history):/m.test(c.body)) histories.push(`https://github.com/${REVIEW_POLICY.repository}/issues/${positive(issue)}#issuecomment-${positive(c.id)}`);
+    } catch { complete = false; }
+  }
+  const unique = [...new Set(claims)], competing = tasks.size > 1 || unique.length > 1;
+  return { taskId: complete && !competing && tasks.size === 1 ? [...tasks][0]! : null,
+    claimSources: unique.slice(0, 10), historySources: [...new Set(histories)].slice(0, 10), complete: complete && unique.length <= 10 && histories.length <= 10, competing };
+}
 export type ReviewReport = {
   number: number; head: string; base: string; state: "merged" | "closed/unmerged" | "draft/unmerged" | "open/unmerged"; fork: boolean;
   issue: { number: number; state: string; labels: string[] } | null;
@@ -100,7 +121,7 @@ export type ReviewReport = {
     steps?: { initialize: string; migrations: string; guard: string; cleanup: string };
     checkout?: { commit: string; head: string; base: string } | null }[]; artifacts: string[] } | null;
   evidence?: { workflowId: number; branch: string; sourceRepository: string; baseTip: string | null;
-    issueDigest: string | null; approvalSources: string[]; approvalCandidateObserved?: boolean | null; runInventoryComplete: boolean; jobInventoryComplete: boolean };
+    coordination?: CoordinationEvidence; issueDigest: string | null; approvalSources: string[]; approvalCandidateObserved?: boolean | null; runInventoryComplete: boolean; jobInventoryComplete: boolean };
   notes: string[];
 };
 

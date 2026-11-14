@@ -1,7 +1,8 @@
 // Pure advisory orchestration. No GitHub reader/writer, filesystem, clock or task runner.
+import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { LIMITS, REVIEW_POLICY, displayPath, object, list, positive, sha, reviewTriage, acceptancePacket, protectedFlags, conclusion } from "./pr-review.ts";
-import type { AcceptancePacket, Json, ReviewTriage } from "./pr-review.ts";
+import type { AcceptancePacket, Json, ReviewTriage, CoordinationEvidence } from "./pr-review.ts";
 
 export type Observation = {
   repository: string; issue: number; pr: number; head: string; base: string; currentMain: string;
@@ -15,14 +16,23 @@ export type OwnerVerification = {
   scopeDigest: string; taskId: string; expiresAt: string; revoked: boolean; ended: boolean;
   claimAvailable: boolean; protectedScopeCovered: boolean;
 };
+export type ReviewProvenance = {
+  reviewer: string; implementationAuthor: string; source: string; taskId: string;
+  reviewDigest: string; head: string; base: string; runId: number; attempt: number; jobIds: number[];
+};
+export function reviewDigest(raw: string): string { return `sha256:${createHash("sha256").update(raw).digest("hex")}`; }
 export type ManualVerification = {
   owner?: OwnerVerification;
-  independentReview?: { source: string; head: string; base: string; independent: boolean };
+  independentReview?: { source: string; head: string; base: string; independent: boolean;
+    reviewer?: string; implementationAuthor?: string; taskId?: string; reviewDigest?: string };
+  // Trusted caller boundary, never deserialized from a receipt/report. This must
+  // corroborate external evidence, not echo the receipt's own independence flag.
+  verifyReviewProvenance?: (provenance: Readonly<ReviewProvenance>) => boolean;
   historySource?: string;
   repair?: { owner: OwnerVerification; failureId: string; attempt: number; allowedFiles: string[] };
 };
 export type OrchestrationInput = {
-  packet: string; review?: string; history?: string; previousHistory?: string;
+  packet: string; review?: string; coordination?: string; history?: string; previousHistory?: string;
   requestImplementationCorrection?: boolean;
 };
 export type Finding = {
@@ -42,7 +52,7 @@ export type OwnerHandoff = {
   advisoryOnly: true; repairAuthorization: "NOT_GRANTED"; readyMerge: "NOT_GRANTED"; deployment: "NOT_GRANTED";
   reasons: { code: string; links: string[] }[]; identity: Observation | null;
   packet: AcceptancePacket | null; triage: ReviewTriage | null; reviewSource: string | null;
-  reviewCompleted: boolean; findings: Finding[]; repairs: RepairProposal[]; history: Json | null;
+  reviewCompleted: boolean; coordination: CoordinationEvidence | null; reviewProvenance: ReviewProvenance | null; findings: Finding[]; repairs: RepairProposal[]; history: Json | null;
   implementationRemaining: number | null; reviewPrompt: string; ownerDecisions: string[];
 };
 const root = `https://github.com/${REVIEW_POLICY.repository}`;
@@ -92,7 +102,7 @@ function ownerState(v: OwnerVerification | undefined, o: Observation): "VALID" |
   try {
     source(v.source);
     if (v.repository !== o.repository || v.issue !== o.issue || v.pr !== o.pr || v.head !== o.head || v.base !== o.base ||
-        v.scopeDigest !== o.scopeDigest || v.taskId !== o.taskId || v.revoked || v.ended || !v.claimAvailable || !v.protectedScopeCovered ||
+        v.scopeDigest !== o.scopeDigest || v.taskId !== o.taskId || typeof v.revoked !== "boolean" || typeof v.ended !== "boolean" || v.revoked || v.ended || !v.claimAvailable || !v.protectedScopeCovered ||
         !Number.isFinite(Date.parse(v.expiresAt)) || Date.parse(o.now) >= Date.parse(v.expiresAt)) return "INVALID";
     return "VALID";
   } catch { return "INVALID"; }
@@ -152,7 +162,9 @@ function validatePacket(raw: string, o: Observation): AcceptancePacket {
   const jobs = list(ci.jobs).map(object);
   if (jobs.length !== 2 || o.jobIds.length !== 2 || new Set(o.jobIds).size !== 2 ||
       !REVIEW_POLICY.jobs.every(name => jobs.filter(j => j.name === name).length === 1) ||
-      jobs.some(j => !o.jobIds.includes(positive(j.id)) || j.runId !== o.runId || j.attempt !== o.attempt || j.trust !== "UNTRUSTED_RUNNER_REPORT" ||
+      new Set(jobs.map(j => positive(j.id))).size !== jobs.length ||
+       o.jobIds.some(id => jobs.filter(j => j.id === id).length !== 1) ||
+       jobs.some(j => !o.jobIds.includes(positive(j.id)) || j.runId !== o.runId || j.attempt !== o.attempt || j.trust !== "UNTRUSTED_RUNNER_REPORT" ||
         j.url !== `${root}/actions/runs/${o.runId}/job/${j.id}`)) throw Error("jobs");
   for (const f of list(object(p.inventory).files).map(object)) {
     path(f.path); if (f.previous !== null) path(f.previous);
@@ -199,9 +211,15 @@ function history(raw: string | undefined, previous: string | undefined, o: Obser
     repairs: repairs.map(v => ({ failureId: v.failureId, attempt: v.attempt, ownerSource: v.ownerSource, oldHeadSha: v.oldHeadSha, newHeadSha: v.newHeadSha,
       oldBaseSha: v.oldBaseSha, newBaseSha: v.newBaseSha, result: text(v.result) })), transferSources: transfers };
 }
-function findings(raw: string, p: AcceptancePacket, o: Observation, m: ManualVerification, h: Json | null): { values: Finding[]; review: Json } {
+function findings(raw: string, p: AcceptancePacket, o: Observation, m: ManualVerification, h: Json | null): { values: Finding[]; review: Json; provenance: ReviewProvenance } {
   const r = parse(raw), i = object(r.identity), ci = object(r.ci), diff = object(r.diff), receipt = m.independentReview;
-  if (!receipt || !receipt.independent || receipt.head !== o.head || receipt.base !== o.base) throw Error("independence unavailable"); source(receipt.source);
+  if (!receipt || receipt.independent !== true || receipt.head !== o.head || receipt.base !== o.base || receipt.taskId !== o.taskId || receipt.reviewDigest !== reviewDigest(raw) ||
+      typeof m.verifyReviewProvenance !== "function" || typeof receipt.reviewer !== "string" || !/^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/.test(receipt.reviewer) ||
+      typeof receipt.implementationAuthor !== "string" || !/^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/.test(receipt.implementationAuthor) || receipt.reviewer.toLowerCase() === receipt.implementationAuthor.toLowerCase()) throw Error("independence unavailable");
+  source(receipt.source);
+  const provenance: ReviewProvenance = { reviewer: receipt.reviewer, implementationAuthor: receipt.implementationAuthor, source: receipt.source, taskId: o.taskId,
+    reviewDigest: receipt.reviewDigest, head: o.head, base: o.base, runId: o.runId, attempt: o.attempt, jobIds: [...o.jobIds] };
+  if (m.verifyReviewProvenance(Object.freeze({ ...provenance, jobIds: Object.freeze([...o.jobIds]) as unknown as number[] })) !== true) throw Error("provenance uncorroborated");
   if (r.format !== "sovereign-pr-review-v1" || r.advisoryOnly !== true || r.repairAuthorization !== "NOT_GRANTED" || r.repository !== o.repository ||
       i.issueNumber !== o.issue || i.prNumber !== o.pr || i.branch !== o.branch || i.expectedHeadSha !== o.head || i.observedHeadSha !== o.head || i.expectedBaseSha !== o.base || i.observedBaseSha !== o.base ||
       ci.headSha !== o.head || ci.runId !== o.runId || ci.attempt !== o.attempt || ci.workflowId !== o.workflowId || ci.workflowPath !== REVIEW_POLICY.workflow || ci.repository !== o.repository ||
@@ -238,11 +256,11 @@ function findings(raw: string, p: AcceptancePacket, o: Observation, m: ManualVer
       evidence: text(f.evidence), expectedCorrection: text(f.recommendation), verification: text(f.verification) } as Finding;
   });
   if (values.length > 100 || new Set(values.map(f => f.id)).size !== values.length) throw Error("findings bound");
-  return { values, review: r };
+  return { values, review: r, provenance };
 }
 export function orchestrate(input: OrchestrationInput, o: Observation, m: ManualVerification = {}): OwnerHandoff {
   const result: OwnerHandoff = { recommendation: "UNKNOWN", advisoryOnly: true, repairAuthorization: "NOT_GRANTED", readyMerge: "NOT_GRANTED", deployment: "NOT_GRANTED",
-    reasons: [], identity: null, packet: null, triage: null, reviewSource: null, reviewCompleted: false, findings: [], repairs: [], history: null, implementationRemaining: null,
+    reasons: [], identity: null, packet: null, triage: null, reviewSource: null, reviewCompleted: false, coordination: null, reviewProvenance: null, findings: [], repairs: [], history: null, implementationRemaining: null,
     reviewPrompt: "Evidence unavailable; reverify current identities manually. No review or repair was started.", ownerDecisions: ["Verify scope and actual owner sources; separately decide E (ready/merge) and F (deployment)."] };
   const add = (code: string) => result.reasons.push({ code, links: result.identity ? [`${root}/pull/${o.pr}`, `${root}/actions/runs/${o.runId}`] : [] });
   let p: AcceptancePacket;
@@ -258,9 +276,22 @@ export function orchestrate(input: OrchestrationInput, o: Observation, m: Manual
   } catch { unknown = true; add("HISTORY_MISSING_CONFLICTING_OR_REWRITTEN"); }
   if (failed) add("CURRENT_CI_OR_EXECUTION_FAILURE");
   if (unknown) add("FACTUAL_EVIDENCE_INCOMPLETE");
+  if (input.coordination) {
+    try {
+      const c = parse(input.coordination);
+      if (typeof c.complete !== "boolean" || typeof c.competing !== "boolean" || c.taskId !== null && task(c.taskId) !== c.taskId) throw Error("coordination");
+      const links = (v: unknown) => list(v).map(s => { const url = source(s); if (!url.startsWith(`${root}/issues/${o.issue}#issuecomment-`)) throw Error("claim scope"); return url; });
+      const claims = links(c.claimSources), histories = links(c.historySources);
+      if (claims.length > 10 || histories.length > 10 || new Set(claims).size !== claims.length) throw Error("bounds");
+      const competing = c.competing || claims.length > 1;
+      result.coordination = { taskId: c.taskId as string | null, claimSources: claims, historySources: histories, complete: c.complete, competing };
+      if (competing || c.taskId !== null && c.taskId !== o.taskId) { blocked = true; add("CLAIM_CONFLICT_OR_TASK_MISMATCH"); }
+      if (!c.complete || !claims.length || !c.taskId) { unknown = true; add("CLAIM_OR_HISTORY_REFERENCES_UNVERIFIED"); }
+    } catch { unknown = true; add("COORDINATION_EVIDENCE_INVALID"); }
+  }
   if (input.review) {
     try {
-      const f = findings(input.review, p, o, m, result.history); result.findings = f.values; result.reviewCompleted = true; result.reviewSource = source(m.independentReview!.source);
+      const f = findings(input.review, p, o, m, result.history); result.findings = f.values; result.reviewCompleted = true; result.reviewProvenance = f.provenance; result.reviewSource = source(m.independentReview!.source);
       const checks = object(f.review.checks), outcome = object(f.review.outcome).decision;
       if (outcome === "BLOCKED" || checks.scope === "BLOCKED" || checks.authorization === "BLOCKED" || list(f.review.conflictingFeedback).length) { blocked = true; add("INDEPENDENT_REVIEW_OWNER_DECISION"); }
       if (outcome === "CHANGES_REQUESTED" || outcome === "CHANGES REQUESTED") {
@@ -302,6 +333,11 @@ export function orchestrate(input: OrchestrationInput, o: Observation, m: Manual
   } else { unknown = true; add("INDEPENDENT_REVIEW_NOT_COMPLETED"); }
   result.recommendation = blocked ? "BLOCKED" : failed ? "CHANGES_REQUESTED" : unknown ? "UNKNOWN" : "READY";
   if (result.recommendation === "READY") add("ADVISORY_READY_OWNER_E_F_STILL_REQUIRED");
+  result.ownerDecisions = [result.identity === null ? "Refresh current source/base/run/attempt and complete evidence before a targeted review." :
+    blocked ? "Resolve the cited owner scope, claim, provenance or exhausted-operation decision; do not execute a proposal." :
+    failed ? "Inspect current failed checks or confirmed findings; separately authorize any bounded repair. Do not retry CI automatically." :
+    unknown ? "Corroborate reviewer identity/independence and complete history externally; deliberately start a current-source review if missing." :
+    "Owner assess the evidence and documented limitations, then separately decide E (ready/merge).", "F (existing-environment migration/deployment) remains a separate owner decision."];
   result.reasons = [...new Map(result.reasons.map(r => [r.code, r])).values()].sort((a, b) => a.code.localeCompare(b.code, "en"));
   return result;
 }
@@ -309,38 +345,49 @@ export function orchestrate(input: OrchestrationInput, o: Observation, m: Manual
 // retained as redacted data in the result, never copied into executable prompts.
 export function renderOwnerHandoff(h: OwnerHandoff, includeReviewPrompt = true): string {
   const o = h.identity, ci = h.packet?.ci;
-  const out = ["## Owner review, repair and acceptance orchestration — Automation 014", "", `**${h.recommendation} — advisory only.** E/F and repair: NOT_GRANTED. No task, repair, CI retry or repository write was started.`, "",
+  const out = ["## Owner review, repair and acceptance orchestration — Automation 014 / Automation 015 Stage 1", "", `**${h.recommendation} — advisory only.** E/F and repair: NOT_GRANTED. No task, repair, CI retry or repository write was started.`, "",
     "Manual verification inputs are caller-supplied observations, not authenticated grants. Independently verify their sources; this program grants no execution authority.",
     o ? `Issue #${o.issue} / PR #${o.pr}; source ${o.head}; base ${o.base}; current main ${o.currentMain}.` : "Current identity: UNKNOWN.",
+    o ? `Branch ${o.branch}; task ${h.coordination ? h.coordination.taskId ?? "UNKNOWN" : o.taskId === "owner-review" ? "UNKNOWN" : o.taskId}; frozen scope ${o.scopeDigest}.` : "Scope/task identity UNKNOWN.",
     `Independent review: ${h.reviewCompleted ? "verified current-source receipt" : "NOT COMPLETED / UNKNOWN"}; history: ${h.history ? "verified append-only input" : "UNKNOWN"}.`, "",
     ...h.reasons.map(r => `- ${r.code}${r.links.length ? ": " + r.links.join(" · ") : ""}`), ""];
+  if (h.coordination) out.push(`Claim references (UNVERIFIED_METADATA): ${h.coordination.claimSources.join(" · ") || "UNKNOWN"}; complete ${h.coordination.complete}; competing ${h.coordination.competing}.`,
+    `History references (not an authenticated ledger): ${h.coordination.historySources.join(" · ") || "UNKNOWN"}.`, "");
+  else out.push("Claim/history references: UNKNOWN; no missing ledger is interpreted as zero attempts.", "");
+  if (h.reviewProvenance) out.push(`Externally corroborated reviewer ${h.reviewProvenance.reviewer}; implementation author ${h.reviewProvenance.implementationAuthor}; review ${h.reviewProvenance.reviewDigest}; source ${h.reviewProvenance.source}.`, "");
+  else out.push("Reviewer identity/independence/provenance UNKNOWN; a receipt or PASS is insufficient.", "");
   if (ci) {
-    out.push(`CI run ${ci.runId}, attempt ${ci.attempt}; counts: UNTRUSTED_RUNNER_REPORT.`, "");
+    out.push(`CI ${root}/actions/runs/${ci.runId}, attempt ${ci.attempt}; counts: UNTRUSTED_RUNNER_REPORT.`, "");
     for (const v of list(ci.jobs).map(object)) {
       const t = v.tests ? object(v.tests) : null;
-      out.push(`- ${v.name}: ${v.conclusion}; passed ${t?.passed ?? "UNKNOWN"}, failed ${t?.failed ?? "UNKNOWN"}, skipped ${t?.skipped ?? "UNKNOWN"}.`);
+      out.push(`- ${v.name} (${v.url}, job ${v.id}): ${v.conclusion}; passed ${t?.passed ?? "UNKNOWN"}, failed ${t?.failed ?? "UNKNOWN"}, skipped ${t?.skipped ?? "UNKNOWN"}.`);
     }
     const db = list(ci.jobs).map(object).find(v => v.name === REVIEW_POLICY.jobs[1]);
     const e = db?.execution ? object(db.execution) : null;
     out.push(`Disposable database: migrations ${e?.migrations ?? "UNKNOWN"}; fresh ${e?.freshDatabase === true}; container removed ${e?.containerRemoved === true}; network removed ${e?.networkRemoved === true}.`, "");
+  }
+  if (h.packet) {
+    out.push(`Inventory ${h.packet.inventory.included}/${h.packet.inventory.declared}; complete ${h.packet.inventory.complete}; source-bound paths (full inventory remains in the compatible acceptance packet):`, "");
+    for (const f of h.packet.inventory.files.slice(0, LIMITS.displayFiles)) out.push(`- ${f.path}${f.previous ? ` (from ${f.previous})` : ""}: ${f.status}.`);
+    if (h.packet.inventory.files.length > LIMITS.displayFiles) out.push("Additional paths: see full acceptance packet; display bounded, never omitted from the evidence inventory.");
   }
   if (h.packet) out.push(`Protected categories: ${h.packet.inventory.protectedCategories.length ? "present; inspect complete packet/diff and owner scope" : "no listed flag; owner scope still required"}.`, "");
   if (!h.reviewCompleted && includeReviewPrompt) out.push("### Owner-copyable independent review request", "", "```text", h.reviewPrompt, "```", "");
   out.push(`Implementation corrections remaining: ${h.implementationRemaining ?? "UNKNOWN"}/5; post-review limit: 2 per stable failure ID, across transfers.`, "");
   for (const f of h.findings) out.push(`- Finding ${f.id}: ${f.classification}, ${f.severity}, blocking=${f.blocking}; ${f.url}`);
   for (const r of h.repairs) out.push("", `### Bounded proposal ${r.failureId}`, "", "```text", r.prompt, "```");
-  out.push("", "Owner decisions: inspect the complete evidence and independent findings; request a separately authorized bounded repair, explicitly accept a documented limitation, authorize E separately, or defer. F is always separate. A report/JSON/label grants nothing.", "");
+  out.push("", ...h.ownerDecisions.map(v => `Next owner action: ${v}`), "Owner decisions: inspect the complete evidence and independent findings; request a separately authorized bounded repair, explicitly accept a documented limitation, authorize E separately, or defer. F is always separate. A report/JSON/label grants nothing.", "");
   return out.join("\n");
 }
-export function reportOrchestration(p: AcceptancePacket, now: string, includeReviewPrompt = true): string {
+export function reportOrchestration(p: AcceptancePacket, now: string, includeReviewPrompt = true, coordination?: CoordinationEvidence): string {
   try {
     const ci = object(p.ci);
     const o: Observation = { repository: p.identity.repository, issue: p.issue!.number, pr: p.identity.pr, head: p.identity.head, base: p.identity.base,
       currentMain: p.identity.currentMain!, branch: p.identity.branch!, workflowId: positive(ci.workflowId), runId: positive(ci.runId), attempt: positive(ci.attempt),
-      jobIds: list(ci.jobs).map(v => positive(object(v).id)), scopeDigest: p.issue!.snapshotDigest!, taskId: "owner-review", now };
+      jobIds: list(ci.jobs).map(v => positive(object(v).id)), scopeDigest: p.issue!.snapshotDigest!, taskId: coordination?.taskId ?? "owner-review", now };
     // Collector has no independent review/history/owner verification. Never infer
     // them from issue approval-shaped prose, labels, packet flags or green CI.
-    return renderOwnerHandoff(orchestrate({ packet: JSON.stringify(p) }, o), includeReviewPrompt);
+    return renderOwnerHandoff(orchestrate({ packet: JSON.stringify(p), ...(coordination ? { coordination: JSON.stringify(coordination) } : {}) }, o), includeReviewPrompt);
   } catch {
     return "## Owner orchestration — Automation 014\n\nUNKNOWN: current evidence unavailable. Independent review and owner/history verification required. No repair or E/F authority.\n";
   }
