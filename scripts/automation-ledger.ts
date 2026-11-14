@@ -103,7 +103,10 @@ export async function appendLedgerEvent(store: DurableLedgerStore, taskKey: stri
   if (body.repository!==identity.repository || body.issue!==identity.issue || body.taskId!==identity.taskId)
     return {ok:false,reason:"IDENTITY_MISMATCH"};
   const next=signLedgerEvent({...body,sequence:history.length+1,previousDigest:verified.head},secret);
+  const candidate=verifyLedger([...history,next],identity,secret,
+    {sequence:history.length+1,digest:next.digest});
+  if (!candidate.ok) return candidate;
   // Fail closed on race; never automatically retry a consumed attempt.
   if (!await store.compareAndAppend(taskKey,verified.head,next)) return {ok:false,reason:"CONCURRENT_WRITE"};
-  return {ok:true,state:verified.state,head:next.digest};
+  return candidate;
 }
