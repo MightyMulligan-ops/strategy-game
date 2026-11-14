@@ -1,6 +1,6 @@
-name: Sovereign Codex manual worker (candidate)
+name: Sovereign Codex manual worker (DISABLED candidate)
 
-# Protected pilot: no event-, issue-, PR-, schedule-, or label-triggered API calls.
+# Protected pilot: paid job hard-disabled (literal false). No triggers beyond manual dispatch.
 on:
   workflow_dispatch:
     inputs:
@@ -9,7 +9,7 @@ on:
         type: string
         required: true
       approval_confirmation:
-        description: 'Type APPROVE-76-ONE-PAID-RUN after checking active owner grant and Platform budget/hard-limit settings'
+        description: 'Advisory only: paid execution is hard-disabled regardless of text'
         type: string
         required: true
 
@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   propose:
-    if: ${{ github.repository == 'MightyMulligan-ops/strategy-game' && github.ref == 'refs/heads/main' && github.actor == 'MightyMulligan-ops' && inputs.issue_number == '76' && inputs.approval_confirmation == 'APPROVE-76-ONE-PAID-RUN' }}
+    if: ${{ false && github.run_attempt == 1 && github.repository == 'MightyMulligan-ops/strategy-game' && github.ref == 'refs/heads/main' && github.actor == 'MightyMulligan-ops' && inputs.issue_number == '76' && inputs.approval_confirmation == 'APPROVE-76-ONE-PAID-RUN' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     permissions:
@@ -60,13 +60,12 @@ jobs:
       # are supplied to the agent. No automatic retries or additional agents.
       - name: Implement a bounded local proposal (one paid invocation)
         id: codex
-        uses: openai/codex-action@v1
+        uses: openai/codex-action@bdf19a4a223ec2549a3e2274a0cf61556bc07675
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           permission-profile: ':workspace'
           safety-strategy: drop-sudo
           codex-args: '["--ephemeral"]'
-          output-file: .cache/codex-worker/final.md
           prompt: |
             Implement only Sovereign Issue #76, Combat 1A, from trusted main.
             Read AGENTS.md, docs/GAME_DESIGN.md, docs/DEVELOPMENT_ROADMAP.md,
@@ -86,47 +85,8 @@ jobs:
             Finish with tests run/results, remaining limitations and a compact
             plain-text handoff. No secrets or raw logs in the final message.
 
-      # The following steps have no API key and no elevated GitHub token.
-      - name: Validate and capture bounded patch
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import pathlib, subprocess
-          allowed_prefixes = ('packages/', 'apps/')
-          allowed_docs = {'docs/DEVELOPMENT_STATUS.md', 'docs/GAME_DESIGN.md'}
-          paths = subprocess.check_output(
-              ['git','status','--porcelain','--untracked-files=all'], text=True
-          ).splitlines()
-          changed = []
-          for item in paths:
-              name = item[3:]
-              if ' -> ' in name or not (name.startswith(allowed_prefixes) or name in allowed_docs):
-                  raise SystemExit('Disallowed or renamed checkout change; no patch artifact published')
-              if name.startswith('apps/') and not ('/src/' in name or '/test' in name):
-                  raise SystemExit('Unexpected application path')
-              if name.endswith(('.env', '.pem', '.key')) or '/.env' in name:
-                  raise SystemExit('Secret-like file path rejected')
-              changed.append(name)
-          if not changed:
-              raise SystemExit('No source changes produced; do not publish empty patch')
-          subprocess.run(['git','add','-N','--',*changed], check=True)
-          patch = subprocess.check_output(['git','diff','--binary','--',*changed])
-          if len(patch)>1_500_000 or len(changed)>25:
-              raise SystemExit('Change budget exceeded')
-          out=pathlib.Path('.cache/codex-worker')
-          out.mkdir(parents=True,exist_ok=True)
-          (out/'proposal.patch').write_bytes(patch)
-          (out/'changed-paths.txt').write_text('\n'.join(changed)+'\n')
-          PY
-      - name: Upload untrusted proposal for human inspection
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
-        with:
-          name: sovereign-issue-76-codex-proposal
-          path: |
-            .cache/codex-worker/identity.txt
-            .cache/codex-worker/changed-paths.txt
-            .cache/codex-worker/proposal.patch
-            .cache/codex-worker/final.md
-          if-no-files-found: error
-          retention-days: 1
+      # IMPORTANT: No artifact publication is wired in this disabled candidate.
+      # The original post-agent same-job validator and raw report uploader were
+      # removed because their trust/process boundaries are unverified.
+      # This is not an operational paid worker. Separate independent validation,
+      # trusted handoff and billing/authorization integration are still required.
