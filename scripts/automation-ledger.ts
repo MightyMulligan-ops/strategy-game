@@ -41,7 +41,7 @@ export function signLedgerEvent(e: Omit<SignedLedgerEvent,"digest"|"mac">, secre
   const mac = createHmac("sha256",secret).update(digest).digest("hex");
   return {...e,digest,mac};
 }
-export function verifyLedger(events: readonly SignedLedgerEvent[] | null | undefined,
+function verifyLedgerInternal(events: readonly SignedLedgerEvent[] | null | undefined,
   identity: Pick<LedgerBody,"repository"|"issue"|"taskId">, secret: Uint8Array,
   checkpoint: { sequence: number; digest: string } | null,
   allowTerminalState = false): LedgerResult {
@@ -93,6 +93,11 @@ export function verifyLedger(events: readonly SignedLedgerEvent[] | null | undef
   if ((revoked || closed) && !allowTerminalState) return fail("TASK_REVOKED_OR_CLOSED");
   return {ok:true,state:{implementationUsed:used,repairUsed:{...repairs},revoked,closed},head:previous!};
 }
+export function verifyLedger(events: readonly SignedLedgerEvent[] | null | undefined,
+  identity: Pick<LedgerBody,"repository"|"issue"|"taskId">, secret: Uint8Array,
+  checkpoint: {sequence:number;digest:string}|null): LedgerResult {
+  return verifyLedgerInternal(events,identity,secret,checkpoint,false);
+}
 export async function appendLedgerEvent(store: DurableLedgerStore, taskKey: string,
   identity: Pick<LedgerBody,"repository"|"issue"|"taskId">, body: LedgerBody,
   secret: Uint8Array, checkpoint: {sequence:number;digest:string}|null): Promise<LedgerResult> {
@@ -104,7 +109,7 @@ export async function appendLedgerEvent(store: DurableLedgerStore, taskKey: stri
   if (body.repository!==identity.repository || body.issue!==identity.issue || body.taskId!==identity.taskId)
     return {ok:false,reason:"IDENTITY_MISMATCH"};
   const next=signLedgerEvent({...body,sequence:history.length+1,previousDigest:verified.head},secret);
-  const candidate=verifyLedger([...history,next],identity,secret,
+  const candidate=verifyLedgerInternal([...history,next],identity,secret,
     {sequence:history.length+1,digest:next.digest},
     next.kind === "owner-revocation" || next.kind === "task-closed");
   if (!candidate.ok) return candidate;
