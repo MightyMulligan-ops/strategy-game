@@ -1,5 +1,6 @@
 import hashlib
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -22,6 +23,7 @@ class ReplayTests(unittest.TestCase):
         cmd(self.root,'git','config','user.email','fixture@example.invalid')
         (self.root/'packages/game-engine/src').mkdir(parents=True)
         (self.root/SOURCE).write_text('export const combat = 1;\n')
+        (self.root/'.gitignore').write_text('ignored-secret.txt\n')
         cmd(self.root,'git','add','.')
         cmd(self.root,'git','commit','-qm','baseline')
         self.sha=cmd(self.root,'git','rev-parse','HEAD').stdout.decode().strip()
@@ -34,12 +36,15 @@ class ReplayTests(unittest.TestCase):
           'scope_digest':self.scope['scopeDigest'],'patch_sha256':hashlib.sha256(self.patch).hexdigest(),
           'patch_bytes':len(self.patch),'paths':[{'path':SOURCE,'sha256':hashlib.sha256(self.blob).hexdigest(),'bytes':len(self.blob)}]}
     def tearDown(self):self.tmp.cleanup();self.artifacts.cleanup()
-    def run_replay(self):
+    def run_replay(self, prepare=None):
         for n, data in [('scope.json',json.dumps(self.scope).encode()),('manifest.json',json.dumps(self.manifest).encode()),('proposal.patch',self.patch)]:
             (Path(self.artifacts.name)/n).write_bytes(data)
+        if prepare: prepare(Path(self.artifacts.name))
         return cmd(self.root,sys.executable,str(REPLAY),*(str(Path(self.artifacts.name)/n) for n in ('scope.json','manifest.json','proposal.patch')),check=False)
     def test_valid_patch_reconstructed(self):
         r=self.run_replay();self.assertEqual(r.returncode,0,r.stderr.decode());self.assertIn(b'RECONSTRUCTED_NO_EXECUTION',r.stdout)
+        cmd(self.root,'git','apply','--cached','-',data=self.patch)
+        self.assertEqual(json.loads(r.stdout)['tree_sha'],cmd(self.root,'git','write-tree').stdout.decode().strip())
     def test_wrong_source(self):
         self.scope['sourceSha']='b'*40;self.assertNotEqual(self.run_replay().returncode,0)
     def test_bad_manifest_digest(self):
@@ -67,4 +72,30 @@ class ReplayTests(unittest.TestCase):
         cmd(self.root,'git','reset','--hard','HEAD')
         self.assertNotEqual(self.run_replay().returncode,0)
 
+    def test_ignored_source_rejected(self):
+        (self.root/'ignored-secret.txt').write_text('synthetic ignored fixture')
+        self.assertNotEqual(self.run_replay().returncode,0)
+    def test_null_manifest_rejected(self):
+        self.manifest=None;self.assertNotEqual(self.run_replay().returncode,0)
+    def test_null_scope_rejected(self):
+        self.scope=None;self.assertNotEqual(self.run_replay().returncode,0)
+    def test_non_string_scope_path_rejected(self):
+        self.scope['approvedPaths']=[{}];self.assertNotEqual(self.run_replay().returncode,0)
+    def test_non_object_file_rejected(self):
+        self.manifest['paths']=[None];self.assertNotEqual(self.run_replay().returncode,0)
+    def test_double_slash_path_rejected(self):
+        self.scope['approvedPaths']=['packages//game-engine/src/combat.ts'];self.assertNotEqual(self.run_replay().returncode,0)
+    def test_symlink_artifact_rejected(self):
+        def prepare(root):
+            (root/'proposal.patch').rename(root/'target')
+            (root/'proposal.patch').symlink_to(root/'target')
+        self.assertNotEqual(self.run_replay(prepare).returncode,0)
+    def test_hardlink_artifact_rejected(self):
+        def prepare(root): os.link(root/'proposal.patch',root/'alias')
+        self.assertNotEqual(self.run_replay(prepare).returncode,0)
+    def test_oversized_artifact_rejected(self):
+        def prepare(root): (root/'proposal.patch').write_bytes(b'x'*1_500_001)
+        self.assertNotEqual(self.run_replay(prepare).returncode,0)
+
 if __name__=='__main__':unittest.main()
+

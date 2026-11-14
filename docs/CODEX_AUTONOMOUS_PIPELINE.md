@@ -1,5 +1,9 @@
 # Sovereign autonomous Codex development pipeline — implementation candidate
 
+**2026-11-14 continuation:** The owner has now explicitly authorized a safe first paid pilot in the active Work request; earlier no-paid-authorization statements below are historical. Technical activation remains BLOCKED. PR78 stays literal-false disabled. No authenticated launch service, durable claim/budget ledger or isolated publisher is delivered by this increment.
+
+The replay validator now returns the reconstructed `tree_sha`, rejects ignored files in the validator's checkout, bounds reads before allocating full artifacts, and rejects final-component symlinks and multi-link files. Use a pristine, disposable, credential-free trusted checkout **before installing dependencies** and a trusted artifact directory with no worker-controlled parents. This does not inspect the original worker filesystem or prove that its ignored files were absent. It does not make a worker-modified checkout trustworthy. Secret-pattern filtering is deliberately incomplete, not a confidentiality guarantee.
+
 **Status: DRAFT / INCOMPLETE / NO PAID EXECUTION / NO TRUSTED PUBLISHER.** Issue #79 records the owner's 2026-11-14 authorization to build the infrastructure and publish draft review candidates, **not** to activate paid API calls, merge, deploy, weaken security settings or access existing databases.
 
 ## Target owner experience
@@ -40,3 +44,4 @@ Stop on scope ambiguity, stale evidence, duplicate runs, unknown billing, missin
 ## Verification and evidence
 
 Local synthetic policy tests were executed on Node 22 with `node --experimental-strip-types --test scripts/tests/codex-automation-policy.test.ts`: 13 passed, 0 failed, in an isolated candidate directory before publication. Hosted repository CI, TypeScript workspace typecheck, actionlint, full security audit, live GitHub authorization, actual worker execution and publisher integration are **not verified** by those tests. A fresh independent review must inspect the exact published source and latest CI evidence.
+

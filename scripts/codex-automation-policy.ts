@@ -18,7 +18,7 @@ const pathPattern = /^(?:apps|packages)\/[a-zA-Z0-9_./-]+\.(?:ts|tsx)$/;
 const forbidden = /(?:^|\/)(?:\.github|\.git|node_modules|\.env|prisma|migrations|secrets)(?:\/|$)|(?:^|\/)(?:AGENTS\.md|package\.json|pnpm-lock\.yaml)$/i;
 export const sha256 = (data: string | Uint8Array) => createHash('sha256').update(data).digest('hex');
 export function validPath(path: string): boolean {
-  return path.length < 200 && pathPattern.test(path) && !path.includes('//') &&
+  return typeof path === 'string' && path.length < 200 && pathPattern.test(path) && !path.includes('//') &&
     !path.split('/').some(x => x === '..' || x === '.' || x.startsWith('.')) && !forbidden.test(path);
 }
 export type TaskScope = Readonly<{
@@ -53,12 +53,12 @@ export function evaluateAdmission(scope: TaskScope, evidence: TrustedAdmission):
   if (evidence.repository !== REPOSITORY || evidence.actor !== OWNER || evidence.ref !== 'refs/heads/main') reasons.push('wrong-actor-or-ref');
   if (evidence.issue !== scope.issue || evidence.sourceSha !== scope.sourceSha || evidence.baseSha !== scope.baseSha) reasons.push('source-or-issue-mismatch');
   if (!/^\d+$/.test(evidence.runId) || evidence.attempt !== 1 || evidence.runId !== evidence.designatedRunId) reasons.push('replay-or-unassigned-run');
-  if (!evidence.authenticatedOwnerGrant || !evidence.grantSource || evidence.grantRevoked ||
+  if (evidence.authenticatedOwnerGrant !== true || typeof evidence.grantSource !== 'string' || !evidence.grantSource || evidence.grantRevoked !== false ||
     !DIGEST.test(evidence.grantDigest) || evidence.grantDigest !== scopeDigest) reasons.push('missing-current-owner-grant');
-  if (evidence.competingClaim) reasons.push('competing-claim');
+  if (evidence.competingClaim !== false) reasons.push('competing-claim');
   const now = Date.parse(evidence.now);
   if (!Number.isFinite(now) || now >= Date.parse(scope.expiresAt)) reasons.push('expired-or-invalid-time');
-  if (!evidence.billingEvidenceVerified || !evidence.enforcedHardLimitVerified ||
+  if (evidence.billingEvidenceVerified !== true || evidence.enforcedHardLimitVerified !== true ||
     !Number.isFinite(evidence.monthSpendUsd) || evidence.monthSpendUsd < 0 ||
     !Number.isFinite(evidence.estimatedRunMaxUsd) || evidence.estimatedRunMaxUsd <= 0 ||
     evidence.monthSpendUsd + evidence.estimatedRunMaxUsd >= OPERATIONAL_CUTOFF_USD) reasons.push('budget-unverified-or-insufficient');
@@ -74,8 +74,11 @@ export function validateProposal(scope: TaskScope, manifestText: string, patch: 
     patch.length > MAX_PATCH_BYTES || patch.length === 0) errors.push('artifact-size');
   let m: ProposalManifest;
   try { m = JSON.parse(manifestText); } catch { return [...errors, 'manifest-json']; }
-  if (!m || m.format !== 'sovereign-codex-proposal-v1' || m.source_sha !== scope.sourceSha ||
-    m.scope_digest !== sha256(canonicalScope(scope)) || !DIGEST.test(m.patch_sha256) ||
+  if (!m || typeof m !== 'object' || Array.isArray(m)) return [...errors, 'manifest-json'];
+  let scopeDigest: string;
+  try { scopeDigest = sha256(canonicalScope(scope)); } catch { return [...errors, 'invalid-scope']; }
+  if (m.format !== 'sovereign-codex-proposal-v1' || m.source_sha !== scope.sourceSha ||
+    m.scope_digest !== scopeDigest || !DIGEST.test(m.patch_sha256) ||
     m.patch_sha256 !== sha256(patch) || m.patch_bytes !== patch.length) errors.push('artifact-identity');
   if (!Array.isArray(m.paths) || !m.paths.length || m.paths.length > MAX_SOURCE_FILES) return [...errors, 'artifact-paths'];
   const approved = new Set(scope.approvedPaths);
@@ -87,6 +90,7 @@ export function validateProposal(scope: TaskScope, manifestText: string, patch: 
   }
   if (patch.includes(0) || /(?:GIT binary patch|Binary files |-----BEGIN .*PRIVATE KEY-----|sk-proj-|github_pat_)/i.test(Buffer.from(patch).toString('utf8')))
     errors.push('binary-or-secret-like-patch');
+  if (/(?:-----BEGIN .*PRIVATE KEY-----|sk-proj-|github_pat_)/i.test(summary)) errors.push('secret-like-summary');
   // A metadata/byte check is NOT a Git tree reconstruction or exhaustive secret scan.
   return [...new Set(errors)];
 }
@@ -99,10 +103,11 @@ export type TrustedPublication = Readonly<{
 export function publicationDecision(p: TrustedPublication): string[] {
   const failures: string[] = [];
   try { canonicalScope(p.scope); } catch { failures.push('scope'); }
-  if (!p.verifiedAdmission || !p.verifiedCompletePatch || !p.validatedInIsolatedEnvironment ||
-    !p.verifiedLatestSource || !p.independentValidator) failures.push('unverified-proposal');
-  if (!p.currentApprovalP || !p.currentApprovalD) failures.push('missing-publication-or-ci-grant');
-  if (p.existingDraftPrCount > 1 || p.existingDraftPrCount < 0 ||
+  if (p.verifiedAdmission !== true || p.verifiedCompletePatch !== true || p.validatedInIsolatedEnvironment !== true ||
+    p.verifiedLatestSource !== true || p.independentValidator !== true) failures.push('unverified-proposal');
+  if (p.currentApprovalP !== true || p.currentApprovalD !== true) failures.push('missing-publication-or-ci-grant');
+  if (!Number.isSafeInteger(p.existingDraftPrCount) || typeof p.newPrRequested !== 'boolean' || p.existingDraftPrCount > 1 || p.existingDraftPrCount < 0 ||
     (p.newPrRequested && p.existingDraftPrCount !== 0)) failures.push('duplicate-pr');
   return failures;
 }
+

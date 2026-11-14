@@ -28,3 +28,17 @@ Freeze exact source HEAD, PR base and current main; inspect all changed paths an
 A separate reviewer must establish authenticated, fresh issue-specific owner grant and revocation handling; atomic durable one-run claim; verified billing enforcement and immutable dependencies; independent worker/validator/publisher isolation; complete patch reconstruction and exact tested tree; bounded artifact and job-log confidentiality; explicit least-privilege GitHub publisher; successful adversarial tests/actionlint and exact-head CI; and a separately approved paid pilot. If any of these is UNKNOWN, keep paid execution disabled.
 
 The implementation author cannot certify their own independent review. No reviewer decision, E merge or F deployment is implied by this handoff.
+
+
+## 2026-11-14 continuation evidence (supersedes current-state claims above)
+
+The owner has explicitly authorized paid execution subject to safeguards and the $45 cutoff. Authorization is present in the active Work request; technical activation remains blocked. No new reviewer certification is claimed.
+
+Published-head review reproduced unsafe handling of unknown revocation/claim observations, NaN publication counts and null manifest input. This correction adds runtime strictness, bounded artifact reads, linked-artifact rejection, ignored-source checks and exact reconstructed tree SHA. Local verification: 18 policy tests and 18 Python fixtures pass (19 Vitest tests including the Python wrapper), targeted strict TypeScript checking passes. These are author tests of the correction, not independent review.
+
+Original source CI was green for PR78 run43634935997 and PR80 run43635341414. Publishing invalidates those runs as evidence for changed source. Inspect the new exact head and CI before accepting this increment.
+
+Still BLOCKED: authenticated live issue/source/grant admission and revocation, durable one-run claim, authoritative spend and enforceable budget reservation, immutable CLI/proxy packages, worker/validator/publisher isolation, termination and log confidentiality, complete trusted source/artifact provenance and publisher integration. The new ignored-file check covers only a pristine validator checkout, not completeness of original worker output. Artifacts require trusted parent directories. No security control was disabled to obtain a pilot.
+
+Platform authentication is blocked by automatic browser approval review at accounts.google.com after the user selected Google through the secure sign-in prompt. Current billing remains UNKNOWN. PR78 remains unchanged and disabled.
+

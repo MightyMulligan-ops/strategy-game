@@ -21,3 +21,26 @@ test('oversized, binary and secret-like artifacts are rejected',()=>{assert.ok(v
 test('malformed and duplicate manifests are rejected',()=>{assert.ok(validateProposal(scope,'{',patch,'').length);assert.ok(validateProposal(scope,JSON.stringify({...manifest,paths:[manifest.paths[0],manifest.paths[0]]}),patch,'').length);});
 const publish = {scope,verifiedAdmission:true,verifiedCompletePatch:true,validatedInIsolatedEnvironment:true,verifiedLatestSource:true,currentApprovalP:true,currentApprovalD:true,independentValidator:true,existingDraftPrCount:0,newPrRequested:true};
 test('trusted publication decision rejects missing grants and duplicate PRs',()=>{assert.deepEqual(publicationDecision(publish),[]);assert.ok(publicationDecision({...publish,currentApprovalD:false}).length);assert.ok(publicationDecision({...publish,verifiedCompletePatch:false}).length);assert.ok(publicationDecision({...publish,independentValidator:false}).length);assert.ok(publicationDecision({...publish,existingDraftPrCount:1}).length);});
+
+
+test('unknown revocation and claim observations fail closed', () => {
+  for (const key of ['grantRevoked', 'competingClaim'] as const) {
+    for (const value of [undefined, null, 0, 'false']) rejected({[key]: value} as unknown as Partial<TrustedAdmission>);
+  }
+});
+test('truthy non-boolean authorization and billing observations are rejected', () => {
+  for (const key of ['authenticatedOwnerGrant', 'billingEvidenceVerified', 'enforcedHardLimitVerified'] as const)
+    for (const value of ['true', 1, {}]) rejected({[key]: value} as unknown as Partial<TrustedAdmission>);
+});
+test('null and scalar manifest documents are rejected without exceptions', () => {
+  for (const text of ['null', '[]', '1', 'true', '"manifest"']) assert.ok(validateProposal(scope,text,patch,'').length);
+  assert.ok(validateProposal({...scope, approvedPaths: []},JSON.stringify(manifest),patch,'').length);
+});
+test('summary secret patterns are rejected', () => {
+  assert.ok(validateProposal(scope,JSON.stringify(manifest),patch,'github_pat_EXAMPLE').length);
+});
+test('publication rejects unknown counts, flags and truthy evidence', () => {
+  for (const count of [NaN, Infinity, 0.5]) assert.ok(publicationDecision({...publish, existingDraftPrCount:count, newPrRequested:false}).length);
+  for (const key of ['verifiedAdmission','verifiedCompletePatch','validatedInIsolatedEnvironment','verifiedLatestSource','independentValidator','currentApprovalP','currentApprovalD','newPrRequested'])
+    assert.ok(publicationDecision({...publish,[key]:'true'} as unknown as Parameters<typeof publicationDecision>[0]).length);
+});

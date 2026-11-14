@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import re
+import stat
 import subprocess
 import sys
 import tempfile
@@ -28,7 +29,7 @@ def deny(reason):
 def git(*args, env=None, data=None):
     p = subprocess.run(['git', '-c', 'core.hooksPath=/dev/null', '-c', 'core.quotepath=false',
                         '-c', 'diff.external=', *args], input=data, capture_output=True,
-                       env=env, check=False)
+                       env=env, check=False, timeout=15)
     if p.returncode:
         deny('git-' + args[0])
     return p.stdout
@@ -36,16 +37,34 @@ def git(*args, env=None, data=None):
 
 def safe_path(path):
     return (isinstance(path, str) and len(path) < 200 and bool(SAFE_PATH.fullmatch(path))
-            and not any(part.startswith('.') or part in ('node_modules', 'prisma', 'migrations', 'secrets')
+            and '//' not in path
+            and not any(part.startswith('.') or part.lower() in ('node_modules', 'prisma', 'migrations', 'secrets')
                         for part in path.split('/')))
 
 
-def parse_json(path, limit):
-    data = Path(path).read_bytes()
-    if len(data) > limit:
-        deny('oversized-json')
+def bounded_read(path, limit):
+    # Trusted collector must also provide a non-worker-controlled parent directory.
     try:
-        return json.loads(data)
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(fd, 'rb') as stream:
+            info = os.fstat(stream.fileno())
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                deny('unsafe-artifact-file')
+            data = stream.read(limit + 1)
+    except OSError:
+        deny('artifact-read')
+    if len(data) > limit:
+        deny('oversized-artifact')
+    return data
+
+
+def parse_json(path, limit):
+    data = bounded_read(path, limit)
+    try:
+        result = json.loads(data)
+        if not isinstance(result, dict):
+            deny('json-object-required')
+        return result
     except (ValueError, UnicodeError):
         deny('invalid-json')
 
@@ -59,13 +78,13 @@ def verify(scope_path, manifest_path, patch_path):
     if (not isinstance(expected, str) or not SHA.fullmatch(expected)
         or not isinstance(digest, str) or not DIGEST.fullmatch(digest)
         or not isinstance(allowed, list) or not (1 <= len(allowed) <= MAX_FILES)
-        or len(allowed) != len(set(allowed)) or any(not safe_path(p) for p in allowed)):
+        or any(not safe_path(p) for p in allowed) or len(allowed) != len(set(allowed))):
         deny('scope')
     if git('rev-parse', 'HEAD').decode().strip() != expected:
         deny('source-head')
-    if git('status', '--porcelain=v1', '-z', '--untracked-files=all'):
+    if git('status', '--porcelain=v1', '-z', '--untracked-files=all', '--ignored'):
         deny('dirty-source')
-    patch = Path(patch_path).read_bytes()
+    patch = bounded_read(patch_path, MAX_PATCH)
     if not patch or len(patch) > MAX_PATCH or b'\0' in patch or SECRETS.search(patch):
         deny('patch-bytes')
     if (manifest.get('format') != 'sovereign-codex-proposal-v1'
@@ -75,7 +94,10 @@ def verify(scope_path, manifest_path, patch_path):
         deny('manifest-identity')
     files = manifest.get('paths')
     if (not isinstance(files, list) or not (1 <= len(files) <= MAX_FILES)
-        or len(files) != len({f.get('path') for f in files if isinstance(f, dict)})):
+        or any(not isinstance(f, dict) or not safe_path(f.get('path'))
+               or type(f.get('bytes')) is not int or not (0 <= f['bytes'] <= MAX_PATCH)
+               or not isinstance(f.get('sha256'), str) or not DIGEST.fullmatch(f['sha256']) for f in files)
+        or len(files) != len({f['path'] for f in files})):
         deny('manifest-paths')
     with tempfile.TemporaryDirectory(prefix='sovereign-replay-') as tmp:
         index = str(Path(tmp) / 'index')
@@ -116,7 +138,8 @@ def verify(scope_path, manifest_path, patch_path):
                 blob.decode('utf-8')
             except UnicodeError:
                 deny('file-encoding')
-    return {'source_sha': expected, 'scope_digest': digest,
+        proposal_tree = git('write-tree', env=env).decode().strip()
+    return {'tree_sha': proposal_tree, 'source_sha': expected, 'scope_digest': digest,
             'patch_sha256': hashlib.sha256(patch).hexdigest(), 'paths': sorted(names),
             'result': 'RECONSTRUCTED_NO_EXECUTION'}
 
@@ -125,3 +148,4 @@ if __name__ == '__main__':
     if len(sys.argv) != 4:
         deny('usage: scope.json manifest.json proposal.patch')
     print(json.dumps(verify(*sys.argv[1:]), sort_keys=True))
+
