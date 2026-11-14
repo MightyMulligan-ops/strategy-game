@@ -369,6 +369,75 @@ describe('own formation selection and private lifecycle (Issue 74)', () => {
     expect(document.activeElement).toBe(refreshButton); expect(details().textContent).toContain('Pending battle: Yes.')
   })
 
+  it.each(['reconnect', 'manual'])('keeps predictable focus while selected details disappear during %s refresh', async (trigger) => {
+    formationRequest.mockImplementation(async () => json(current())); await mount(); await inspect()
+    const panel = host.querySelector<HTMLElement>('.formation-panel')!
+    expect(document.activeElement).toBe(details().querySelector('h3'))
+    let finish!: (response: Response) => void
+    formationRequest.mockImplementationOnce(() => new Promise<Response>((resolve) => { finish = resolve }))
+    if (trigger === 'manual') {
+      const button = [...panel.querySelectorAll('button')].find((node) => node.textContent === 'Refresh formations')!
+      button.focus()
+      await click('Refresh formations')
+    } else await act(async () => { window.dispatchEvent(new Event('online')) })
+    expect(details()).toBeNull(); expect(marker()).toBeNull()
+    expect(document.activeElement).toBe(panel)
+    expect(panel.getAttribute('tabindex')).toBe('-1')
+    expect(document.getElementById(panel.getAttribute('aria-labelledby')!)?.textContent).toBe('Your formations')
+    await act(async () => finish(json(current(true))))
+    expect(marker().getAttribute('aria-expanded')).toBe('true')
+    expect(document.activeElement).toBe(panel)
+    expect(details().textContent).toContain('Pending battle: Yes.')
+    await key(panel, 'Escape')
+    expect(details().hidden).toBe(true); expect(document.activeElement).toBe(marker())
+    await key(marker(), 'Enter'); await click('Return to map marker')
+    expect(document.activeElement).toBe(marker())
+  })
+
+  it.each(['reconnect', 'manual'])('does not steal focus moved outside the panel during a %s refresh', async (trigger) => {
+    formationRequest.mockImplementation(async () => json(current())); await mount(); await inspect()
+    let finish!: (response: Response) => void
+    formationRequest.mockImplementationOnce(() => new Promise<Response>((resolve) => { finish = resolve }))
+    if (trigger === 'manual') await click('Refresh formations')
+    else await act(async () => { window.dispatchEvent(new Event('online')) })
+    const outside = [...host.querySelectorAll('button')].find((node) => node.textContent === 'Back to lobbies')!
+    outside.focus()
+    await act(async () => finish(json(current())))
+    expect(document.activeElement).toBe(outside)
+    expect(marker().getAttribute('aria-expanded')).toBe('true')
+  })
+
+  it('leaves existing external focus alone when reconnect begins and completes', async () => {
+    formationRequest.mockImplementation(async () => json(current())); await mount(); await inspect()
+    const outside = [...host.querySelectorAll('button')].find((node) => node.textContent === 'Back to lobbies')!
+    outside.focus()
+    let finish!: (response: Response) => void
+    formationRequest.mockImplementationOnce(() => new Promise<Response>((resolve) => { finish = resolve }))
+    await act(async () => { window.dispatchEvent(new Event('online')) })
+    expect(document.activeElement).toBe(outside)
+    await act(async () => finish(json(current())))
+    expect(document.activeElement).toBe(outside)
+  })
+
+  it('retains the refresh focus fallback on failed reads and ignores a superseded read', async () => {
+    formationRequest.mockImplementation(async () => json(current())); await mount(); await inspect()
+    const panel = host.querySelector<HTMLElement>('.formation-panel')!
+    let stale!: (response: Response) => void, finish!: (response: Response) => void
+    formationRequest.mockImplementationOnce(() => new Promise<Response>((resolve) => { stale = resolve }))
+    await act(async () => { window.dispatchEvent(new Event('online')) })
+    const signal = formationRequest.mock.lastCall![1].signal as AbortSignal
+    formationRequest.mockImplementationOnce(() => new Promise<Response>((resolve) => { finish = resolve }))
+    await act(async () => { window.dispatchEvent(new Event('online')) })
+    expect(signal.aborted).toBe(true); expect(document.activeElement).toBe(panel)
+    await act(async () => finish(json({}, 500)))
+    expect(details()).toBeNull(); expect(marker()).toBeNull(); expect(document.activeElement).toBe(panel)
+    await act(async () => stale(json(current())))
+    expect(details()).toBeNull(); expect(document.activeElement).toBe(panel)
+    await click('Refresh formations')
+    expect(marker().getAttribute('aria-expanded')).toBe('false')
+    expect(document.activeElement).toBe(panel)
+  })
+
   it.each(['UNSUPPORTED', 'UNINITIALIZED', 'NOT_STARTED', 'failure', 'malformed'])('clears selection after %s and never restores it on later success', async (state) => {
     formationRequest.mockImplementation(async () => json(ownArmy)); await mount(); await inspect()
     formationRequest.mockImplementation(async () => state === 'failure' ? json({}, 500) : state === 'malformed' ? json({ ...ownArmy, schemaVersion: 99 }) : json({ schemaVersion: 1, matchId: 'match', state }))

@@ -19,6 +19,7 @@ export default function Formations({ matchId, world, onSessionError, map, select
   const detailsId = `${title}-details`
   const markerId = `${title}-marker`
   const heading = useRef<HTMLHeadingElement>(null)
+  const panel = useRef<HTMLElement>(null)
   const [focusRequest, requestFocus] = useState(0)
   useEffect(() => { if (focusRequest > 0) heading.current?.focus() }, [focusRequest])
   function closeDetails() {
@@ -31,6 +32,8 @@ export default function Formations({ matchId, world, onSessionError, map, select
   const read = useRef<AbortController | null>(null)
   const refresh = useCallback(async () => {
     read.current?.abort(); const controller = new AbortController(); read.current = controller
+    // Keep focus on a stable named region before details disappear or the refresh button disables.
+    if (panel.current?.contains(document.activeElement)) panel.current.focus()
     setLoading(true); setResult(null); setError('')
     try {
       const response = await readFormations(matchId, controller.signal)
@@ -62,7 +65,7 @@ export default function Formations({ matchId, world, onSessionError, map, select
     onSelectionChange(own.formationId)
     requestFocus((value) => value + 1)
   }
-  return <>{map(own, { markerId, detailsId, expanded, inspect },result?.schemaVersion===2?{radius:10,pending:result.pendingEncounter}:undefined)}<section className="panel formation-panel" aria-labelledby={title} aria-busy={loading}
+  return <>{map(own, { markerId, detailsId, expanded, inspect },result?.schemaVersion===2?{radius:10,pending:result.pendingEncounter}:undefined)}<section ref={panel} tabIndex={-1} className="panel formation-panel" aria-labelledby={title} aria-busy={loading}
     onKeyDown={(event) => { if (event.key === 'Escape' && expanded) { event.preventDefault(); event.stopPropagation(); closeDetails() } }}>
     <div className="section-heading"><h2 id={title}>Your formations</h2><button type="button" disabled={loading} onClick={() => void refresh()}>Refresh formations</button></div>
     {loading ? <p role="status">Loading formations…</p> : error ? <p role="alert">{error}</p>
