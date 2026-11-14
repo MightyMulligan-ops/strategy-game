@@ -24,12 +24,6 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ github.sha }}
-      - name: Verify secret is available without exposing it
-        env:
-          KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: |
-          if [ -z "$KEY" ]; then echo 'Missing OPENAI_API_KEY'; exit 1; fi
-          echo 'API key presence verified (value hidden)'
       - name: Inspect Stage 2 automation with Codex
         id: codex
         uses: openai/codex-action@v1
