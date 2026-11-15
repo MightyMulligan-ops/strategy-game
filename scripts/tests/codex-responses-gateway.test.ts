@@ -41,7 +41,7 @@ test('Unix gateway forwards only allowed model endpoint and emits no raw error d
   const send=(method:string,path:string)=>new Promise<{status:number;body:string}>((resolve,reject)=>{
     const req=httpRequest({socketPath:socket,path,method,headers:{'Content-Type':'application/json'}},res=>{
       let body='';res.on('data',c=>{body+=String(c);});res.on('end',()=>resolve({status:res.statusCode!,body}));
-    });req.on('error',reject);req.end('{}');
+    });req.on('error',reject);req.end(method === 'POST' ? '{}' : undefined);
   });
   try{
     expect(await send('POST','/v1/responses')).toEqual({status:200,body:'data: fixture\n\n'});
