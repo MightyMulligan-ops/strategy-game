@@ -26,7 +26,7 @@ test('builds a network-disabled hosted session without environment credentials o
   expect(r.environment.type).toBe('openai_hosted');
   expect(r.environment.network.access).toBe('disabled');
   expect(r.environment.files).toEqual([{
-    type:'file_id', path:'/workspace/input/source.tar.gz', file_id:'file_fixture_1',
+    type:'file_id', path:'/workspace/source.tar.gz', file_id:'file_fixture_1',
   }]);
   expect(r.environment.setup_commands[0].command).toContain('sha256sum -c -');
   expect(r.environment.setup_commands[0].command).toContain('tar --no-same-owner');
