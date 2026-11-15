@@ -53,7 +53,7 @@ def package(repo: Path, source: str, destination: Path) -> dict:
     if resolved != source:
         raise PackagingDenied("source-not-commit")
     listing = git(repo, "ls-tree", "-rz", "--full-tree", source)
-    records = listing.split(b"\\0")
+    records = listing.split(b"\0")
     if records[-1] != b"":
         raise PackagingDenied("incomplete-tree-listing")
     if len(records) - 1 > MAX_FILES:
@@ -62,7 +62,7 @@ def package(repo: Path, source: str, destination: Path) -> dict:
     total = 0
     for record in records[:-1]:
         try:
-            metadata, raw_path = record.split(b"\\t", 1)
+            metadata, raw_path = record.split(b"\t", 1)
             mode, kind, object_sha = metadata.decode("ascii").split(" ")
         except (ValueError, UnicodeError) as exc:
             raise PackagingDenied("malformed-tree-entry") from exc
