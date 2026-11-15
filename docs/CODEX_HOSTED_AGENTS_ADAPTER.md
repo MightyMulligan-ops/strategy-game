@@ -43,3 +43,18 @@ Before any paid Agents session, independently verify and implement:
 ## Verification scope
 
 The new Vitest suite covers request construction, missing evidence, issue/scope/source drift, untrusted issue instructions, root-vs-subagent completion, failed/cancelled/idle/disconnected outcomes, complete same-turn artifact inventories and byte caps. Tests are **synthetic**. They do not exercise the real Agents API, actual hosted sandbox isolation, provider billing, secure packaging, SDK compatibility, CI or signing. Hosted CI on the exact new commit must be checked separately.
+
+
+## New offline lifecycle and source packaging (2026-11-15)
+
+- `scripts/codex-hosted-packager.py` reads only blobs in a pinned Git commit, rejecting symlinks/gitlinks, unsafe paths, oversized blobs and obvious embedded secrets. It creates a deterministic gzip/tar archive with non-executable regular entries, no Git metadata, and bounded size. It **does not** install offline dependencies, authenticate the Git source or prove sandbox isolation. It is not safe to feed arbitrary unaudited archives to the session builder.
+- `scripts/codex-hosted-journal.ts` implements a durable-store interface and one-way `reserved -> creating -> running -> completed` state machine. Once session creation may have been sent, an ambiguous outcome blocks replay. The implementation requires a real durable store, externally authenticated provider observations and separate owner-grant/budget admission before use. No live store is configured.
+- New tests cover concurrent duplicate claims, ambiguous creation/disconnect, crash-stop behavior, unsafe Git objects, tracked/untracked separation, deterministic archive bytes and mode normalization. **Authored tests are not execution evidence** until exact-head CI passes.
+
+### Exact-head CI handling
+
+The repository's existing `.github/workflows/ci.yml` runs for pull requests targeting `main` only. PR #81 is a dependent draft targeting PR #80's branch, so its initial commits do not trigger CI. A temporary draft-only retarget to `main` may be used to obtain exact-head CI, then restore the dependent base; do not alter or bypass the CI workflow. This still does not establish independent security review.
+
+### Additional implementation blockers
+
+The hosted packager deliberately excludes dependency installation and cannot ensure offline Node tooling is present. The trusted runtime needs a reviewed, immutable offline toolchain bundle or a provider-managed prebuilt template that preserves network-disabled execution. The journal cannot physically stop provider-side model usage, and no proven hard per-session spend ceiling has been established. The actual API client, artifact pagination/download, isolated validator/signing and publisher orchestration remain unconnected.
