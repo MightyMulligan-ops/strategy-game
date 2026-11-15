@@ -11,7 +11,7 @@ export const HOSTED_ARTIFACTS = [
   '/workspace/outputs/manifest.json',
   '/workspace/outputs/summary.txt',
 ] as const;
-const ARCHIVE_PATH = '/workspace/input/source.tar.gz';
+const ARCHIVE_PATH = '/workspace/source.tar.gz';
 const HEX64 = /^[a-f0-9]{64}$/;
 const FILE_ID = /^file_[A-Za-z0-9_-]{1,128}$/;
 const ID = /^[A-Za-z0-9_-]{1,128}$/;
