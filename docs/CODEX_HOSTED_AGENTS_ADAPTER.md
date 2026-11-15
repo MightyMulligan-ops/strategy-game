@@ -58,3 +58,10 @@ The repository's existing `.github/workflows/ci.yml` runs for pull requests targ
 ### Additional implementation blockers
 
 The hosted packager deliberately excludes dependency installation and cannot ensure offline Node tooling is present. The trusted runtime needs a reviewed, immutable offline toolchain bundle or a provider-managed prebuilt template that preserves network-disabled execution. The journal cannot physically stop provider-side model usage, and no proven hard per-session spend ceiling has been established. The actual API client, artifact pagination/download, isolated validator/signing and publisher orchestration remain unconnected.
+
+
+## Hosted orchestration seam (additional candidate)
+
+`scripts/codex-hosted-orchestrator.ts` connects the offline request builder, durable session journal, root-turn event handling, bounded artifact inventory and existing proposal-metadata checks through a **dependency-injected provider interface**. It marks session creation irrevocable before calling the provider, refuses duplicate attempts, treats disconnected streams as ambiguous, and requires server-side deletion confirmation before returning a proposal. Synthetic tests cover success, missing admission evidence, failure, stream disconnect, extra artifacts and uncertain deletion.
+
+**This interface is not a live provider adapter.** A reviewed OpenAI Agents SDK/HTTP implementation, authenticated provider IDs and events, bounded streaming downloads, session termination/recovery, complete Git replay, fresh independent isolated tests, trusted signer, authenticated publisher and proven full-session cost limit remain necessary. Returned bytes are explicitly `UntrustedHostedProposal`; no code is executed or published by this module. An implementation must never accept the test's synthetic booleans as authorization.
