@@ -1,6 +1,6 @@
 # Authoritative starting armies — 006D.1 / Issue #49
 
-Implementation is prepared on one local issue branch and remains unmerged. This milestone initializes durable armies and reads them; it executes no orders, movement, Ready, closure, freezing, resolution, advancement, encounters or combat.
+Merged in [PR #50](https://github.com/MightyMulligan-ops/strategy-game/pull/50). This section describes the initialization-only historical cohort; later cohorts add movement drafts, closure and resolution without changing old pins. This milestone initializes durable armies and reads them; it executes no orders, movement, Ready, closure, freezing, resolution, advancement, encounters or combat.
 
 ## Creation-time cohort and atomic start
 

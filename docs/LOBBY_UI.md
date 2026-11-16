@@ -1,6 +1,6 @@
 # Sovereign lobby and account shell (004B.2D / Issue #13)
 
-The React client provides account/lobby flows and a participant-only initial SVG map after atomic host start (005B.2 / Issue #22). Sovereign branding remains unchanged. Legacy RUNNING lobbies may have no initialized world; the map shows that explicit state without repair. 006B.2 persists Turn 1 and 006C.1 exposes its read-only status; 006C.2A (Issue #47, unmerged) displays it in the existing world view. No gameplay processing, scheduler, presence or turn controls are enabled. See [INITIAL_WORLD.md](INITIAL_WORLD.md) for map navigation, visibility and tests.
+The React client provides account/lobby flows and a participant-only initial SVG map after atomic host start (005B.2 / Issue #22). Sovereign branding remains unchanged. Legacy RUNNING lobbies may have no initialized world; the map shows that explicit state without repair. 006B.2 persists Turn 1 and 006C.1 exposes its read-only status; 006C.2A (Issue #47 / PR #48, merged) displays it in the existing world view. Later production cohorts add movement drafts, Ready/closure, a bounded deadline worker and Turn 1 movement resolution (PRs #52, #60 and #62). Own-formation selection merged in PR #75. Historical cohorts retain their original behavior; combat, Turn 2 and live presence remain future work. See [INITIAL_WORLD.md](INITIAL_WORLD.md) for map navigation, visibility and tests.
 
 ## Account and API boundaries
 

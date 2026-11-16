@@ -153,7 +153,7 @@ describe("Automation 011 handoff and static templates", () => {
   });
   it("resolves only explicit allowlisted documentation links before file access", () => {
     const files = [".github/CODEX_CLOUD_LAUNCH.template.md", ".github/CODEX_CLOUD_APPROVAL.template.md", ".github/CODEX_CLOUD_HANDOFF.template.md", "docs/CODEX_PIPELINE.md"];
-    const allowed = new Set([...files, ".github/CODEX_CLOUD_APPROVAL.template.json", ".github/PR_REVIEW_HANDOFF.template.json", "docs/PR_REVIEW.md", "docs/examples/CODEX_CLOUD_HANDOFF_PR52.md", "docs/AUTOMATION_014.md"]);
+    const allowed = new Set([...files, ".github/CODEX_CLOUD_APPROVAL.template.json", ".github/PR_REVIEW_HANDOFF.template.json", "docs/PR_REVIEW.md", "docs/examples/CODEX_CLOUD_HANDOFF_PR52.md", "docs/AUTOMATION_014.md", "docs/OPTION_B_AUDIT.md"]);
     for (const file of files) for (const match of read(file).matchAll(/\]\(([^)]+)\)/g)) {
       const path = resolve(root, dirname(file), match[1]!);
       expect(allowed.has(relative(root, path).replaceAll("\\", "/"))).toBe(true);

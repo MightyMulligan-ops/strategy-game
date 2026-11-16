@@ -1,6 +1,6 @@
 # Production Turn 1 closure — 006D.3 / Issue #59
 
-This issue change is prepared for one draft PR and owner review. It does not execute movement, resolve a turn, advance to Turn 2 or authorize deployment. The task owner's explicit Issue #59 B/C+D+P grant covers implementation, additive SQL authoring, database-free task checks and unchanged hosted CI on fresh disposable PostgreSQL only. Existing-environment migrations and ready/merge/deployment remain separate decisions.
+Merged in [PR #60](https://github.com/MightyMulligan-ops/strategy-game/pull/60). This document describes the turn-closure historical cohort; later resolution cohorts keep its original behavior intact. It does not execute movement, resolve a turn, advance to Turn 2 or authorize deployment. The task owner's explicit Issue #59 B/C+D+P grant covers implementation, additive SQL authoring, database-free task checks and unchanged hosted CI on fresh disposable PostgreSQL only. Existing-environment migrations and ready/merge/deployment remain separate decisions.
 
 ## Versioned compatibility
 

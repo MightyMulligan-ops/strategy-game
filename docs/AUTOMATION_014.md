@@ -1,5 +1,7 @@
 # Automation 014 — owner-gated review, repair and acceptance
 
+**Option B:** Keep this existing read-only evidence/review tooling. Custom Stage 2 ledger services and multi-agent orchestration are deferred; the reporter remains advisory and cannot launch repairs or merge. [#79](https://github.com/MightyMulligan-ops/strategy-game/issues/79) owns worker delivery; see [the current inventory](OPTION_B_AUDIT.md).
+
 Issue #63 adds deterministic orchestration to the existing trusted-main PR reporter. It does not launch Codex, authenticate an owner, execute repairs, retry CI, publish comments, change labels or grant ready/merge/deployment authority. The local VS Code fallback, five implementation corrections and two separately owner-started repairs remain intact.
 
 ## One owner handoff

@@ -1,6 +1,6 @@
 # Authoritative movement drafts — 006D.2 / Issue #51
 
-This local implementation is prepared for review and remains unmerged/unpublished. The owner authorizes Gates B/C only: implementation and additive SQL authoring. No database, migration execution, hosted CI, push, PR or deployment is authorized.
+Merged in [PR #52](https://github.com/MightyMulligan-ops/strategy-game/pull/52). This document describes the movement-drafts historical cohort; later creation-pinned cohorts add closure and resolution. Earlier task grants are historical, not standing authorization for new work, existing-database access, migrations or deployment.
 
 ## Cohort and snapshot compatibility
 

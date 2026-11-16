@@ -4,7 +4,7 @@ A browser-based, multiplayer 2D grand strategy game inspired by the broad gamepl
 
 ## Project status
 
-**Pre-production / foundation.** Authenticated lobbies, world/army initialization and private movement drafts are merged. Issue #59 / PR #60 is merged. Issue #61 prepares a new creation-pinned deterministic movement resolution, immutable audits and pending hostile encounters for draft review. Historical cohorts keep their original behavior. The new cohort can resolve Turn 1 movement once; combat and Turn 2 remain future work. Historical matches stay unchanged. See [TURN_CLOSURE.md](docs/TURN_CLOSURE.md) and [DEVELOPMENT_STATUS.md](docs/DEVELOPMENT_STATUS.md).
+**Pre-production / foundation.** Authenticated lobbies, world/army initialization and private movement drafts are merged. Issue #59 / PR #60 is merged. Issue #61 / PR #62 is merged, providing creation-pinned deterministic Turn 1 movement resolution, immutable audits and pending hostile encounters. Own-formation selection / PR #75 is also merged. Historical cohorts keep their original behavior. The new cohort can resolve Turn 1 movement once; combat and Turn 2 remain future work. Historical matches stay unchanged. See [TURN_CLOSURE.md](docs/TURN_CLOSURE.md) and [DEVELOPMENT_STATUS.md](docs/DEVELOPMENT_STATUS.md).
 
 ## Product direction
 
@@ -33,6 +33,7 @@ Use a **server-authoritative modular monolith** initially. Do not introduce micr
 
 ## Repository guide
 
+- `docs/OPTION_B_AUDIT.md` — current GitHub Actions + Codex direction, complete issue/PR/branch/workflow inventory and preserved security boundaries. Issue #79 is the single worker-delivery tracker; a coding worker is not yet operational on main.
 - `docs/GAME_DESIGN.md` — gameplay rules and current design decisions.
 - `docs/TECHNICAL_ARCHITECTURE.md` — system boundaries, stack, data flow, and module contracts.
 - `docs/DEVELOPMENT_ROADMAP.md` — milestones and vertical-slice priorities.
@@ -55,7 +56,7 @@ Use a **server-authoritative modular monolith** initially. Do not introduce micr
 - `AGENTS.md` — instructions for AI coding agents and contributors.
 - `packages/shared-types/` — strict, versioned runtime schemas and transport types.
 - `packages/shared-types/src/lobby.ts` — public lobby requests/responses, roster/viewer validation, and Quick/Casual classification (004B.2A).
-- `packages/game-engine/` — server-only lifecycle, empty-turn resolver, and movement-queue planning; no gameplay execution yet.
+- `packages/game-engine/` — server-only lifecycle and deterministic Turn 1 movement resolution; combat and Turn 2 remain future work.
 - `@strategy-game/shared-types/server` — authoritative snapshot/resolution schemas; never send these directly to clients.
 - `database/` — server-only Prisma schema, initial migration, mappings, and transactional match repository. See `database/README.md` for storage details.
 
@@ -157,7 +158,7 @@ Preflight checks Node/pnpm compatibility, required generated files, backend envi
 
 React/Vite hot reload and backend `tsx watch` reload remain enabled. **After editing an internal package (`packages/*` or `database/*`), stop with Ctrl+C and rerun `pnpm dev`.** Preparation rebuilds dependencies before both apps start. There is no shared-package watcher. Restart after `.env` changes too. Ctrl+C stops the foreground development servers; Docker remains running until explicitly stopped.
 
-Open **http://127.0.0.1:5173** consistently rather than alternating with `localhost`. Fastify serves `http://127.0.0.1:3001/health` (optional `PORT` override). Vite proxies `/auth` to port 3001; update its target if overriding that port. Changing the frontend port also requires updating `AUTH_ORIGIN` and registered provider callbacks. If Vite selects another port because 5173 is occupied, stop the conflicting process before using sign-in. The server loads the root `.env`. Game command APIs and database jobs remain unimplemented.
+Open **http://127.0.0.1:5173** consistently rather than alternating with `localhost`. Fastify serves `http://127.0.0.1:3001/health` (optional `PORT` override). Vite proxies `/auth` to port 3001; update its target if overriding that port. Changing the frontend port also requires updating `AUTH_ORIGIN` and registered provider callbacks. If Vite selects another port because 5173 is occupied, stop the conflicting process before using sign-in. The server loads the root `.env`. Production Turn 1 drafts, Ready/closure and movement resolution exist for their creation-pinned cohorts; combat and Turn 2 remain future work. A development start does not authorize database mutation or deployment.
 
 ### Daily commands
 
