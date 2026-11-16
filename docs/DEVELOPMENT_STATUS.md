@@ -8,6 +8,10 @@ Worker delivery is consolidated in [#79](https://github.com/MightyMulligan-ops/s
 
 The merged manual read-only smoke test is separate from metadata/report workflows and does not implement a coding/publishing worker. Existing CI and security controls remain; no paid job, merge, deployment, secret access or existing-database operation was initiated by this cleanup. Proposed edits remain unmerged until the owner decides. Cleanup review: [#82](https://github.com/MightyMulligan-ops/strategy-game/issues/82). Full inventory, proposed changes and verification limits: [OPTION_B_AUDIT.md](OPTION_B_AUDIT.md).
 
+### Cleanup correction pass 1/5
+
+Initial #83 CI run43792588880 at `2c762be46e4b83d4fd67d003c9f2e57d4739102a` passed build/typecheck and PostgreSQL but failed two documentation-link assertions (1,730 application tests passed, 262 intentional DB skips; lint not reached). Add exactly the new audit file to both existing static link allowlists, preserving all validation/rejection assertions; avoid an external issue link in the pipeline guide's local-only fixture. No runtime/security logic change. A new source commit gets normal CI; no old-run retry or history reset. #84's unchanged source `7090b84c71e476efb6ae5167c19309abeffe8061` passed both jobs in run43792659068 (1,732 application tests; 262 PostgreSQL tests, zero DB skips).
+
 ## Historical evidence follows
 
 The entries below are preserved as recorded, including old task grants, counts, correction histories and pre-merge snapshots. Use the current snapshot above and live GitHub state for delivery status; old grants/counts are not current authority or current-head CI.
