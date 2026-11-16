@@ -11,9 +11,9 @@ const admission=():HostedAdmission=>({
   scope,issueBody,scopeDigest:sha256(canonicalScope(scope)),
   sourceArchiveFileId:'file_fixture',sourceArchiveSha256:'b'.repeat(64),sourceArchiveBytes:1234,
   sourceArchiveVerifiedFromGitTree:true,currentOwnerGrantVerified:true,
-  durableRunClaimAndFullCostReservationVerified:true,projectKeyBindingVerified:true,
+  durableRunClaimVerified:true,projectKeyBindingVerified:true,
   exclusiveProjectRoutingVerified:true,hostedSandboxPolicyReviewed:true,
-  modelAndSandboxPricingVerified:true,boundedSessionCostAndCancellationVerified:true,
+  sessionTerminationVerified:true,
 });
 const session='sess_fixture',root='turn_fixture';
 const patch=Buffer.from('diff --git a/packages/game-engine/src/combat.ts b/packages/game-engine/src/combat.ts\n');
