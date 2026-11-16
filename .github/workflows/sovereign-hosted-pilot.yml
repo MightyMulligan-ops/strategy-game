@@ -95,6 +95,8 @@ jobs:
 
   validate:
     needs: agent
+    outputs:
+      validation_sha256: ${{ steps.checks.outputs.validation_sha256 }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
@@ -128,6 +130,8 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
       - name: Install trusted locked dependencies before untrusted patch
         run: pnpm install --frozen-lockfile
+      - name: Prepare trusted build dependencies and Prisma engine before isolation
+        run: pnpm prepare:checks
       - name: Apply reconstructed patch without executing generated code
         shell: bash
         run: |
@@ -135,39 +139,18 @@ jobs:
           git apply --check "$RUNNER_TEMP/sovereign-pilot/validated/proposal.patch"
           git apply "$RUNNER_TEMP/sovereign-pilot/validated/proposal.patch"
           git diff --check
-      - name: Build isolated validation image using trusted Node.js and pinned pnpm
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker build --network default -t "sovereign-pilot-validation:$GITHUB_RUN_ID" - <<'DOCKERFILE'
-          FROM node:24-bookworm
-          RUN corepack enable && corepack prepare pnpm@12.18.0 --activate
-          WORKDIR /workspace
-          DOCKERFILE
       - name: Run untrusted build and tests ONLY inside isolated networkless container
-        shell: bash
+        id: checks
+        run: node --experimental-transform-types scripts/codex-pilot-validator.ts
+      - name: Require host execution receipt before artifact transfer
+        env:
+          VALIDATION_SHA256: ${{ steps.checks.outputs.validation_sha256 }}
         run: |
           set -euo pipefail
-          VALIDATION="$RUNNER_TEMP/sovereign-validation-sandbox"
-          mkdir -p "$VALIDATION/repo"
-          cp -a . "$VALIDATION/repo/"
-          EXPECTED=$(node -e 'console.log(require(process.argv[1]).tree_sha)' "$RUNNER_TEMP/sovereign-pilot/validated/validated-report.json")
-          docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges --read-only \
-            --tmpfs /tmp:rw,nosuid,nodev,size=256m --pids-limit 256 --memory 4g --cpus 2 \
-            --user "$(id -u):$(id -g)" --env HOME=/tmp --env AUTH_ENABLED=false \
-            --env RUN_DATABASE_TESTS=0 --env "EXPECTED_TREE=$EXPECTED" \
-            --mount "type=bind,source=$VALIDATION/repo,target=/workspace" -w /workspace \
-            "sovereign-pilot-validation:$GITHUB_RUN_ID" bash -euc '
-              pnpm build && pnpm typecheck && pnpm test && pnpm lint
-              git -c safe.directory=/workspace add -A
-              test "$(git -c safe.directory=/workspace write-tree)" = "$EXPECTED_TREE"
-            '
-      - name: Verify the exact tested tree matches the replayed source
-        run: |
-          git add -A
-          EXPECTED=$(node -e 'console.log(require(process.argv[1]).tree_sha)' "$RUNNER_TEMP/sovereign-pilot/validated/validated-report.json")
-          ACTUAL=$(git write-tree)
-          test "$EXPECTED" = "$ACTUAL"
+          test -n "$VALIDATION_SHA256"
+          RECEIPT="$RUNNER_TEMP/sovereign-pilot/validated/validation-receipt.json"
+          test -f "$RECEIPT"
+          printf '%s  %s\n' "$VALIDATION_SHA256" "$RECEIPT" | sha256sum --check --status
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: sovereign-validated-proposal
@@ -177,6 +160,7 @@ jobs:
 
   publish:
     needs: validate
+    if: ${{ needs.validate.result == 'success' && needs.validate.outputs.validation_sha256 != '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -184,6 +168,7 @@ jobs:
       pull-requests: write
     env:
       SOVEREIGN_ISSUE: ${{ inputs.issue_number }}
+      EXPECTED_VALIDATION_SHA256: ${{ needs.validate.outputs.validation_sha256 }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:

@@ -54,6 +54,8 @@ jobs:
         run: pnpm test 2>&1 | tee .cache/ci/unit-tests.log
       - name: Lint
         run: pnpm lint 2>&1 | tee .cache/ci/lint.log
+      - name: Verify autonomous validator offline without a paid session
+        run: node --experimental-transform-types scripts/codex-pilot-validator.ts smoke
       - name: Sanitize failure logs
         if: ${{ failure() }}
         run: node --experimental-strip-types scripts/ci-reports.ts sanitize
