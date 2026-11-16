@@ -14,10 +14,10 @@ const admission = (): HostedAdmission => ({
   scope, issueBody, scopeDigest: sha256(canonicalScope(scope)),
   sourceArchiveFileId: 'file_fixture_1', sourceArchiveSha256: 'c'.repeat(64),
   sourceArchiveBytes: 1000, sourceArchiveVerifiedFromGitTree: true,
-  currentOwnerGrantVerified: true, durableRunClaimAndFullCostReservationVerified: true,
+  currentOwnerGrantVerified: true, durableRunClaimVerified: true,
   projectKeyBindingVerified: true, exclusiveProjectRoutingVerified: true,
-  hostedSandboxPolicyReviewed: true, modelAndSandboxPricingVerified: true,
-  boundedSessionCostAndCancellationVerified: true,
+  hostedSandboxPolicyReviewed: true,
+  sessionTerminationVerified: true,
 });
 
 test('builds a network-disabled hosted session without environment credentials or external tools', () => {
@@ -37,9 +37,9 @@ test('builds a network-disabled hosted session without environment credentials o
 test('rejects any missing trusted launch prerequisite', () => {
   const keys = [
     'sourceArchiveVerifiedFromGitTree', 'currentOwnerGrantVerified',
-    'durableRunClaimAndFullCostReservationVerified', 'projectKeyBindingVerified',
+    'durableRunClaimVerified', 'projectKeyBindingVerified',
     'exclusiveProjectRoutingVerified', 'hostedSandboxPolicyReviewed',
-    'modelAndSandboxPricingVerified', 'boundedSessionCostAndCancellationVerified',
+    'sessionTerminationVerified',
   ] as const;
   for (const key of keys) {
     expect(() => buildHostedSessionRequest({...admission(),[key]:false})).toThrow();
