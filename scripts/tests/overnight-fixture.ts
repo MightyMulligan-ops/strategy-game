@@ -23,6 +23,7 @@ const {publicKey,privateKey}=generateKeyPairSync('ed25519');
 export const enrollment={publicKeyPem:publicKey.export({type:'spki',format:'pem'}).toString(),fingerprint:sha256(publicKey.export({type:'spki',format:'der'}))};
 export const bytes=(m:unknown)=>Buffer.from(JSON.stringify(m));
 export const signature=(m:QueueManifest)=>sign(null,Buffer.from('SOVEREIGN-OVERNIGHT-V1\n'+canonical(m)),privateKey);
+export const signRecovery=(value:unknown)=>sign(null,Buffer.from('SOVEREIGN-RECONCILE-V1\n'+canonical(value)),privateKey).toString('base64');
 export const trigger={repository:REPOSITORY,actor:OWNER,actorId:OWNER_ID,ref:'refs/heads/main',event:'workflow_dispatch' as const,runId:'123',attempt:1,sourceSha:baseline};
 export function api(m:QueueManifest):GitHubTransport{
   return {async request(method,path){

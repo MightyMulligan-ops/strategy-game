@@ -1,0 +1,136 @@
+name: Sovereign overnight queue
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Inspect/report is non-paid; execute additionally requires signed one-night configuration'
+        type: choice
+        options: [inspect, execute, report]
+        default: inspect
+  # Wake-ups are NOT approval. Both activation variables are unset/false by
+  # default; exact signed Eastern date + 15-minute grace is independently checked.
+  schedule:
+    - cron: '30 2,3 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sovereign-paid-coding
+  cancel-in-progress: false
+
+jobs:
+  intake:
+    if: >-
+      github.repository == 'MightyMulligan-ops/strategy-game' && github.ref == 'refs/heads/main' &&
+      github.run_attempt == '1' && vars.SOVEREIGN_OVERNIGHT_ENABLED == 'true' &&
+      ((github.event_name == 'workflow_dispatch' && github.actor == 'MightyMulligan-ops' && github.actor_id == '353505747' && inputs.mode == 'execute') ||
+      (github.event_name == 'schedule' && vars.SOVEREIGN_OVERNIGHT_SCHEDULE_ENABLED == 'true'))
+    environment: sovereign-queue-control
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: read
+      actions: read
+    outputs:
+      admitted: ${{ steps.admit.outputs.admitted }}
+      task_count: ${{ steps.admit.outputs.task_count }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - name: Authenticate and durably reserve signed queue
+        id: admit
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SOVEREIGN_LEDGER_APP_ID: ${{ vars.SOVEREIGN_LEDGER_APP_ID }}
+          SOVEREIGN_LEDGER_INSTALLATION_ID: ${{ vars.SOVEREIGN_LEDGER_INSTALLATION_ID }}
+          SOVEREIGN_LEDGER_APP_PRIVATE_KEY: ${{ secrets.SOVEREIGN_LEDGER_APP_PRIVATE_KEY }}
+          SOVEREIGN_OVERNIGHT_ENABLED: ${{ vars.SOVEREIGN_OVERNIGHT_ENABLED }}
+          SOVEREIGN_OWNER_KEY_SHA256: ${{ vars.SOVEREIGN_OWNER_KEY_SHA256 }}
+        run: node --experimental-transform-types scripts/overnight-control.ts intake
+
+  task1:
+    name: Task 1
+    needs: intake
+    if: needs.intake.outputs.admitted == 'true'
+    permissions:
+      contents: write
+      issues: read
+      actions: read
+      pull-requests: write
+    uses: ./.github/workflows/sovereign-overnight-task.yml
+    with:
+      index: 0
+
+  task2:
+    name: Task 2
+    needs: [intake, task1]
+    if: needs.task1.outputs.completed == 'true' && fromJSON(needs.intake.outputs.task_count) >= 2
+    permissions:
+      contents: write
+      issues: read
+      actions: read
+      pull-requests: write
+    uses: ./.github/workflows/sovereign-overnight-task.yml
+    with:
+      index: 1
+
+  task3:
+    name: Task 3
+    needs: [intake, task2]
+    if: needs.task2.outputs.completed == 'true' && fromJSON(needs.intake.outputs.task_count) == 3
+    permissions:
+      contents: write
+      issues: read
+      actions: read
+      pull-requests: write
+    uses: ./.github/workflows/sovereign-overnight-task.yml
+    with:
+      index: 2
+
+  report:
+    needs: [intake, task1, task2, task3]
+    if: >-
+      always() && github.repository == 'MightyMulligan-ops/strategy-game' && github.ref == 'refs/heads/main' &&
+      ((github.event_name == 'schedule' && vars.SOVEREIGN_OVERNIGHT_ENABLED == 'true' && vars.SOVEREIGN_OVERNIGHT_SCHEDULE_ENABLED == 'true') || (github.event_name == 'workflow_dispatch' && github.actor == 'MightyMulligan-ops' && github.actor_id == '353505747'))
+    environment: sovereign-queue-control
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - name: Collect same-run sanitized session metadata
+        if: needs.intake.outputs.admitted == 'true'
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          pattern: queue-state-*
+          path: ${{ runner.temp }}/queue-states
+      - name: Record failure without releasing uncertain claims and render report
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SOVEREIGN_LEDGER_APP_ID: ${{ vars.SOVEREIGN_LEDGER_APP_ID }}
+          SOVEREIGN_LEDGER_INSTALLATION_ID: ${{ vars.SOVEREIGN_LEDGER_INSTALLATION_ID }}
+          SOVEREIGN_LEDGER_APP_PRIVATE_KEY: ${{ secrets.SOVEREIGN_LEDGER_APP_PRIVATE_KEY }}
+        run: node --experimental-transform-types scripts/overnight-control.ts report
+      - name: Retain morning report
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: overnight-report
+          path: ${{ runner.temp }}/overnight-report.md
+          retention-days: 30
+          if-no-files-found: warn

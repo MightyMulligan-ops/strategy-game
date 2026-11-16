@@ -7,6 +7,7 @@ import {SHA,DIGEST,REPOSITORY,sha256,canonicalScope} from './codex-automation-po
 import {canonical,manifestDigest,taskScope,type QueueManifest} from './overnight-policy.ts';
 import type {GitHubTransport} from './codex-github-control.ts';
 import {verifyChecks,type CheckSuccess} from './codex-pilot-receipt.ts';
+import {PROVIDER_ID} from './codex-pilot-diagnostics.ts';
 
 export const QUEUE_REF='sovereign-overnight-ledger-v1';
 const PATH='.sovereign/overnight-ledger.json';
@@ -14,11 +15,12 @@ export const PHASES=['pending','preparing','agent_running','validating','publish
 export type Phase=typeof PHASES[number];
 export type TaskRecord={issue:number;title:string;approvalId:string;approvalDigest:string;scopeDigest:string;issueDigest:string;
   phase:Phase;sessions:0|1;sessionId:string|null;terminated:boolean;startedAt:string|null;endedAt:string|null;
-  reason:string|null;receipt:{digest:string;treeSha:string;checks:readonly CheckSuccess[]}|null;
+  reason:string|null;terminationReceipt?:string;receipt:{digest:string;treeSha:string;checks:readonly CheckSuccess[]}|null;
   pr:{number:number;url:string;headSha:string}|null};
 export type QueueRecord={queueId:string;authorizationId:string;manifestDigest:string;baselineSha:string;runId:string;attempt:1;
   status:'running'|'completed'|'failed'|'stopped';startedAt:string;endedAt:string|null;reason:string|null;tasks:TaskRecord[]};
-export type QueueLedger={version:1;repository:typeof REPOSITORY;active:{queueId:string;runId:string;kind:'queue'|'pilot'}|null;runs:QueueRecord[]};
+export type QueueLedger={version:1;repository:typeof REPOSITORY;active:{queueId:string;runId:string;kind:'queue'|'pilot'}|null;runs:QueueRecord[];
+  reconciliations?:{approvalId:string;digest:string;queueId:string;runId:string;at:string;priorStatus:string;priorPhases:Phase[]}[]};
 export type LedgerSnapshot={revision:string;ledger:QueueLedger};
 export interface QueueStore {read():Promise<LedgerSnapshot>;compareAndSwap(revision:string,value:QueueLedger):Promise<boolean>}
 const ID=/^[A-Za-z0-9_-]{1,80}$/;
@@ -39,9 +41,10 @@ export function validateQueueLedger(v:QueueLedger):void{
       requireControl(t&&Number.isSafeInteger(t.issue)&&t.issue>0&&t.issue!==76&&!issues.has(t.issue)&&typeof t.title==='string'&&t.title.length<=256&&
         ID.test(t.approvalId)&&!approvals.has(t.approvalId)&&DIGEST.test(t.approvalDigest)&&DIGEST.test(t.scopeDigest)&&DIGEST.test(t.issueDigest)&&
         PHASES.includes(t.phase)&&(t.sessions===0||t.sessions===1)&&typeof t.terminated==='boolean'&&
-        (t.sessionId===null||/^sess_[A-Za-z0-9_-]{1,120}$/.test(t.sessionId))&&
+        (t.sessionId===null||PROVIDER_ID.test(t.sessionId))&&
         (t.startedAt===null||timestamp(t.startedAt))&&(t.endedAt===null||timestamp(t.endedAt))&&reason(t.reason),'queue-ledger-task');
       requireControl(t.sessions===1||t.sessionId===null&&!t.terminated,'queue-ledger-session');
+      requireControl(t.terminationReceipt===undefined||t.terminated&&DIGEST.test(t.terminationReceipt),'queue-ledger-termination-receipt');
       requireControl(!['agent_running','validating','publishing','draft_pr_created'].includes(t.phase)||t.sessions===1,'queue-ledger-start');
       requireControl(!['validating','publishing','draft_pr_created'].includes(t.phase)||t.terminated&&t.sessionId!==null,'queue-ledger-termination');
       requireControl(!incomplete||['pending','stopped'].includes(t.phase),'queue-ledger-order');
@@ -57,6 +60,9 @@ export function validateQueueLedger(v:QueueLedger):void{
     requireControl(v.active&&['queue','pilot'].includes(v.active.kind)&&v.runs.some(r=>r.queueId===v.active!.queueId&&r.runId===v.active!.runId),'queue-ledger-lock');
   }
   requireControl(!v.runs.some(r=>r.status==='running'&&(v.active?.queueId!==r.queueId||v.active.runId!==r.runId)),'queue-ledger-unlocked-running');
+  if(v.reconciliations!==undefined)requireControl(Array.isArray(v.reconciliations)&&v.reconciliations.length<=128&&new Set(v.reconciliations.map(r=>r.approvalId)).size===v.reconciliations.length&&
+    v.reconciliations.every(r=>ID.test(r.approvalId)&&DIGEST.test(r.digest)&&ID.test(r.queueId)&&/^\d{1,20}$/.test(r.runId)&&timestamp(r.at)&&
+      ['running','failed','stopped'].includes(r.priorStatus)&&Array.isArray(r.priorPhases)&&r.priorPhases.every(p=>PHASES.includes(p))),'queue-reconciliation-history');
 }
 /** No retry loop: CAS contention or an unknown response stops this caller. */
 export class QueueJournal {
@@ -78,7 +84,7 @@ export class QueueJournal {
     });
   }
   async step(queueId:string,runId:string,index:number,expected:Phase,next:Phase,now:Date,
-    evidence:{sessionId?:string;receipt?:NonNullable<TaskRecord['receipt']>;pr?:NonNullable<TaskRecord['pr']>}={}){
+    evidence:{sessionId?:string;terminationReceipt?:string;receipt?:NonNullable<TaskRecord['receipt']>;pr?:NonNullable<TaskRecord['pr']>}={}){
     return this.change(l=>{
       const r=l.runs.find(r=>r.queueId===queueId&&r.runId===runId),t=r?.tasks[index];
       requireControl(l.active?.queueId===queueId&&l.active.runId===runId&&r?.status==='running'&&t?.phase===expected&&
@@ -87,7 +93,7 @@ export class QueueJournal {
       requireControl(['pending>preparing','preparing>agent_running','agent_running>validating','validating>publishing','publishing>draft_pr_created'].includes(edge),'queue-transition');
       if(next==='preparing')t.startedAt=now.toISOString();
       if(next==='agent_running'){requireControl(t.sessions===0,'queue-session-replay');t.sessions=1}
-      if(next==='validating'){requireControl(typeof evidence.sessionId==='string'&&(t.sessionId===null||t.sessionId===evidence.sessionId),'queue-session-termination');t.sessionId=evidence.sessionId;t.terminated=true}
+      if(next==='validating'){requireControl(typeof evidence.sessionId==='string'&&(t.sessionId===null||t.sessionId===evidence.sessionId),'queue-session-termination');t.sessionId=evidence.sessionId;t.terminated=true;if(evidence.terminationReceipt)t.terminationReceipt=evidence.terminationReceipt}
       if(next==='publishing'){requireControl(evidence.receipt,'queue-validation-required');t.receipt=structuredClone(evidence.receipt)}
       if(next==='draft_pr_created'){requireControl(evidence.pr,'queue-publication-required');t.pr=structuredClone(evidence.pr);t.endedAt=now.toISOString()}
       t.phase=next;
@@ -110,11 +116,27 @@ export class QueueJournal {
     return this.change(l=>{
       const r=l.runs.find(r=>r.queueId===queueId&&r.runId===runId),t=r?.tasks[index];
       requireControl(l.active?.queueId===queueId&&l.active.runId===runId&&r?.status==='running'&&t?.phase==='agent_running'&&
-        /^sess_[A-Za-z0-9_-]{1,120}$/.test(sessionId)&&(t.sessionId===null||t.sessionId===sessionId),'queue-session-observation');
+        PROVIDER_ID.test(sessionId)&&(t.sessionId===null||t.sessionId===sessionId),'queue-session-observation');
       t.sessionId=sessionId;
     });
   }
   async snapshot(){const s=await this.store.read();validateQueueLedger(s.ledger);return s.ledger}
+  /** Caller must authenticate owner signature + separate provider-job receipt.
+   * Stop only; never restore a consumed approval or resume the old queue. */
+  async reconcileStop(revision:string,queueId:string,runId:string,approvalId:string,digest:string,terminatedIds:readonly string[],neverStarted:readonly number[],at:Date){
+    const snapshot=await this.store.read();requireControl(snapshot.revision===revision,'queue-reconcile-state-changed');
+    const l=structuredClone(snapshot.ledger);validateQueueLedger(l);
+    const r=l.runs.find(r=>r.queueId===queueId&&r.runId===runId);
+    requireControl(r&&r.status!=='completed'&&l.active?.queueId===queueId&&l.active.runId===runId&&
+      !l.reconciliations?.some(x=>x.approvalId===approvalId),'queue-reconcile-owner');
+    requireControl(new Set(terminatedIds).size===terminatedIds.length&&new Set(neverStarted).size===neverStarted.length&&
+      canonical([...terminatedIds].sort())===canonical(r.tasks.flatMap(t=>t.sessions&&t.sessionId?[t.sessionId]:[]).sort())&&
+      canonical([...neverStarted].sort())===canonical(r.tasks.flatMap((t,i)=>t.sessions&&!t.sessionId?[i]:[]).sort()),'queue-reconcile-unproven-session');
+    l.reconciliations??=[];l.reconciliations.push({approvalId,digest,queueId,runId,at:at.toISOString(),priorStatus:r.status,priorPhases:r.tasks.map(t=>t.phase)});
+    r.status='stopped';r.reason='owner-reconciled-stop';r.endedAt=at.toISOString();
+    r.tasks.forEach(t=>{if(t.sessionId)t.terminated=true;if(t.phase!=='draft_pr_created'){t.phase='stopped';t.reason??='owner-reconciled-stop';t.endedAt??=at.toISOString()}});
+    l.active=null;validateQueueLedger(l);requireControl(await this.store.compareAndSwap(revision,l),'queue-reconcile-contention');return l;
+  }
 }
 function rec(v:unknown):Record<string,unknown>{requireControl(v!==null&&typeof v==='object'&&!Array.isArray(v),'queue-github-object');return v as Record<string,unknown>}
 function gitSha(v:unknown):string{requireControl(typeof v==='string'&&SHA.test(v),'queue-github-sha');return v}

@@ -1,4 +1,4 @@
-# OFF by default until merged to protected main. Manual, single-issue pilot.
+# RETIRED: completed Issue76 must never be recycled. No dispatch can pass prepare.
 # No AI-generated code ever runs in a job containing OPENAI_API_KEY or GitHub write token.
 name: Sovereign hosted coding pilot (draft PR only)
 
@@ -29,6 +29,8 @@ jobs:
     env:
       SOVEREIGN_ISSUE: ${{ inputs.issue_number }}
     steps:
+      - name: Retired paid entry point
+        run: exit 1 # Retired; no checkout, source upload or provider call may follow.
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false

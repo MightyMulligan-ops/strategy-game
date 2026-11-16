@@ -1,217 +1,238 @@
-# Overnight coding queue — inactive component implementation
+# Overnight queue — production integration, paid activation OFF
 
-**Status: PARTIAL / NOT ACTIVATABLE.** This change implements the restrictive
-policy, signed authorization intake, durable queue journal, GitHub CAS adapter,
-offline coordinator and morning report. It does not install a paid launcher or
-schedule. The shipped `config/overnight-queue.disabled.json` has no tasks, date or
-authorization. Existing workflows, PR90 validator/publisher and the Issue76 pilot
-are unchanged. No workflow dispatch, provider request or live ledger bootstrap
-was performed. Subscription Codex authored this change; it did not run Agents API.
+The owner-started completion task extends draft PR91 on its existing branch.
+Prepare, agent, termination sealing, real isolated validation, exact-tree draft
+publication, durable completion and reporting are now connected through separate
+GitHub Actions jobs. Both earlier paid entry points are retired. The configuration
+shipped in this branch has no tasks, enrolled key, approval, date or signature.
+No variable, environment, GitHub App, rule, ledger or live provider was configured
+by implementation. No paid run or queue/reconciliation workflow was dispatched.
 
-## Delivered boundaries
+The owner **waived an external/separate independent security review** for this
+completion. Required sign-off is automated tests, exact-head CI, a security-focused
+code/evidence review and explicit owner approval before paid activation. The task
+author's security review is not represented as an independent review. Earlier
+historical requirements below are superseded for this task; runtime protections
+are unchanged or strengthened.
 
-- Exact repository and owner account ID; 1–3 unique positive issues, excluding
-  retired Issue76. Tasks retain exact approved order, individual approval IDs and
-  digests, bounded scope text, issue title/body digest, exact file allowlist, one
-  session and at most **900 seconds**. The existing 15-minute pilot limit is not
-  increased to 30 minutes. Prepare/validation/publication seam timeouts retain
-  5/20/5-minute limits. Timers do not establish provider termination or cost caps.
-- Existing `validPath`/`canonicalScope` policy is reused, never widened: only
-  explicitly listed existing-policy apps/packages TypeScript paths are eligible.
-  Controller/docs/database/workflow/dependency/secret paths remain prohibited for
-  queued generated changes. This infrastructure PR itself has separate owner
-  authorization and does not grant future queued tasks these paths.
-- One exact trusted main SHA is shared by all tasks. Every task starts from it;
-  earlier draft branches never become the next task's input. Main drift stops
-  the queue. No automatic rebase, source substitution or replacement issue.
-- Owner authorization is an **Ed25519 signature** over the domain string
-  `SOVEREIGN-OVERNIGHT-V1\n` plus canonical manifest JSON. A trusted caller pins
-  the enrolled public key's SHA256 SPKI DER fingerprint OUTSIDE the manifest and
-  untrusted artifacts. On every protected boundary, the collector verifies the
-  signature, current owner ID/login/User/admin permission, exact main ref and
-  every task's current open-issue title/body digest. Comments/labels/PR text are
-  not approval sources. Paths, scope, timing, sequence and limits are signed.
-- Editing/deleting an issue, changing scope/title/paths, key enrollment, baseline,
-  or window invalidates authority. The collector fetches fresh GitHub state;
-  worker booleans and copied receipts cannot enroll a key or grant authority.
-  Mid-call revocation cannot retract work already sent to a provider. An operator
-  can revoke a running authorization by stopping its run and retaining the lock;
-  reviewed production intake must add an authenticated out-of-band revocation
-  source before activation. No queued task can modify that source.
+## Connected production path
 
-## One-night scheduling policy
+`sovereign-overnight-queue.yml` is the trusted main-only caller. It admits an exact
+owner-signed queue once, then invokes `sovereign-overnight-task.yml` sequentially
+for indices0,1,2. Task2/3 require the previous task's **durable draft completion**
+output. No recursive dispatch, issue discovery, replacement task or code stacking.
+Each independent draft starts at the same exact signed main SHA. Main drift stops
+protected actions; there is no automatic rebase or branch substitution.
 
-`localDate` is an explicit America/New_York calendar date. `startsAt` must be the
-unique UTC instant for **22:30 Eastern** on that date, calculated with IANA zone
-data. It is 02:30 UTC the next day during daylight time and 03:30 UTC during
-standard time. The start hour is outside the repeated/missing DST hour.
-`endsAt` is an explicit canonical UTC instant, at most four elapsed hours after
-start. Initial dispatch is accepted only in `[start,start+15 minutes)` and every
-subsequent protected boundary must precede end. A later day is always refused.
-Every boundary's timeout is additionally capped by the remaining approved
-window, including a session begun close to its end. Unconfirmed remote termination
-still retains global exclusion; a local timeout is not a billing guarantee.
-
-There is **no cron entry**, active future date or dispatch workflow in this PR.
-Scheduling support is date/window validation, not a claim that a scheduler has
-been installed. A future reviewed scheduler may wake late or not at all: late
-dispatch must fail closed, not roll forward. Its run attempt must be 1. Duplicate
-dispatches/DST repetition also encounter the same durable one-shot claim.
-
-## Durable state and exclusion
-
-`GitHubQueueStore` stores one bounded ledger at
-`refs/heads/sovereign-overnight-ledger-v1`, path
-`.sovereign/overnight-ledger.json`. It reads content by the exact ref commit SHA.
-Writes create a child commit with a unique random nonce and PATCH the ref with
-`force:false`. Competing divergent children cannot both fast-forward. A CAS
-conflict or unknown response stops the caller; no write or inference retry loop
-exists. Missing/inaccessible/corrupt/full state is failure, never an empty ledger.
-The 128-run / 256KiB capacity is finite: retention/rotation requires owner review,
-preserving used authorization IDs and consumed task approvals. No reset exists.
-
-The same atomic object holds queue/task state and a global `queue` or `pilot`
-claim. A claim has **no TTL**. A session-start intent is committed before calling
-the agent adapter. The record survives runner loss even if the provider session
-ID is unknown. Used authorization/task IDs remain consumed after completion.
-
-Normal states are `pending → preparing → agent_running → validating → publishing
-→ draft_pr_created`. The whole queue becomes completed only after every draft is
-confirmed. Failure records sanitized constant reasons and blocks all remaining
-tasks. Coding success and publication success are distinct. Validation records
-receipt digest/tree/checks; publication records exact draft number/URL/head.
-
-On any failure, the global claim stays held, even if termination appears likely.
-A lost runner may leave the previous in-progress record; that is an intentional
-durable crash marker. On restart **do not resume the coordinator**: it refuses the
-used queue/run/approval. Reconciliation cannot automatically start paid work.
-If publication succeeded remotely but its response/state write was lost, report
-it as uncertain and inspect the deterministic branch/remote PR before any action.
-
-Only confirmed completion of every task releases the claim automatically. A
-future operator recovery procedure must prove all associated provider sessions
-terminated, reconcile GitHub drafts/branches and preserve consumed approvals,
-then record an owner-authorized metadata-only recovery. This PR installs no
-automatic unlock, expiry takeover or recovery-to-running command.
-
-**Important integration gap:** the existing manual pilot does NOT currently use
-this global register. Its Actions concurrency group is `sovereign-hosted-pilot`;
-its simplified journal is runner-local. GitHub concurrency alone is insufficient
-across workflows/crashes and can replace pending runs. Before any queue activation,
-both paid entry points must use this same durable admission service, or the
-legacy pilot must be independently retired/disabled. Merely giving the new
-workflow the same concurrency group is not sufficient. The existing pilot is
-still pinned to completed Issue76; it must never be reopened/dispatched as a test.
-
-## Validation and publication
-
-The offline coordinator reuses PR90's `verifyBundle` and
-`verifyValidationReceipt`. A reconstruction-only receipt is not validation.
-All four ordered checks (build/typecheck/test/lint), image, pinned pnpm, network,
-artifact hashes, source, tree, run and attempt must match. The expected receipt
-digest must come from independently authenticated successful validator-job
-outputs, never from an artifact supplied by the agent. The injected adapters in
-unit tests are synthetic observations, NOT independent execution evidence.
-
-No PR90 execution code, Dockerfile, shell commands, Corepack/pnpm installation,
-network confinement or publisher tree reconstruction is modified. Activation
-must reuse the real PR90 validator (actual isolated commands and independent
-host tree verification), not implement a second permissive validator.
-
-The coordinator's dependency-injected adapters are **not** suitable for putting
-all credentials into one process. Production jobs must remain separate:
-
-| Boundary | Permitted capability | Required before activation |
+| Job | Credentials | What it actually verifies/does |
 |---|---|---|
-| Prepare/control | Authenticated owner intake and durable CAS writes | Protected source, pinned enrollment, current revocation and main/scope checks |
-| Agent | Provider credential in trusted controller only | No GitHub write token; start claim already durable; bounded archive/output; real termination/reconciliation |
-| Validate | No provider key or GitHub write token | PR90 real networkless isolated checks, exact host tree verification and trusted job output |
-| Publish | Scoped GitHub write, no provider key | Reconstruct receipt-bound tree, recheck owner/source, deterministic unique branch, one draft, no generated-code execution |
+| Intake / prepare | GitHub read + dedicated ledger App | Owner signature, current permission/issue/main, exact scope; CAS reservation; Git-tree source packaging |
+| Agent | Provider key + GitHub read only | Revalidates durable claim immediately before POST; bounded network-disabled hosted session; no generated code on controller |
+| Seal termination | GitHub read + ledger App; no provider key | Successful authenticated Agent job, job-output state digest, matching explicit deletion acknowledgement; durably seals identity/termination before validation |
+| Validate | No provider key or GitHub write token | PR90 complete replay before trusted frozen install; actual build/typecheck/test/lint in separate networkless containers; independent host tree checks |
+| Publish | GitHub draft-branch/PR write + ledger App; no provider key | Successful exact validator job/steps + trusted needs output digest, signed scope, artifact/source/tree binding; reconstruct tree without executing it, one draft, CAS completion |
+| Report | GitHub read + ledger App only if recording failure | Stops downstream work, retains uncertain lock, renders current durable state even after partial failure |
 
-Branch format is `queue/<queueId>/<issue>-<runId>`. Each task is independent.
-Once publication may have begun, no automatic second request is allowed. The
-production publisher still needs a bounded remote duplicate/draft/tree lookup
-and authenticated job-to-ledger receipt binding. A partial response cannot be
-silently turned into another branch or PR.
+All actions are SHA-pinned. The existing `ci.yml`, dependencies/lockfile,
+PR90 Dockerfile/check executor/receipt format, gameplay, UI, database schema and
+migrations remain unchanged. Validator entry identity is narrowly extended to the
+same trusted queue's scheduled main runs. Legacy publisher logic is reused with
+queue-specific scope/branch/authorization callbacks; the old publisher/agent CLI
+entrypoints deny execution. The old pilot's first prepare step exits1 before any
+checkout or provider call; the old API smoke action/secret is removed entirely.
 
-## Owner setup and activation gates — all pending
+## Owner authority and protected configuration
 
-1. Review/merge this inactive component PR and obtain independent security review.
-2. Authorize a separate completion increment for cross-job adapters and shared
-   pilot/queue admission. Retain the existing validator and separated publisher.
-3. Configure a dedicated trusted controller identity and ledger-ref protection:
-   reject deletion/force pushes, allow updates only by that controller and the
-   owner, and keep untrusted code and ordinary contributor jobs away from its
-   credentials. Do not assume current repository rules enforce this. Protect the
-   approved source/main and pin reviewed controller/workflow identities.
-4. Enroll the owner's Ed25519 public key/fingerprint outside task input. Keep the
-   private key owner-local. Configure authenticated revocation and read-only
-   owner permission/issue/main collection; an enrolled key file from a PR is not
-   trusted enrollment. A mere self-signed manifest is insufficient.
-5. Explicitly bootstrap the empty ledger once using the reviewed operator adapter.
-   Confirm backup/audit/recovery and capacity policy. No live bootstrap in this PR.
-6. Prove global exclusion across manual pilot and queue, provider-side timeout /
-   deletion, unknown-create recovery, crash-safe session identity recording and
-   idempotent remote publication. Tests here cover the seams with mocks only.
-7. Configure only necessary job-scoped secrets/environments/approval gates; prove
-   provider key isolation. Inspect actual provider project limits and current
-   billing. A 900-second timer or session-count limit is not a dollar cap. No
-   custom $45 gate, imaginary budget or guaranteed cost estimate is introduced.
-8. Owner selects 1–3 exact OPEN issues (never76), scopes and existing-policy exact
-   paths, freezes current main, and chooses ONE local date/window. Generate each
-   `approvalDigest = SHA256(canonical(task without approvalDigest))`; sign the full
-   final manifest. Any change needs a new signature/approval identity.
-9. Only after the completion/security gates, separately authorize activation for
-   that exact queue/night. No standing permission, recurring approval or retry.
+The separately protected `sovereign-overnight-config-v1` ref contains
+`.sovereign/queue.json`:
 
-Non-executable example fields: queueId `OWNER_CHOSEN_UNIQUE_ID`, authorizationId
-`OWNER_APPROVAL_ID`, baselineSha `EXACT_REVIEWED_MAIN_SHA`, localDate
-`OWNER_APPROVED_DATE`, task issue `OWNER_SELECTED_OPEN_ISSUE`, issueDigest
-`SHA256_OF_CANONICAL_TITLE_AND_BODY`, scopeText `EXACT_APPROVED_SCOPE`, allowedPaths
-`EXACT_EXISTING_POLICY_PATHS`, approvalId `UNIQUE_TASK_APPROVAL`, approvalDigest
-`COMPUTED_TASK_DIGEST`, codingSeconds 900, maxSessions 1. These placeholders are
-intentionally invalid as an executable manifest. The only shipped JSON is disabled.
+- `version:1`, `enabled:false` until separately approved.
+- `enrollment:{publicKeyPem,fingerprint,revoked}`. Private signing key stays on the
+  owner's device. Pin SHA256 of SPKI DER in owner-controlled repository variable
+  `SOVEREIGN_OWNER_KEY_SHA256`, OUTSIDE the manifest/artifacts.
+- `manifest`: existing restrictive v1 manifest, or the disabled empty manifest.
+- `signature`: base64 Ed25519 signature, only for a separately authorized live
+  manifest. Payload is `SOVEREIGN-OVERNIGHT-V1\n` + `canonical(manifest)`.
 
-## Inspection and morning report
+`config/overnight-production.disabled.json` is a non-executable provisioning
+example. Do not treat it as approval. Configuration lives off main so its exact
+main baseline can be approved without a self-referential commit hash.
 
-Credential-free commands (no launch option exists):
+At every protected boundary the production collector reads the config by an exact
+observed ref commit, verifies the separately pinned key and current revocation,
+owner ID353505747/login/User/admin permission, current main, each OPEN non-PR
+issue's title/body digest, queue/run/attempt provenance and the retired entry
+points. Unavailable, changed, revoked or partial evidence denies the action.
+Comments, labels, generated text and PR prose never authorize anything.
 
-```sh
-node --experimental-transform-types scripts/overnight-inspect.ts manifest config/overnight-queue.disabled.json
-node --experimental-transform-types scripts/overnight-inspect.ts report /tmp/owner-downloaded-ledger.json QUEUE_ID
-```
+Each of1–3 tasks has a unique issue/approval ID, explicit scope text, immutable
+approval digest, exact existing-policy TypeScript path allowlist, one session and
+maximum900 seconds. Task digest is SHA256 of canonical task without
+`approvalDigest`; issue digest is SHA256 of canonical `{title,body}`. The queue
+signature binds baseline, order, paths, limits, dates and all task digests. No
+wildcards or allowlist expansion. Existing coding policy still excludes
+controller/workflow/dependency/database/secret paths. Issue76 is ineligible.
 
-The second command reads an already downloaded, bounded regular local file. It
-does not fetch GitHub or provider data. Verify the ledger's source ref independently.
-Generate the report after any termination, including partial failure, and retain
-the durable Git ledger history beyond runner artifacts. A future workflow should
-upload a sanitized report on `always()`; abrupt runner loss is handled by rendering
-from durable state on a separate owner-started read-only inspection.
+To revoke, set protected config `enabled:false` or enrollment `revoked:true` (and
+turn both activation variables off); scope/main changes also stop admission.
+Already-sent remote work cannot be unsent by revocation. Known cleanup/recovery
+uses its separate owner-signed stop approval; it never creates a new session.
 
-Reports include queue/run/attempt/baseline/digest, each issue's phase, reserved vs
-confirmed session count, coding/validation/publication status, four verified
-commands, draft URL, downstream blocking and reconciliation gaps. Numeric test
-counts and real provider usage/billing remain UNKNOWN unless independently
-collected; this receipt version does not contain them. No prompts, raw errors,
-secrets, generated code or invented dollars are included. No PR is merged.
+## Durable state, exclusion and GitHub App
 
-## Verification scope and limitations
+The existing CAS ledger is `.sovereign/overnight-ledger.json` on
+`sovereign-overnight-ledger-v1`. Reads pin the ref SHA. Writes create nonce-bearing
+child commits and use non-forced PATCH. Conflicts/unknown responses stop; there is
+no retry loop, TTL, expiry takeover, history deletion or automatic unlock.
+Missing/corrupt/full state is failure, never an empty ledger. Capacity remains
+128 runs /256KiB; reviewed archival must preserve consumed approvals.
 
-Offline tests use synthetic owner keys, mock GitHub transport, fake provider and
-publisher adapters and an in-memory CAS store. They execute no paid calls, GitHub
-mutations, Docker, PostgreSQL or migrations. Existing credential-free CI exercises
-the full unit suite and PR90's real validator smoke on its compatible hosted
-runner. Its unchanged PostgreSQL job remains confined to fresh disposable service.
+**Do not allow generic Actions write tokens to bypass ledger protection.** A
+separately provisioned GitHub App owns ledger writes. Native Node RSA JWT code
+verifies the installation's owner/App IDs, requests only repository1451525917 and
+contents write, verifies returned repository/permissions/expiry and keeps its
+installation token inside trusted control jobs. Agent and validator never receive
+the App key. Publication uses its separate normal GitHub token for the new draft
+branch/PR; it cannot bypass the protected ledger/config/main rules.
 
-Known release blockers: no cross-job queue launcher/publisher wiring; legacy pilot
-not integrated with global exclusion; no configured enrollment/ref protection or
-revocation intake; no proven live provider cancellation/crash reconciliation;
-no actual one-night scheduler. Therefore this is NOT a production-ready unattended
-queue and cannot be activated by changing `enabled` alone. Completion requires
-separate reviewed code and explicit owner activation. See the PR handoff for actual
-command results, CI source/run/attempt and correction history.
+App variables: `SOVEREIGN_LEDGER_APP_ID`,
+`SOVEREIGN_LEDGER_INSTALLATION_ID`. Put
+`SOVEREIGN_LEDGER_APP_PRIVATE_KEY` only in environment `sovereign-queue-control`.
+Put `OPENAI_API_KEY` only in separate environment `sovereign-controller`.
+Both environments must allow trusted main deployments only; never expose them to
+PR/feature-branch jobs. The provider key must be owner-enrolled and dedicated to
+this controller; physical project binding/exclusive routing remains a manual
+configuration assumption, not something inferred from a key name or boolean.
 
-## This task's implementation evidence
+Owner must configure rulesets BEFORE activation:
+
+1. Main: normal owner review/merge protections; no controller bypass for merge.
+2. Config ref: only owner can update/enroll/revoke; no generic Actions/App bypass.
+3. Ledger ref: deny deletion/force pushes, permit updates only by owner and the
+   dedicated ledger App. Exclude generic GitHub Actions and ordinary contributors.
+4. Scope the App installation to this repository; minimum contents write and
+   metadata read only. Keep its key isolated in the main-only control environment.
+
+These settings are NOT assumed to exist and were NOT modified by this task.
+Without them activation is blocked. Owner bootstrap is explicit: with only the
+reviewed App credential in a trusted owner shell, call
+`new GitHubQueueStore(await ledgerAppTransport(process.env)).bootstrap()` using
+Node's transform-types loader. It refuses an existing/inaccessible ref. Never
+bootstrap on a missing-ledger error from a running queue or reset audit history.
+
+## Time and scheduler
+
+`localDate` names one America/New_York night. Start must equal the unique IANA
+22:30 instant (02:30UTC next day in daylight time,03:30UTC in standard time).
+Dispatch grace is `[start,start+15 minutes)`; the explicit UTC end is at most four
+elapsed hours later. Task order is signed. No later-day rollover or cron approval.
+Every protected boundary checks expiry. Agent creation uses the lesser task/window
+allowance minus120 seconds reserved for bounded export/cleanup: at most780 seconds
+of session streaming for a900-second task. The whole agent job is capped15 minutes.
+If the remaining allowance cannot cover cleanup, no session is created. Absolute
+window end is also applied after fresh pre-create verification.
+
+The caller has02:30/03:30UTC wake-ups, but **no scheduled job can run unless BOTH**
+owner variables `SOVEREIGN_OVERNIGHT_ENABLED=true` and
+`SOVEREIGN_OVERNIGHT_SCHEDULE_ENABLED=true`. Neither was configured in this task.
+The config also remains disabled and unsigned. The second UTC wake-up is early or
+outside grace, not another approval. Duplicate dispatch/run attempts also encounter
+the durable one-shot claim. Actions concurrency is defense in depth only; it can
+replace pending runs and does not survive as an exactly-once session ledger.
+GitHub can delay/drop schedules; late dispatch refuses paid work.
+
+## Provider uncertainty and recovery
+
+`QueueSessionProvider` records not-started, creating, active, root-completed/failed,
+unknown and explicit-deletion-confirmed states. Stream closure, local timeout,
+runner termination, GET404 and unfamiliar provider status are NOT termination
+proof. Creation POST is never repeated. Known sessions use the existing bounded
+cancel/delete cleanup and require the matching explicit deletion acknowledgement;
+cleanup retries never create sessions. Missing IDs leave an unknown reservation.
+Provider state artifacts survive ordinary job failures; an abrupt runner loss can
+leave only the durable pre-session intent. Both block future paid tasks.
+
+Successful Agent state is authenticated through job outputs/metadata and sealed
+into the ledger before validation. Thus validation/publication failure cannot
+silently discard already confirmed termination. Unknown failure keeps the global
+claim until owner-authorized recovery. No automatic resume or refill of approvals.
+
+`sovereign-overnight-reconcile.yml` defaults to non-provider inspection. Its
+`terminate_and_reconcile` mode requires `.sovereign/reconcile.json` on protected
+config ref, with a separate Ed25519 signature over
+`SOVEREIGN-RECONCILE-V1\n` + canonical request. Request keys:
+`version:1, action:"stop-and-release", approvalId, queueId, previousRunId,
+ledgerRevision, expiresAt, sessionIds, neverStarted`. Expiry is at most one hour
+away. IDs/indices must exactly cover the durable original reservation.
+
+The original workflow must be completed. A missing session ID can be classified
+never-started ONLY if authenticated original Actions metadata proves the Agent
+job or its provider step was skipped. A crash after the provider step began with
+no ID cannot pass recovery. An arbitrary owner-supplied ID is not a substitute.
+For known IDs, prior sealed deletion evidence or new matching delete acknowledgements
+are required. The provider recovery job has no GitHub write capability. A separate
+key-free commit job authenticates its successful step, trusted output digest,
+request/run/revision/IDs, then CAS-stops the old queue and releases exclusion.
+Historical approvals and prior status/phases remain recorded and consumed.
+
+If creation response/ID was lost, or the API cannot confirm deletion, the API does
+not provide this implementation a safe exhaustive lookup. The lock remains held
+and unattended work remains blocked; provider-assisted owner investigation may be
+necessary. Neither404 nor elapsed time permits unlock. Lost publisher responses
+also stop; existing branch/PR reconciliation verifies exact source/tree/metadata,
+never blindly POSTs again. Recovery does not resume remaining tasks or authorize a
+second PR. Owner must separately inspect any remote draft missing from the ledger.
+
+## Reports, testing and owner acceptance
+
+An always-run final control job records failed/stopped downstream tasks and emits
+sanitized Actions summary plus30-day report artifact. Durable Git history remains
+the recovery source if the runner/report job itself disappears. Reports distinguish
+reserved starts from confirmed IDs, coding from validation/publication, own constant
+failure reasons, verified checks, PR URLs and blocked tasks. Case counts and real
+billing remain UNKNOWN if absent from trusted evidence; no $45 gate or dollar
+estimate is invented. Artifacts/logs are not an authorization service.
+
+For an interrupted run, owner can export the exact ledger file through authenticated
+GitHub GET, then run the existing credential-free local command:
+`node --experimental-transform-types scripts/overnight-inspect.ts report FILE QUEUE_ID`.
+It performs no provider call or GitHub mutation. Never rerun paid work to get a report.
+
+Initially NON-PAID acceptance procedure:
+
+1. Review this diff and its security assessment; verify exact-head normal CI,
+   including PR90's real isolated validator smoke and fresh PostgreSQL tests.
+2. Run focused production-interface tests, full tests/build/typecheck/lint and
+   actionlint. Interfaces exercise real Git packaging/replay/index reconstruction,
+   JWT verification, mocked GitHub CAS/jobs/publisher and synthetic provider HTTP.
+   Simulated isolated outcomes are not proof of live provider behavior.
+3. Keep both enable variables false and manifest disabled. After owner review/merge,
+   dispatch `inspect` only; verify no intake/agent/validation/publication runs.
+4. Provision/review the protected App, refs, environments and signing enrollment.
+   Test App access/explicit empty-ledger bootstrap in an owner-approved non-paid
+   administrative operation. Inspect the ref rules as a contributor and verify
+   generic Actions tokens cannot update/reset the ledger. This task does not alter
+   settings or create that ledger.
+5. Use offline fixtures for unknown creation, timeout, forged receipts and lost PR
+   responses. Do not reuse completed Issue76 or fabricate a live approval.
+6. Only after these checks, owner separately approves exact issue scopes/paths,
+   current main, one night/window and explicit paid activation. Provider contract,
+   credential/project binding, actual cancellation, GitHub job naming/permissions
+   and scheduler delivery need operational confirmation; mocks do not certify them.
+
+One-night setup checklist: choose1–3 OPEN eligible issues; freeze title/body and
+scope digests; use one exact current-main baseline; assign fresh approval/queue IDs;
+compute task digests and UTC window; sign owner-local; place full config on protected
+ref; verify current key pin/revocation and no existing active/uncertain claim; owner
+explicitly authorizes that night; only then enable both scheduling variables. Disable
+them/config after completion or revocation. Never enroll a key or grant from PR text.
+
+No external security-review gate is reintroduced. Activation still requires the
+owner's review of delivered tests/code/evidence, essential manual configuration and
+separate explicit paid authorization. No readiness or billing guarantee is claimed
+for operational assumptions that have not been exercised.
+
+## Foundation handoff — historical, superseded operational status
 
 Owner source: the active uploaded “Safe Overnight Autonomous Coding Queue” request
 (SHA256 `a8088ac08c84fcbde0aceb9c169d58cef5b8e52c9101883a5117827cd467ed0c`).
