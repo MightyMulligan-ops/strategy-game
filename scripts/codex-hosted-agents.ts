@@ -13,7 +13,7 @@ export const HOSTED_ARTIFACTS = [
 ] as const;
 const ARCHIVE_PATH = '/workspace/source.tar.gz';
 const HEX64 = /^[a-f0-9]{64}$/;
-const FILE_ID = /^file_[A-Za-z0-9_-]{1,128}$/;
+const FILE_ID = /^file[-_][A-Za-z0-9_-]{1,128}$/;
 const ID = /^[A-Za-z0-9_-]{1,128}$/;
 
 /** Observations must be authenticated by a trusted controller, not supplied by an agent or issue body. */
