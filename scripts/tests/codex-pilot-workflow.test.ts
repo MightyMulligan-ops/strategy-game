@@ -28,3 +28,12 @@ test('publication requires trusted validator output; the pilot remains manual an
   expect(publication).toContain('EXPECTED_VALIDATION_SHA256: ${{ needs.validate.outputs.validation_sha256 }}');
   expect(workflow).not.toContain('pnpm build &&');expect(workflow).not.toMatch(/continue-on-error|schedule:|workflow_run:/);
 });
+
+test('a skipped/missing receipt producer fails validation before proposal artifact transfer',()=>{
+  const guard=workflow.indexOf('- name: Require host execution receipt');
+  const upload=workflow.indexOf('name: sovereign-validated-proposal');
+  expect(guard).toBeGreaterThan(workflow.indexOf('id: checks'));expect(guard).toBeLessThan(upload);
+  const step=workflow.slice(guard,upload);
+  expect(step).toContain('test -n "$VALIDATION_SHA256"');expect(step).toContain('test -f "$RECEIPT"');
+  expect(step).toContain('sha256sum --check --status');expect(step).toContain('set -euo pipefail');
+});

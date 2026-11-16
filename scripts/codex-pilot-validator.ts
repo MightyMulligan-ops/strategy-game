@@ -100,8 +100,14 @@ export function verifyWorkspaceTree(repo:string,workspace:string,tree:string):vo
     const env={...process.env,GIT_INDEX_FILE:join(temp,'index')};
     git(['read-tree',tree],env);
     const gitDir=git(['rev-parse','--absolute-git-dir']).trim();
-    requireControl(git(['--git-dir='+gitDir,'--work-tree='+workspace,'ls-files','--others','--exclude-standard','-z'],env)==='',
-      'validation-tree-untracked');
+    const untracked=git(['--git-dir='+gitDir,'--work-tree='+workspace,'ls-files','--others','--exclude-standard','-z'],env);
+    if(untracked!==''){
+      // Bounded path metadata only, never file contents or arbitrary tool output.
+      const paths=untracked.split('\0').filter(Boolean).slice(0,8).map(path=>
+        /^[A-Za-z0-9_./-]{1,160}$/.test(path)&&!/(?:sk[-_]|github_pat|Bearer)/i.test(path)?path:'[redacted]');
+      process.stderr.write(JSON.stringify({code:'validation-tree-untracked',paths})+'\n');
+      throw new ControlDenied('validation-tree-untracked');
+    }
   }finally{rmSync(temp,{recursive:true,force:true});}
 }
 const names={scope:'scope.json',manifest:'manifest.json',patch:'proposal.patch',summary:'summary.txt',replay:'validated-report.json'} as const;

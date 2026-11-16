@@ -142,6 +142,15 @@ jobs:
       - name: Run untrusted build and tests ONLY inside isolated networkless container
         id: checks
         run: node --experimental-transform-types scripts/codex-pilot-validator.ts
+      - name: Require host execution receipt before artifact transfer
+        env:
+          VALIDATION_SHA256: ${{ steps.checks.outputs.validation_sha256 }}
+        run: |
+          set -euo pipefail
+          test -n "$VALIDATION_SHA256"
+          RECEIPT="$RUNNER_TEMP/sovereign-pilot/validated/validation-receipt.json"
+          test -f "$RECEIPT"
+          printf '%s  %s\n' "$VALIDATION_SHA256" "$RECEIPT" | sha256sum --check --status
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: sovereign-validated-proposal
