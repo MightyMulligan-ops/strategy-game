@@ -1,6 +1,6 @@
 # Participant-authorized turn boundary (006A / Issue #28)
 
-006A originally added a fixture-backed HTTP/application boundary over the existing turn contracts and engine. Subsequent 006B.2 (merged PR #40, `5872e85`) persists initial-world Turn 1; 006C.1 adds a separate read-only production GET as described below. The fixture Ready/command boundary remains test-only. No production turn mutation, scheduler or gameplay is enabled. Issue #47 adds an unmerged read-only frontend panel over the production GET; it does not promote the fixture command boundary. Authentication, world generation/projection and legacy world UNINITIALIZED behavior are preserved.
+006A originally added a fixture-backed HTTP/application boundary over the existing turn contracts and engine. Subsequent 006B.2 (merged PR #40, `5872e85`) persists initial-world Turn 1; 006C.1 adds a separate read-only production GET as described below. The fixture Ready/command boundary remains test-only. The read-only frontend panel merged in [PR #48](https://github.com/MightyMulligan-ops/strategy-game/pull/48). Later, separately versioned production cohorts add movement drafts (PR #52), Ready/closure and a bounded deadline worker (PR #60), and Turn 1 movement resolution/pending encounters (PR #62). These do not promote the fixture command boundary or repin historical matches; combat and Turn 2 remain unimplemented. Authentication, world generation/projection and legacy world UNINITIALIZED behavior are preserved.
 
 ## Explicit fixture registration
 

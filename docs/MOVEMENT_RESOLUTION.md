@@ -1,6 +1,6 @@
 # 006D.4 — authoritative Turn 1 movement / Issue #61
 
-Implementation for owner review, not deployment or combat. Issue #61's owner-started task grants B/C+D+P, including additive SQL authoring and unchanged hosted CI on fresh disposable PostgreSQL. Task-side AUTH_ENABLED=false RUN_DATABASE_TESTS=0 never permits database access, migrations or PostgreSQL/Docker startup. E (ready/merge) and F (existing-environment migration/deployment) remain separate.
+Merged in [PR #62](https://github.com/MightyMulligan-ops/strategy-game/pull/62); this is not deployment or combat. Cold-path performance and capacity remain tracked separately in [#64](https://github.com/MightyMulligan-ops/strategy-game/issues/64). Issue #61's owner-started task grants B/C+D+P, including additive SQL authoring and unchanged hosted CI on fresh disposable PostgreSQL. Task-side AUTH_ENABLED=false RUN_DATABASE_TESTS=0 never permits database access, migrations or PostgreSQL/Docker startup. E (ready/merge) and F (existing-environment migration/deployment) remain separate.
 
 ## Runtime and immutable identities
 

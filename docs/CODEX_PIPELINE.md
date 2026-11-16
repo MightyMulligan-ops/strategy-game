@@ -1,5 +1,13 @@
 # Sovereign development pipeline v2 — Automation 011
 
+## Option B — current delivery direction
+
+Use GitHub Issues → one owner-started Codex task → one draft PR → existing CI and independent review → owner-controlled merge. GitHub Actions supplies checks and bounded, explicitly started jobs. The merged manual read-only Codex smoke test verifies integration only; a coding worker is not operational on main.
+
+[Issue #79](https://github.com/MightyMulligan-ops/strategy-game/issues/79) is the single worker-delivery tracker. Custom Stage 2 ledger services, multi-agent review orchestration and auto-merge are deferred. Retain authorization, revocation, duplicate-run/attempt history, isolation, budget and independent-review controls; simplification does not waive them. Existing grants remain scope-bound; labels and reports cannot start work. Preserve the $45 operational cutoff / $50 monthly preference and fail closed on unverifiable safe spending. No automatic paid retry, merge, deployment or existing-database access.
+
+The local VS Code and separately owner-started Codex Cloud instructions below remain available. Their no-API-key statements describe those paths. The separate Actions smoke workflow uses the configured repository secret; do not copy it into prompts, source or reports. Keep metadata/report jobs free of model credentials and PR-code execution with write permissions. See the [complete audit and workflow inventory](OPTION_B_AUDIT.md).
+
 Issue #53 reduces repeated handoffs within the opt-in cloud pilot. It adds human
 templates and static policy examples, not an authorization engine, task launcher,
 GitHub integration, new CI path or standing permission. The existing local VS Code

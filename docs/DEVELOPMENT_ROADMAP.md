@@ -162,7 +162,7 @@ Account authentication is implemented independently of match authorization. Phas
 
 ## Milestone 005B — Procedural world and read-only map (parent Issue #19)
 
-The owner approved three review phases. 005B.1 merged in PR #21 as `e3e4a22`, 005B.2 in PR #23 as `432f37b`, 005B.3A in PR #25 as `a76be4b`, and 005B.3B in PR #27 as `17804c5`. Parent #19 remains open; broader 005B.3 hardening is not completed by those slices.
+The owner approved three review phases. 005B.1 merged in PR #21 as `e3e4a22`, 005B.2 in PR #23 as `432f37b`, 005B.3A in PR #25 as `a76be4b`, and 005B.3B in PR #27 as `17804c5`. Parent #19 is closed; remaining legacy initialization/acceptance decisions are consolidated in [#71](https://github.com/MightyMulligan-ops/strategy-game/issues/71), not completed by those slices.
 
 - [x] **005B.1:** Versioned authoritative world contracts and pure deterministic generator; seeded integer geometry, adjacency/terrain, separate starting fixtures and measurable local equality; tests for 2/4/10/40 players and all supported sizes. Merged without database/API/UI/start wiring. See [WORLD_GENERATION.md](WORLD_GENERATION.md).
 - [x] **005B.2:** Immutable JSONB initial archive, guarded atomic initialization on start, participant-only allowlist API and minimal read-only SVG inspector; retry/concurrency/rollback/reload/legacy tests. Merged in PR #23; see [INITIAL_WORLD.md](INITIAL_WORLD.md).
@@ -208,10 +208,10 @@ Merged in PR #43 as `388032d`. No production Ready/orders, deadline observation/
 
 ## Milestone 006C.2A — Read-only participant Turn 1 UI (Issue #47)
 
-- [ ] Display stored turn number/status/opening/deadline and caller-only readiness/revision using the unchanged GET and public contracts.
-- [ ] Independent manual world/turn reads, strict payload/match validation, cancellation and session/private-data cleanup, accessible existing styling and database-free regressions.
+- [x] Display stored turn number/status/opening/deadline and caller-only readiness/revision using the unchanged GET and public contracts.
+- [x] Independent manual world/turn reads, strict payload/match validation, cancellation and session/private-data cleanup, accessible existing styling and database-free regressions.
 
-Implemented on the Issue #47 branch for independent review; keep unchecked until human merge. No Ready/orders, client-authoritative deadline decisions, polling, backend/contracts/schema/migrations, dependencies or CI changes. Hosted disposable CI alone is separately owner-authorized for this issue; no existing database access or task-side DB provisioning is permitted.
+Merged in [PR #48](https://github.com/MightyMulligan-ops/strategy-game/pull/48); this slice remains read-only. No Ready/orders, client-authoritative deadline decisions, polling, backend/contracts/schema/migrations, dependencies or CI changes. Hosted disposable CI alone is separately owner-authorized for this issue; no existing database access or task-side DB provisioning is permitted.
 
 ## Phase 1 — Map and game shell
 
@@ -325,12 +325,20 @@ Avoid asking an AI coding agent to implement the entire game in one prompt.
 
 ## Milestone 006D.1 — Authoritative starting armies (Issue #49)
 
-Implementation prepared / unmerged: strict versioned units/formations, one Lieutenant + five Infantry at existing capitals, creation-pinned initialization-only runtime, atomic v3 snapshot/start/restoration, additive immutable SQL guards, own-only read API/map, pure distance/leadership/contact helpers. See [INITIAL_ARMIES.md](INITIAL_ARMIES.md) and status evidence. Disposable PostgreSQL CI is separately gated and unrun. Movement execution/orders, source radius, collision/vacating policy, encounters/combat and transition to an executable runtime remain separate owner-approved milestones.
+Merged in [PR #50](https://github.com/MightyMulligan-ops/strategy-game/pull/50): strict versioned units/formations, one Lieutenant + five Infantry at existing capitals, creation-pinned initialization-only runtime, atomic v3 snapshot/start/restoration, additive immutable SQL guards, own-only read API/map, pure distance/leadership/contact helpers. See [INITIAL_ARMIES.md](INITIAL_ARMIES.md) and status evidence. Historical task-side DB restrictions remain; merge does not authorize access to any existing database. Movement execution/orders, source radius, collision/vacating policy, encounters/combat and transition to an executable runtime remain separate owner-approved milestones.
 
 ## Milestone 006D.2 — Movement drafts (Issue #51)
 
-Prepared locally / unmerged: creation-pinned v4, authenticated revisioned complete-draft replacement/cancellation, cumulative 250-unit validation and dotted route/Movement Queue UI. Gates B/C authorize code and additive SQL authoring only. Hosted integration tests are authored but unrun; no publication or CI is authorized. Movement execution, Ready/closure, encounters and runtime transition remain separate. See [MOVEMENT_DRAFTS.md](MOVEMENT_DRAFTS.md).
+Merged in [PR #52](https://github.com/MightyMulligan-ops/strategy-game/pull/52): creation-pinned v4, authenticated revisioned complete-draft replacement/cancellation, cumulative 250-unit validation and dotted route/Movement Queue UI. Earlier task grants are historical; merge is not a standing grant for further publication, database access or deployment. Movement execution, Ready/closure, encounters and runtime transition remain separate. See [MOVEMENT_DRAFTS.md](MOVEMENT_DRAFTS.md).
 
-- [ ] 006D.3 / Issue #59: production Ready/Unready, authoritative Turn 1 closure, frozen-v2 input and bounded deadline worker. Issue branch implementation / pending draft review; [TURN_CLOSURE.md](TURN_CLOSURE.md). No movement execution, Turn 2 or deployment.
+- [x] 006D.3 / Issue #59: production Ready/Unready, authoritative Turn 1 closure, frozen-v2 input and bounded deadline worker. Merged in [PR #60](https://github.com/MightyMulligan-ops/strategy-game/pull/60); [TURN_CLOSURE.md](TURN_CLOSURE.md). No movement execution, Turn 2 or deployment.
 
-- [ ] 006D.4 / Issue #61: new-runtime deterministic Turn 1 movement, conservative swept contact, pending encounter components, immutable result/audits and own-only result UI. In progress / unmerged on the issue branch; [MOVEMENT_RESOLUTION.md](MOVEMENT_RESOLUTION.md). No combat or Turn 2.
+- [x] 006D.4 / Issue #61: new-runtime deterministic Turn 1 movement, conservative swept contact, pending encounter components, immutable result/audits and own-only result UI. Merged in [PR #62](https://github.com/MightyMulligan-ops/strategy-game/pull/62); [MOVEMENT_RESOLUTION.md](MOVEMENT_RESOLUTION.md). No combat or Turn 2.
+
+## Current next work — Option B audit (2026-11-15)
+
+- Gameplay: [#76](https://github.com/MightyMulligan-ops/strategy-game/issues/76) pure two-formation combat; [#64](https://github.com/MightyMulligan-ops/strategy-game/issues/64) measured movement capacity; [#70](https://github.com/MightyMulligan-ops/strategy-game/issues/70) residual progression design; [#71](https://github.com/MightyMulligan-ops/strategy-game/issues/71) legacy decision. These remain open; no new gameplay authorization is inferred.
+- Worker delivery: [#79](https://github.com/MightyMulligan-ops/strategy-game/issues/79) is canonical. Keep existing CI, metadata and evidence tools; use bounded owner-started Codex work and human review. Custom Stage 2 ledger services, multi-agent review orchestration and auto-merge are deferred. Security properties remain mandatory.
+- [PR #75](https://github.com/MightyMulligan-ops/strategy-game/pull/75) own-formation selection is merged. [PRs #78/#80/#81](OPTION_B_AUDIT.md) remain unmerged candidates; none establishes a working paid runner.
+
+See the [audit inventory](OPTION_B_AUDIT.md). Historical slice exclusions describe those slices, not an instruction to undo later merged gameplay.

@@ -1,5 +1,7 @@
 # Future delegation policy proposal — version 1
 
+**Option B disposition (2026-11-15): deferred reference.** The custom Stage 2 delivery track [#68](https://github.com/MightyMulligan-ops/strategy-game/issues/68) / [#69](https://github.com/MightyMulligan-ops/strategy-game/pull/69) is closed as superseded; its branch is retained. [#79](https://github.com/MightyMulligan-ops/strategy-game/issues/79) owns streamlined worker delivery. This document remains disabled design history, not a prerequisite to build every proposed service and not authority to weaken existing controls. See [the audit](OPTION_B_AUDIT.md).
+
 **Status: DISABLED / DESIGN ONLY / NOT AUTHORIZED.** Issue #63 approves documenting this proposal, not activating it. No code consumes this document as a grant, configuration switch or task trigger. Existing owner-started operations remain unchanged. No standing permission is introduced.
 
 ## Potential low-risk eligibility

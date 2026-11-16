@@ -1,8 +1,16 @@
 # Approved issue to draft PR: local workflow and cloud pilot
 
+## Option B — current delivery direction
+
+Use GitHub Issues → one owner-started Codex task → one draft PR → existing CI and independent review → owner-controlled merge. GitHub Actions supplies checks and bounded, explicitly started jobs. The merged manual read-only Codex smoke test verifies integration only; a coding worker is not operational on main.
+
+[Issue #79](https://github.com/MightyMulligan-ops/strategy-game/issues/79) is the single worker-delivery tracker. Custom Stage 2 ledger services, multi-agent review orchestration and auto-merge are deferred. Retain authorization, revocation, duplicate-run/attempt history, isolation, budget and independent-review controls; simplification does not waive them. Existing grants remain scope-bound; labels and reports cannot start work. Preserve the $45 operational cutoff / $50 monthly preference and fail closed on unverifiable safe spending. No automatic paid retry, merge, deployment or existing-database access.
+
+The local VS Code and separately owner-started Codex Cloud instructions below remain available. Their no-API-key statements describe those paths. The separate Actions smoke workflow uses the configured repository secret; do not copy it into prompts, source or reports. Keep metadata/report jobs free of model credentials and PR-code execution with write permissions. See the [complete audit and workflow inventory](OPTION_B_AUDIT.md).
+
 This repository uses the existing **local VS Code Codex extension**, started by a person and signed in with ChatGPT. OpenAI documents ChatGPT sign-in as subscription access and API-key sign-in as a separate usage-based path. Use **Sign in with ChatGPT**; this workflow requires no `OPENAI_API_KEY`, separate API billing, cloud task, or unattended Codex runner. Availability and usage limits still depend on the account/workspace. See [official authentication documentation](https://learn.chatgpt.com/docs/auth) and the [IDE extension guide](https://learn.chatgpt.com/docs/codex/ide).
 
-Assignment 007 supersedes Issue #2's earlier cloud/CI-execution proposal. GitHub Actions performs CI tests and metadata maintenance; it does not drive the VS Code session or invoke Codex. No session tokens, Codex auth files, or provider secrets are placed in GitHub.
+Assignment 007 supersedes Issue #2's earlier cloud/CI-execution proposal. GitHub Actions performs CI tests and metadata maintenance; those jobs do not drive the VS Code session or invoke Codex. The separate manually dispatched read-only smoke workflow invokes Codex with a repository Actions secret. Never copy ChatGPT session tokens or Codex auth files into GitHub.
 
 Automation 010 / Issue #45 adds the separately owner-started [managed cloud pilot](CODEX_WORKFLOW.md#managed-cloud-development-pilot-automation-010). The Windows steps below remain the local workflow and fallback. Cloud is not the default, and this pilot does not change Actions or the independent review/repair policy.
 
