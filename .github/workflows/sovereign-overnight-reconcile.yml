@@ -1,0 +1,94 @@
+name: Sovereign owner reconciliation
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        options: [inspect, terminate_and_reconcile]
+        default: inspect
+        description: 'Requires separate owner-signed stop request; never creates sessions'
+permissions:
+  contents: read
+concurrency:
+  group: sovereign-paid-coding
+  cancel-in-progress: false
+env:
+  SOVEREIGN_OWNER_KEY_SHA256: ${{ vars.SOVEREIGN_OWNER_KEY_SHA256 }}
+jobs:
+  inspect:
+    if: github.repository == 'MightyMulligan-ops/strategy-game' && github.ref == 'refs/heads/main' && github.actor == 'MightyMulligan-ops' && github.actor_id == '353505747' && github.run_attempt == '1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - name: Inspect signed stop request without provider calls
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node --experimental-transform-types scripts/overnight-reconcile.ts inspect
+  provider:
+    name: Reconcile provider
+    needs: inspect
+    if: inputs.mode == 'terminate_and_reconcile'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: sovereign-controller
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      reconciliation_sha256: ${{ steps.terminate.outputs.reconciliation_sha256 }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - name: Terminate only approved known sessions
+        id: terminate
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: node --experimental-transform-types scripts/overnight-reconcile.ts terminate
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: owner-reconciliation
+          path: ${{ runner.temp }}/reconciliation.json
+          retention-days: 30
+          if-no-files-found: error
+  commit:
+    needs: provider
+    if: needs.provider.result == 'success' && needs.provider.outputs.reconciliation_sha256 != ''
+    environment: sovereign-queue-control
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: owner-reconciliation
+          path: ${{ runner.temp }}
+      - name: Stop and release only after authenticated provider evidence
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SOVEREIGN_LEDGER_APP_ID: ${{ vars.SOVEREIGN_LEDGER_APP_ID }}
+          SOVEREIGN_LEDGER_INSTALLATION_ID: ${{ vars.SOVEREIGN_LEDGER_INSTALLATION_ID }}
+          SOVEREIGN_LEDGER_APP_PRIVATE_KEY: ${{ secrets.SOVEREIGN_LEDGER_APP_PRIVATE_KEY }}
+          EXPECTED_RECONCILIATION_SHA256: ${{ needs.provider.outputs.reconciliation_sha256 }}
+        run: node --experimental-transform-types scripts/overnight-reconcile.ts commit

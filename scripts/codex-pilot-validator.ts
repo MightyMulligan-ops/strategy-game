@@ -160,8 +160,8 @@ function main():void{
     env.RUN_DATABASE_TESTS==='0'&&env.GITHUB_REPOSITORY===REPOSITORY,'validation-host-environment');
   const smoke=process.argv[2]==='smoke';
   requireControl(smoke?env.GITHUB_ACTIONS==='true'&&env.GITHUB_JOB==='quality':
-    env.GITHUB_JOB==='validate'&&env.GITHUB_EVENT_NAME==='workflow_dispatch'&&env.GITHUB_REF==='refs/heads/main'&&
-    env.GITHUB_ACTOR==='MightyMulligan-ops'&&env.GITHUB_ACTOR_ID==='353505747'&&env.GITHUB_RUN_ATTEMPT==='1',
+    env.GITHUB_JOB==='validate'&&['workflow_dispatch','schedule'].includes(env.GITHUB_EVENT_NAME??'')&&env.GITHUB_REF==='refs/heads/main'&&
+    (env.GITHUB_EVENT_NAME==='schedule'||env.GITHUB_ACTOR==='MightyMulligan-ops'&&env.GITHUB_ACTOR_ID==='353505747')&&env.GITHUB_RUN_ATTEMPT==='1',
     'validation-host-identity');
   requireControl(/^\d+$/.test(env.GITHUB_RUN_ID??'')&&typeof env.RUNNER_TEMP==='string','validation-run');
   const user=`${process.getuid!()}:${process.getgid!()}`;

@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "enabled": false,
+  "enrollment": null,
+  "manifest": {
+    "version": 1,
+    "repository": "MightyMulligan-ops/strategy-game",
+    "enabled": false,
+    "tasks": []
+  },
+  "signature": null
+}

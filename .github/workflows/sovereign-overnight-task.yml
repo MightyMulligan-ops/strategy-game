@@ -1,0 +1,224 @@
+name: Sovereign signed queue task
+on:
+  workflow_call:
+    inputs:
+      index:
+        type: number
+        required: true
+    outputs:
+      completed:
+        value: ${{ jobs.publish.outputs.completed }}
+permissions:
+  contents: read
+env:
+  SOVEREIGN_TASK_INDEX: ${{ inputs.index }}
+  SOVEREIGN_OVERNIGHT_ENABLED: ${{ vars.SOVEREIGN_OVERNIGHT_ENABLED }}
+  SOVEREIGN_OWNER_KEY_SHA256: ${{ vars.SOVEREIGN_OWNER_KEY_SHA256 }}
+
+jobs:
+  prepare:
+    name: Prepare
+    environment: sovereign-queue-control
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: read
+      actions: read
+    outputs:
+      archive_sha256: ${{ steps.package.outputs.archive_sha256 }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - name: Reserve session intent and package trusted baseline
+        id: package
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SOVEREIGN_LEDGER_APP_ID: ${{ vars.SOVEREIGN_LEDGER_APP_ID }}
+          SOVEREIGN_LEDGER_INSTALLATION_ID: ${{ vars.SOVEREIGN_LEDGER_INSTALLATION_ID }}
+          SOVEREIGN_LEDGER_APP_PRIVATE_KEY: ${{ secrets.SOVEREIGN_LEDGER_APP_PRIVATE_KEY }}
+        run: node --experimental-transform-types scripts/overnight-control.ts prepare
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: queue-source-${{ inputs.index }}
+          path: ${{ runner.temp }}/sovereign-pilot/source.tar.gz
+          retention-days: 7
+          if-no-files-found: error
+
+  agent:
+    name: Agent
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: sovereign-controller
+    permissions:
+      contents: read
+      issues: read
+      actions: read
+    outputs:
+      agent_state_sha256: ${{ steps.session.outputs.agent_state_sha256 }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: queue-source-${{ inputs.index }}
+          path: ${{ runner.temp }}/sovereign-pilot
+      - name: Run bounded authorized session
+        id: session
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          EXPECTED_ARCHIVE_SHA256: ${{ needs.prepare.outputs.archive_sha256 }}
+        run: node --experimental-transform-types scripts/overnight-agent.ts
+      - name: Preserve provider state even after failure
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: queue-state-${{ inputs.index }}
+          path: ${{ runner.temp }}/sovereign-pilot/provider-state.json
+          retention-days: 30
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: queue-proposal-${{ inputs.index }}
+          path: ${{ runner.temp }}/sovereign-pilot/untrusted-output/
+          retention-days: 7
+          if-no-files-found: error
+
+  seal:
+    name: Seal termination
+    needs: agent
+    environment: sovereign-queue-control
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: read
+      actions: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: queue-state-${{ inputs.index }}
+          path: ${{ runner.temp }}/sovereign-pilot/state
+      - name: Persist authenticated termination before validation
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SOVEREIGN_LEDGER_APP_ID: ${{ vars.SOVEREIGN_LEDGER_APP_ID }}
+          SOVEREIGN_LEDGER_INSTALLATION_ID: ${{ vars.SOVEREIGN_LEDGER_INSTALLATION_ID }}
+          SOVEREIGN_LEDGER_APP_PRIVATE_KEY: ${{ secrets.SOVEREIGN_LEDGER_APP_PRIVATE_KEY }}
+          EXPECTED_AGENT_STATE_SHA256: ${{ needs.agent.outputs.agent_state_sha256 }}
+        run: node --experimental-transform-types scripts/overnight-control.ts seal
+
+  validate:
+    name: Validate
+    needs: seal
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    outputs:
+      validation_sha256: ${{ steps.checks.outputs.validation_sha256 }}
+    env:
+      AUTH_ENABLED: 'false'
+      RUN_DATABASE_TESTS: '0'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: queue-proposal-${{ inputs.index }}
+          path: ${{ runner.temp }}/sovereign-pilot/validated
+      - name: Reconstruct complete proposal before installing dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/codex-proposal-replay.py "$RUNNER_TEMP/sovereign-pilot/validated/scope.json" "$RUNNER_TEMP/sovereign-pilot/validated/manifest.json" "$RUNNER_TEMP/sovereign-pilot/validated/proposal.patch" > "$RUNNER_TEMP/sovereign-pilot/validated/validated-report.json"
+      - uses: pnpm/action-setup@f53f5227a9e83886ab598c617f3c170fab62f0d3 # v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Prepare only trusted locked dependencies
+        run: pnpm install --frozen-lockfile && pnpm prepare:checks
+      - name: Apply proposal without executing generated code
+        shell: bash
+        run: |
+          set -euo pipefail
+          git apply --check "$RUNNER_TEMP/sovereign-pilot/validated/proposal.patch"
+          git apply "$RUNNER_TEMP/sovereign-pilot/validated/proposal.patch"
+          git diff --check
+      - name: Run actual isolated checks
+        id: checks
+        run: node --experimental-transform-types scripts/codex-pilot-validator.ts
+      - name: Require host receipt
+        env:
+          VALIDATION_SHA256: ${{ steps.checks.outputs.validation_sha256 }}
+        run: |
+          set -euo pipefail
+          test -n "$VALIDATION_SHA256"
+          printf '%s  %s\n' "$VALIDATION_SHA256" "$RUNNER_TEMP/sovereign-pilot/validated/validation-receipt.json" | sha256sum --check --status
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: queue-validated-${{ inputs.index }}
+          path: ${{ runner.temp }}/sovereign-pilot/validated/
+          retention-days: 7
+          if-no-files-found: error
+
+  publish:
+    name: Publish
+    needs: [agent, validate]
+    if: needs.validate.result == 'success' && needs.validate.outputs.validation_sha256 != '' && needs.agent.outputs.agent_state_sha256 != ''
+    environment: sovereign-queue-control
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: read
+      actions: read
+    outputs:
+      completed: ${{ steps.publish.outputs.completed }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: queue-state-${{ inputs.index }}
+          path: ${{ runner.temp }}/sovereign-pilot/state
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: queue-validated-${{ inputs.index }}
+          path: ${{ runner.temp }}/sovereign-pilot/validated
+      - name: Verify execution, publish exact tree and durably record draft
+        id: publish
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SOVEREIGN_LEDGER_APP_ID: ${{ vars.SOVEREIGN_LEDGER_APP_ID }}
+          SOVEREIGN_LEDGER_INSTALLATION_ID: ${{ vars.SOVEREIGN_LEDGER_INSTALLATION_ID }}
+          SOVEREIGN_LEDGER_APP_PRIVATE_KEY: ${{ secrets.SOVEREIGN_LEDGER_APP_PRIVATE_KEY }}
+          EXPECTED_AGENT_STATE_SHA256: ${{ needs.agent.outputs.agent_state_sha256 }}
+          EXPECTED_VALIDATION_SHA256: ${{ needs.validate.outputs.validation_sha256 }}
+        run: node --experimental-transform-types scripts/overnight-control.ts publish

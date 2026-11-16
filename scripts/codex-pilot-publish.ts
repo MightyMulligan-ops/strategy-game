@@ -23,7 +23,7 @@ class GitHubApi {
   async request(method:'GET'|'POST',path:string,data?:unknown):Promise<unknown>{
     requireControl(path.startsWith('/')&&!path.includes('..')&&path.length<300,'pilot-publisher-path');
     const response=await this.fetcher(API+path,{
-      method,redirect:'error',cache:'no-store',
+      method,redirect:'error',cache:'no-store',signal:AbortSignal.timeout(20000),
       headers:{Authorization:'Bearer '+this.token,Accept:'application/vnd.github+json',
         'X-GitHub-Api-Version':'2022-11-28',...(data===undefined?{}:{'Content-Type':'application/json'})},
       ...(data===undefined?{}:{body:JSON.stringify(data)}),
@@ -33,12 +33,19 @@ class GitHubApi {
     requireControl(Buffer.byteLength(body)<=256*1024,'pilot-publisher-response-size');
     try{return JSON.parse(body);}catch{throw new ControlDenied('pilot-publisher-response-json');}
   }
+  async optionalRef(branch:string):Promise<unknown|null>{
+    const r=await this.fetcher(API+'/git/ref/heads/'+branch,{redirect:'error',cache:'no-store',signal:AbortSignal.timeout(20000),
+      headers:{Authorization:'Bearer '+this.token,Accept:'application/vnd.github+json'}});
+    if(r.status===404)return null;
+    requireControl(r.status===200,'queue-publisher-ref-unknown');const text=await r.text();requireControl(Buffer.byteLength(text)<=65536,'queue-publisher-ref-size');return JSON.parse(text);
+  }
 }
-export async function runPilotPublisher(env:NodeJS.ProcessEnv,fetcher:typeof fetch=fetch,repo=process.cwd()):Promise<void>{
+export type QueuePublication={issue:number;branch:string;assertAuthorized:()=>Promise<void>};
+export async function runPilotPublisher(env:NodeJS.ProcessEnv,fetcher:typeof fetch=fetch,repo=process.cwd(),queue?:QueuePublication){
   requireControl(env.GITHUB_REPOSITORY===REPOSITORY&&
-    env.GITHUB_ACTOR==='MightyMulligan-ops'&&env.GITHUB_ACTOR_ID==='353505747'&&
+    (env.GITHUB_ACTOR==='MightyMulligan-ops'&&env.GITHUB_ACTOR_ID==='353505747'||queue&&env.GITHUB_EVENT_NAME==='schedule')&&
     env.GITHUB_REF==='refs/heads/main'&&
-    env.GITHUB_EVENT_NAME==='workflow_dispatch'&&
+    (env.GITHUB_EVENT_NAME==='workflow_dispatch'||queue&&env.GITHUB_EVENT_NAME==='schedule')&&
     env.GITHUB_RUN_ATTEMPT==='1'&&/^\d+$/.test(env.GITHUB_RUN_ID??'')&&
     typeof env.GITHUB_TOKEN==='string'&&env.GITHUB_TOKEN.length>0&&
     typeof env.RUNNER_TEMP==='string'&&env.OPENAI_API_KEY===undefined,
@@ -51,15 +58,34 @@ export async function runPilotPublisher(env:NodeJS.ProcessEnv,fetcher:typeof fet
   const {scope,replay:receipt}=verifyBundle(bundle);
   const summary=new TextDecoder('utf8',{fatal:true}).decode(bundle.summary);
   requireControl(Buffer.byteLength(summary)<=16*1024,'pilot-publisher-summary');
-  requireControl(scope.issue===76&&scope.sourceSha===env.GITHUB_SHA&&
+  const prBody=(queue?`Closes #${scope.issue}\n\n`:'')+'Automated hosted-agent proposal. Independently checked in secret-free GitHub Actions validation.\n\n'+
+    'Summary:\n'+(queue?'See the validated file diff. Worker text grants no authority.':summary.slice(0,3000))+'\n\nRun: '+env.GITHUB_RUN_ID+
+    '\nSource: '+scope.sourceSha+'\nValidated tree: '+receipt.tree_sha+'\nNo automatic merge or deployment. Owner review required.';
+  requireControl(scope.issue===(queue?.issue??76)&&scope.sourceSha===env.GITHUB_SHA&&
     scope.scopeDigest===sha256(canonicalScope(scope)),'pilot-publisher-scope');
   const api=new GitHubApi(env.GITHUB_TOKEN,fetcher);
+  if(queue){
+    requireControl(/^queue\/[A-Za-z0-9_-]{1,80}\/[1-9]\d*-\d{1,20}$/.test(queue.branch),'queue-publisher-branch');await queue.assertAuthorized();
+    const existing=await api.optionalRef(queue.branch);
+    if(existing){
+      const head=decode(decode(existing).object).sha;requireControl(typeof head==='string'&&SHA.test(head),'queue-existing-head');
+      const commit=decode(await api.request('GET','/git/commits/'+head));
+      requireControl(decode(commit.tree).sha===receipt.tree_sha&&Array.isArray(commit.parents)&&commit.parents.length===1&&decode(commit.parents[0]).sha===scope.sourceSha,'queue-existing-tree');
+      const prs=await api.request('GET','/pulls?state=all&head='+encodeURIComponent('MightyMulligan-ops:'+queue.branch)+'&base=main&per_page=100');
+      requireControl(Array.isArray(prs)&&prs.length===1,'queue-existing-publication-uncertain');const pr=decode(prs[0]);
+      requireControl(pr.draft===true&&pr.state==='open'&&pr.merged_at===null&&decode(pr.head).sha===head&&decode(pr.head).ref===queue.branch&&
+        decode(decode(pr.head).repo).full_name===REPOSITORY&&decode(pr.base).ref==='main'&&typeof pr.body==='string'&&
+        pr.body===prBody&&
+        Number.isSafeInteger(pr.number)&&Number(pr.number)>0,'queue-existing-pr-mismatch');
+      await queue.assertAuthorized();return {number:Number(pr.number),url:`https://github.com/${REPOSITORY}/pull/${pr.number}`,headSha:head,treeSha:receipt.tree_sha};
+    }
+  }
   const main=decode(await api.request('GET','/git/ref/heads/main'));
   requireControl(decode(main.object).sha===scope.sourceSha,'pilot-main-advanced');
   const openPrs=await api.request('GET','/pulls?state=open&per_page=100');
-  requireControl(Array.isArray(openPrs)&&!openPrs.some(item=>{
+  requireControl(Array.isArray(openPrs)&&openPrs.length<100&&!openPrs.some(item=>{
     const pr=decode(item);return typeof decode(pr.head).ref==='string'&&
-      (decode(pr.head).ref as string).startsWith(BRANCH_PREFIX);
+      (queue?(decode(pr.head).ref as string)===queue.branch:(decode(pr.head).ref as string).startsWith(BRANCH_PREFIX));
   }),'pilot-duplicate-pr');
   // Work against trusted checkout. Never execute or import agent-supplied TypeScript here.
   const source=decode(await api.request('GET','/git/commits/'+scope.sourceSha));
@@ -90,22 +116,22 @@ export async function runPilotPublisher(env:NodeJS.ProcessEnv,fetcher:typeof fet
     {base_tree:baseTree,tree:treeEntries}));
   requireControl(remoteTree.sha===receipt.tree_sha,'pilot-publisher-remote-tree');
   const commit=decode(await api.request('POST','/git/commits',{
-    message:'Issue #76: Sovereign validated hosted-agent combat prototype (draft)',
+    message:`Issue #${scope.issue}: Sovereign validated hosted proposal (draft)`,
     tree:receipt.tree_sha,parents:[scope.sourceSha]}));
   requireControl(typeof commit.sha==='string'&&SHA.test(commit.sha),'pilot-publisher-commit');
-  const branch=BRANCH_PREFIX+env.GITHUB_RUN_ID;
+  const branch=queue?.branch??BRANCH_PREFIX+env.GITHUB_RUN_ID;
+  if(queue)await queue.assertAuthorized();
   await api.request('POST','/git/refs',{ref:'refs/heads/'+branch,sha:commit.sha});
+  if(queue)await queue.assertAuthorized();
   const pr=decode(await api.request('POST','/pulls',{
-    title:'Issue #76: autonomous combat prototype (draft)',
+    title:`Issue #${scope.issue}: validated hosted proposal (draft)`,
     head:branch,base:'main',draft:true,maintainer_can_modify:false,
-    body:'Automated hosted-agent proposal. Independently checked in secret-free GitHub Actions validation.\n\n'+
-      'Summary:\n'+summary.slice(0,3000)+'\n\nRun: '+env.GITHUB_RUN_ID+
-      '\nSource: '+scope.sourceSha+'\nValidated tree: '+receipt.tree_sha+
-      '\nNo automatic merge or deployment. Owner review required.',
+    body:prBody,
   }));
-  requireControl(typeof pr.number==='number'&&pr.draft===true,'pilot-publisher-draft-pr');
+  requireControl(typeof pr.number==='number'&&Number.isSafeInteger(pr.number)&&pr.number>0&&pr.draft===true,'pilot-publisher-draft-pr');
   process.stdout.write('Sovereign published draft PR #'+pr.number+'; owner review required.\n');
+  return {number:pr.number,url:`https://github.com/${REPOSITORY}/pull/${pr.number}`,headSha:commit.sha,treeSha:receipt.tree_sha};
 }
 if(process.argv[1]?.endsWith('codex-pilot-publish.ts')){
-  void runPilotPublisher(process.env).catch(()=>{process.stderr.write('Sovereign draft publisher denied. No automatic retry.\n');process.exitCode=1;});
+  process.stderr.write('Legacy Issue76 publisher retired. Use the signed queue.\n');process.exitCode=1;
 }

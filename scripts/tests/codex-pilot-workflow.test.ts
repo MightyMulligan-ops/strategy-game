@@ -18,7 +18,8 @@ test('retains only sanitized diagnostics on failure without enabling proposal pu
   expect(validation).not.toMatch(/OPENAI_API_KEY|secrets\.|contents: write|pull-requests: write/);
   expect(validation).toContain('scripts/codex-pilot-validator.ts');
   expect(validation).toContain('steps.checks.outputs.validation_sha256');
-  expect(workflow).toContain("github.run_attempt == '1'");
+  expect(workflow).toContain('run: exit 1 # Retired');
+  expect(workflow.indexOf('run: exit 1 # Retired')).toBeLessThan(workflow.indexOf('uses: actions/checkout'));
 });
 
 test('publication requires trusted validator output; the pilot remains manual and no queue is activated',()=>{

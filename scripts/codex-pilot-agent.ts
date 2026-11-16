@@ -13,7 +13,7 @@ import {requireControl} from './codex-run-control.ts';
 import {REPOSITORY} from './codex-automation-policy.ts';
 import {failureDiagnostics,sanitizeDiagnostic,type PilotStage,type PilotReporter,type PilotFetcher} from './codex-pilot-diagnostics.ts';
 
-class OneProcessJournalStore implements HostedJournalStore {
+export class OneProcessJournalStore implements HostedJournalStore {
   constructor(private readonly path:string){
     if(existsSync(path)){
       const saved=JSON.parse(readFileSync(path,'utf8')) as {revision:number;value:HostedJournal};
@@ -94,5 +94,5 @@ export async function runPilotAgent(env:NodeJS.ProcessEnv,fetcher:PilotFetcher=f
   }
 }
 if(process.argv[1]?.endsWith('codex-pilot-agent.ts')) {
-  void runPilotAgent(process.env).catch(()=>{process.stderr.write('Sovereign pilot agent failed; see sanitized diagnostics. Never automatically retry.\n');process.exitCode=1;});
+  process.stderr.write('Legacy Issue76 pilot retired. No provider request was made.\n');process.exitCode=1;
 }
