@@ -103,6 +103,7 @@ test('all untrusted execution arguments preserve isolation and exclude credentia
   expect(args).toEqual(expect.arrayContaining(['--network','none','--cap-drop','ALL','--read-only','--user','1001:1001','--security-opt','no-new-privileges']));
   expect(args.at(-1)).toBe(PNPM_EXECUTABLE);
   expect(args).toContain('PYTHONDONTWRITEBYTECODE=1');
+  expect(args).toContain('PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN=false');
   expect(args.join(' ')).not.toMatch(/OPENAI|GITHUB|docker.sock|validation-receipt|host-output/);
   const dockerfile=readFileSync(new URL('../sovereign-validation.Dockerfile',import.meta.url),'utf8');
   expect(dockerfile).toContain('pnpm@'+PNPM_VERSION);expect(dockerfile).toContain('--ignore-scripts');

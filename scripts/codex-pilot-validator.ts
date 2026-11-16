@@ -64,6 +64,10 @@ export function isolatedArguments(workspace:string,image:string,user:string):str
     '--tmpfs','/tmp:rw,nosuid,nodev,size=256m','--pids-limit','256','--memory','4g','--cpus','2',
     '--user',user,'--env','HOME=/tmp','--env','AUTH_ENABLED=false','--env','RUN_DATABASE_TESTS=0',
     '--env','PYTHONDONTWRITEBYTECODE=1',
+    // pnpm 12 otherwise auto-installs when copied absolute workspace/store
+    // metadata differs. Dependencies were installed frozen on trusted source;
+    // validation must execute them, never repair/reinstall after isolation.
+    '--env','PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN=false',
     '--mount',`type=bind,source=${workspace},target=/workspace`,'-w','/workspace',image,PNPM_EXECUTABLE];
 }
 /** No shell/AND-list. A nonzero exit, missing executable, signal, timeout or
