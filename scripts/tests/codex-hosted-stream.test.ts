@@ -40,8 +40,8 @@ test('coalesced SSE records are bounded individually rather than rejected by net
 
 test('a tool result the size observed before the failed pilot does not abort observation',async()=>{
   // Synthetic bytes only: never commit private Platform trace contents.
-  const tool=event({type:'agent.session.item.completed',session_id:sid,
-    item:{type:'tool_result',output:'x'.repeat(46_601)}});
+  const tool=event({type:'agent.output.command_execution_output.delta',event_id:'event_fixture',
+    session_id:sid,turn_id:tid,item_id:'item_fixture',output_index:0,delta:'x'.repeat(46_601)});
   expect(Buffer.byteLength(tool)).toBeGreaterThan(32_768);
   const provider=new OpenAIHostedStreamingProvider('fixture',async()=>new Response(stream([
     event({type:'agent.session.in_progress',session_id:sid}),
@@ -53,7 +53,7 @@ test('a tool result the size observed before the failed pilot does not abort obs
 });
 
 test('individual and unfinished SSE records still have explicit byte limits',async()=>{
-  for(const raw of [event({type:'agent.session.item.completed',output:'x'.repeat(1024*1024)}),
+  for(const raw of [event({type:'agent.output.command_execution_output.delta',delta:'x'.repeat(1024*1024)}),
     'data: '+ 'x'.repeat(1024*1024)]){
     await expect(async()=>{for await(const item of parseAgentSse(stream([raw]))){void item;}})
       .rejects.toThrow(/hosted-stream-(event-size|buffer)/);
