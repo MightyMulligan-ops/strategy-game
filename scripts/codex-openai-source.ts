@@ -17,6 +17,8 @@ export async function uploadPinnedSource(
     'source-upload-integrity');
   const form=new FormData();
   form.set('purpose','user_data');
+  form.set('expires_after[anchor]','created_at');
+  form.set('expires_after[seconds]','3600');
   form.set('file',new Blob([new Uint8Array(sourceArchive)]), 'sovereign-source.tar.gz');
   // This call must not retry after an ambiguous response: avoid orphan uploads.
   const response=await fetcher(URL,{method:'POST',redirect:'error',cache:'no-store',
