@@ -1,0 +1,46 @@
+import assert from 'node:assert/strict';
+import { test } from 'vitest';
+import { canonicalScope, evaluateAdmission, publicationDecision, sha256, validateProposal, validPath, REPOSITORY, OWNER, type TaskScope, type TrustedAdmission } from '../codex-automation-policy.ts';
+const scope: TaskScope = { repository: REPOSITORY, issue: 76, sourceSha: 'a'.repeat(40), baseSha: 'b'.repeat(40), approvedPaths: ['packages/game-engine/src/combat.ts','packages/game-engine/tests/combat.test.ts'], acceptanceDigest: 'c'.repeat(64), expiresAt: '2027-01-01T00:00:00Z' };
+const digest = sha256(canonicalScope(scope));
+const grant: TrustedAdmission = { actor: OWNER, repository: REPOSITORY, ref: 'refs/heads/main', issue: 76, runId: '123', attempt: 1, sourceSha: scope.sourceSha, baseSha: scope.baseSha, now: '2026-11-14T00:00:00Z', authenticatedOwnerGrant: true, grantSource: 'verified-owner-source', grantDigest: digest, grantRevoked: false, designatedRunId: '123', competingClaim: false, billingEvidenceVerified: true, monthSpendUsd: 10, estimatedRunMaxUsd: 2, enforcedHardLimitVerified: true };
+const rejected = (overrides: Partial<TrustedAdmission>) => assert.equal(evaluateAdmission(scope, {...grant, ...overrides}).allowed, false);
+test('canonical task scope and allowed source paths', () => { assert.equal(digest.length,64); assert.equal(validPath('packages/game-engine/src/combat.ts'),true); for(const p of ['.github/workflows/x.ts','apps/web/../../secrets/x.ts','packages/a//b.ts','packages/a/.env','apps/web/package.json','packages/a/prisma/x.ts']) assert.equal(validPath(p),false,p); });
+test('valid trusted observation permits policy admission (not an authenticated grant)',()=>assert.deepEqual(evaluateAdmission(scope,grant),{allowed:true,scopeDigest:digest}));
+test('wrong actor, repository, ref and issue are denied',()=>{ rejected({actor:'attacker'});rejected({repository:'other/repo'});rejected({ref:'refs/heads/feature'});rejected({issue:77}); });
+test('source and base drift are denied',()=>{rejected({sourceSha:'d'.repeat(40)});rejected({baseSha:'e'.repeat(40)});});
+test('replay, duplicate, rerun and competing claim are denied',()=>{rejected({attempt:2});rejected({designatedRunId:'456'});rejected({runId:'456'});rejected({competingClaim:true});});
+test('forged, revoked and mismatched grants are denied',()=>{rejected({authenticatedOwnerGrant:false});rejected({grantRevoked:true});rejected({grantDigest:'f'.repeat(64)});rejected({grantSource:''});});
+test('expired and malformed time are denied',()=>{rejected({now:'2027-01-01T00:00:00Z'});rejected({now:'not-a-date'});});
+test('missing billing evidence and insufficient budget are denied',()=>{rejected({billingEvidenceVerified:false});rejected({enforcedHardLimitVerified:false});rejected({monthSpendUsd:44,estimatedRunMaxUsd:1});rejected({monthSpendUsd:NaN});rejected({estimatedRunMaxUsd:Infinity});});
+const patch = Buffer.from('diff --git a/packages/game-engine/src/combat.ts b/packages/game-engine/src/combat.ts\n');
+const manifest = { format:'sovereign-codex-proposal-v1',source_sha:scope.sourceSha,scope_digest:digest,patch_sha256:sha256(patch),patch_bytes:patch.length,paths:[{path:scope.approvedPaths[0],sha256:'f'.repeat(64),bytes:12}]};
+test('valid bounded proposal metadata is accepted as metadata only',()=>assert.deepEqual(validateProposal(scope,JSON.stringify(manifest),patch,'summary'),[]));
+test('tampered patch, source, scope, or path is rejected',()=>{assert.ok(validateProposal(scope,JSON.stringify(manifest),Buffer.from('changed'),'summary').length);assert.ok(validateProposal(scope,JSON.stringify({...manifest,source_sha:'e'.repeat(40)}),patch,'summary').length);assert.ok(validateProposal(scope,JSON.stringify({...manifest,scope_digest:'e'.repeat(64)}),patch,'summary').length);assert.ok(validateProposal(scope,JSON.stringify({...manifest,paths:[{...manifest.paths[0],path:'.github/workflows/ci.yml'}]}),patch,'summary').length);});
+test('oversized, binary and secret-like artifacts are rejected',()=>{assert.ok(validateProposal(scope,JSON.stringify(manifest),patch,'x'.repeat(20000)).length);assert.ok(validateProposal(scope,JSON.stringify(manifest),Buffer.from([0,1]),'').length);assert.ok(validateProposal(scope,JSON.stringify(manifest),Buffer.from('sk-proj-EXAMPLE'),'').length);});
+test('malformed and duplicate manifests are rejected',()=>{assert.ok(validateProposal(scope,'{',patch,'').length);assert.ok(validateProposal(scope,JSON.stringify({...manifest,paths:[manifest.paths[0],manifest.paths[0]]}),patch,'').length);});
+const publish = {scope,verifiedAdmission:true,verifiedCompletePatch:true,validatedInIsolatedEnvironment:true,verifiedLatestSource:true,currentApprovalP:true,currentApprovalD:true,independentValidator:true,existingDraftPrCount:0,newPrRequested:true};
+test('trusted publication decision rejects missing grants and duplicate PRs',()=>{assert.deepEqual(publicationDecision(publish),[]);assert.ok(publicationDecision({...publish,currentApprovalD:false}).length);assert.ok(publicationDecision({...publish,verifiedCompletePatch:false}).length);assert.ok(publicationDecision({...publish,independentValidator:false}).length);assert.ok(publicationDecision({...publish,existingDraftPrCount:1}).length);});
+
+
+test('unknown revocation and claim observations fail closed', () => {
+  for (const key of ['grantRevoked', 'competingClaim'] as const) {
+    for (const value of [undefined, null, 0, 'false']) rejected({[key]: value} as unknown as Partial<TrustedAdmission>);
+  }
+});
+test('truthy non-boolean authorization and billing observations are rejected', () => {
+  for (const key of ['authenticatedOwnerGrant', 'billingEvidenceVerified', 'enforcedHardLimitVerified'] as const)
+    for (const value of ['true', 1, {}]) rejected({[key]: value} as unknown as Partial<TrustedAdmission>);
+});
+test('null and scalar manifest documents are rejected without exceptions', () => {
+  for (const text of ['null', '[]', '1', 'true', '"manifest"']) assert.ok(validateProposal(scope,text,patch,'').length);
+  assert.ok(validateProposal({...scope, approvedPaths: []},JSON.stringify(manifest),patch,'').length);
+});
+test('summary secret patterns are rejected', () => {
+  assert.ok(validateProposal(scope,JSON.stringify(manifest),patch,'github_pat_EXAMPLE').length);
+});
+test('publication rejects unknown counts, flags and truthy evidence', () => {
+  for (const count of [NaN, Infinity, 0.5]) assert.ok(publicationDecision({...publish, existingDraftPrCount:count, newPrRequested:false}).length);
+  for (const key of ['verifiedAdmission','verifiedCompletePatch','validatedInIsolatedEnvironment','verifiedLatestSource','independentValidator','currentApprovalP','currentApprovalD','newPrRequested'])
+    assert.ok(publicationDecision({...publish,[key]:'true'} as unknown as Parameters<typeof publicationDecision>[0]).length);
+});
