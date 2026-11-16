@@ -39,7 +39,7 @@ jobs:
       - name: Freeze current issue and scope
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: node --experimental-strip-types scripts/codex-pilot-prepare.ts
+        run: node --experimental-transform-types scripts/codex-pilot-prepare.ts
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: sovereign-pilot-source
@@ -72,7 +72,7 @@ jobs:
       - name: Run one hosted coding session (NO untrusted code execution here)
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: node --experimental-strip-types scripts/codex-pilot-agent.ts
+        run: node --experimental-transform-types scripts/codex-pilot-agent.ts
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: sovereign-untrusted-proposal
@@ -155,4 +155,4 @@ jobs:
       - name: Publish EXACT tested tree as one draft PR (NEVER execute code)
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: node --experimental-strip-types scripts/codex-pilot-publish.ts
+        run: node --experimental-transform-types scripts/codex-pilot-publish.ts
