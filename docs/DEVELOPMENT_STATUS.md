@@ -1,5 +1,11 @@
 # Development status
 
+## Sovereign pipeline repair — 2026-11-16 (candidate, unmerged)
+
+The owner requested audit, tested fixes, an isolated branch/draft PR and applicable CI for Actions run 43880452526. This authorizes this repair/publication, not a new paid Agents session, automatic retries, merge, deployment or existing/production database access. The internal $45 cutoff remains removed; Platform spending controls are unchanged. Unrelated uncommitted lobby edits remain intact in the original checkout; work uses `.worktrees/sovereign-repair`, branch `fix/sovereign-hosted-pipeline`, based on `c9f41cd8cd2846102ebd929a865284ebcd728154`.
+
+Owner-authorized read-only Platform logs show the matching hosted turn completed after the controller failed; a 46,601-byte tool result immediately before failure exceeds the old 32 KiB event limit. The exact discarded exception remains unavailable. Repaired defects: stage/status/request-ID loss, cleanup replacing primary errors, memory-only session evidence, unsupported ID-prefix assumptions, coalesced SSE rejection, dependencies preceding clean-tree replay, and missing bounded cancel/delete handling on conflict. See [SOVEREIGN_PIPELINE_REPAIR.md](SOVEREIGN_PIPELINE_REPAIR.md). The 51 mocked controller/transport/workflow tests, local build/typecheck/lint and actionlint 1.7.12 pass; no live controller request or paid session was initiated; existing Platform logs were inspected read-only. Full Windows tests returned 1842 passed, 262 skipped and three environmental failures (two missing-Python wrappers and one Unix-socket path fixture). Exact-head Linux CI and the actual draft PR will be recorded after publication. This is in review, not a completed or live-verified milestone.
+
 This is a short, evidence-based handoff, not a replacement for the rules or roadmap. Issue #57 baseline: latest `origin/main` at `03a122a6556f68c8e1406737602bdb89a9c50853`, including merged PR #56. Earlier issue evidence below is historical. Feature work remains unmerged even when its tests pass.
 
 | Area | State | Evidence / limitations |

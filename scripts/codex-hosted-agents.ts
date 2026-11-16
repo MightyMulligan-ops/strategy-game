@@ -4,6 +4,7 @@
  */
 import { canonicalScope, sha256, MAX_MANIFEST_BYTES, MAX_PATCH_BYTES, MAX_SUMMARY_BYTES, type TaskScope } from './codex-automation-policy.ts';
 import { ControlDenied, requireControl } from './codex-run-control.ts';
+import {PROVIDER_ID} from './codex-pilot-diagnostics.ts';
 
 export const HOSTED_MODEL = 'gpt-6-astra';
 export const HOSTED_ARTIFACTS = [
@@ -14,7 +15,7 @@ export const HOSTED_ARTIFACTS = [
 const ARCHIVE_PATH = '/workspace/source.tar.gz';
 const HEX64 = /^[a-f0-9]{64}$/;
 const FILE_ID = /^file[-_][A-Za-z0-9_-]{1,128}$/;
-const ID = /^[A-Za-z0-9_-]{1,128}$/;
+const ID = PROVIDER_ID;
 
 /** Observations must be authenticated by a trusted controller, not supplied by an agent or issue body. */
 export type HostedAdmission = Readonly<{

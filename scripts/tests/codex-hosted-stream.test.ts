@@ -31,6 +31,44 @@ test('stream parser handles CRLF records split between carriage return and newli
   expect(received).toEqual(['agent.session.turn.completed']);
 });
 
+test('coalesced SSE records are bounded individually rather than rejected by network chunk size',async()=>{
+  const records=Array.from({length:1100},()=>event({type:'agent.session.idle',session_id:sid})).join('');
+  expect(Buffer.byteLength(records)).toBeGreaterThan(64*1024);
+  let count=0;for await(const _ of parseAgentSse(stream([records]))){void _;count++;}
+  expect(count).toBe(1100);
+});
+
+test('a tool result the size observed before the failed pilot does not abort observation',async()=>{
+  // Synthetic bytes only: never commit private Platform trace contents.
+  const tool=event({type:'agent.session.item.completed',session_id:sid,
+    item:{type:'tool_result',output:'x'.repeat(46_601)}});
+  expect(Buffer.byteLength(tool)).toBeGreaterThan(32_768);
+  const provider=new OpenAIHostedStreamingProvider('fixture',async()=>new Response(stream([
+    event({type:'agent.session.in_progress',session_id:sid}),
+    tool.slice(0,20_000),tool.slice(20_000),
+    event({type:'agent.session.turn.completed',session_id:sid,turn:{id:tid,subagent_id:null}}),
+  ]),{status:200}));
+  const packets=[];for await(const packet of provider.createSession(request))packets.push(packet);
+  expect(packets.at(-1)?.rootTurnId).toBe(tid);
+});
+
+test('individual and unfinished SSE records still have explicit byte limits',async()=>{
+  for(const raw of [event({type:'agent.session.item.completed',output:'x'.repeat(1024*1024)}),
+    'data: '+ 'x'.repeat(1024*1024)]){
+    await expect(async()=>{for await(const item of parseAgentSse(stream([raw]))){void item;}})
+      .rejects.toThrow(/hosted-stream-(event-size|buffer)/);
+  }
+});
+
+test('documented opaque provider IDs are not restricted to illustrative session/turn prefixes',async()=>{
+  const provider=new OpenAIHostedStreamingProvider('fixture',async()=>new Response(stream([
+    event({type:'agent.session.in_progress',session:{id:'opaque-session'}}),
+    event({type:'agent.session.turn.completed',session_id:'opaque-session',turn:{id:'opaque-turn',subagent_id:null}}),
+  ]),{status:200}));
+  const packets=[];for await(const packet of provider.createSession(request))packets.push(packet);
+  expect(packets.at(-1)).toMatchObject({sessionId:'opaque-session',rootTurnId:'opaque-turn'});
+});
+
 test('HTTP 201 accepted for streamed session creation',async()=>{
   const provider=new OpenAIHostedStreamingProvider('fixture-key',async()=>
     new Response(stream([event({type:'agent.session.turn.completed',session_id:'sess_fixture',turn:{id:'turn_fixture',subagent_id:null}})]),{status:201}));

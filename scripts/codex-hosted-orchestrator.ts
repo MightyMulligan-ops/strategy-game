@@ -10,8 +10,9 @@ import {buildHostedSessionRequest, HOSTED_ARTIFACTS, initialHostedTurn,
 import {validateProposal} from './codex-automation-policy.ts';
 import {HostedSessionJournal} from './codex-hosted-journal.ts';
 import {ControlDenied,requireControl} from './codex-run-control.ts';
+import {eventFailure,PilotCleanupFailure,diagnosticFor,PilotFailure,type PilotReporter,type PilotHttpContext} from './codex-pilot-diagnostics.ts';
 
-export type HostedPacket = {sessionId: string; event: HostedEvent; rootTurnId?: string};
+export type HostedPacket = {sessionId: string; event: HostedEvent; rootTurnId?: string;http?:PilotHttpContext};
 export interface HostedProvider {
   /** This is a BILLABLE call. It must be executed only after durable reservations. */
   createSession(request: HostedSessionRequest): AsyncIterable<HostedPacket>;
@@ -27,7 +28,8 @@ export type UntrustedHostedProposal = {
 };
 
 export class HostedAgentOrchestrator {
-  constructor(private readonly journal: HostedSessionJournal,private readonly provider: HostedProvider) {}
+  constructor(private readonly journal: HostedSessionJournal,private readonly provider: HostedProvider,
+    private readonly report:PilotReporter=()=>{}) {}
   async run(runId: string,admission: HostedAdmission): Promise<UntrustedHostedProposal> {
     // This call is NOT the authorization source. Caller must independently authenticate
     // all evidence and reserve full run cost in RunController BEFORE entering this method.
@@ -38,24 +40,27 @@ export class HostedAgentOrchestrator {
     let rootTurnId: string|undefined;
     let turn=initialHostedTurn;
     let markedTerminal=false;
+    let failure:unknown;
     try {
       for await (const packet of this.provider.createSession(request)) {
         requireControl(packet && typeof packet.sessionId === 'string', 'hosted-provider-packet');
         if (!sessionId) {
-          await this.journal.recordSession(runId,packet.sessionId);
           sessionId=packet.sessionId;
+          this.report({version:1,stage:'session_stream',code:'session_observed',sessionId});
+          await this.journal.recordSession(runId,packet.sessionId);
         } else requireControl(sessionId===packet.sessionId,'hosted-session-switch');
         turn=observeHostedEvent(turn,packet.event);
         if (turn.failed) {
           await this.journal.markFailed(runId,sessionId);
           markedTerminal=true;
-          throw new ControlDenied('hosted-root-failed');
+          throw eventFailure(packet.event,sessionId,packet.http)??new ControlDenied('hosted-root-failed');
         }
         if (turn.completed) {
           requireControl(typeof packet.rootTurnId === 'string', 'hosted-root-turn-id');
           rootTurnId=packet.rootTurnId;
           await this.journal.recordRootCompletion(runId,sessionId,rootTurnId);
           markedTerminal=true;
+          this.report({version:1,stage:'session_stream',code:'root_completed',sessionId,turnId:rootTurnId});
           break;
         }
       }
@@ -80,15 +85,20 @@ export class HostedAgentOrchestrator {
       // This is NOT a complete patch replay, code test or signed validation receipt.
       return {sessionId,rootTurnId,patch,manifest,summary};
     } catch (error) {
+      failure=error instanceof PilotFailure?error:new PilotFailure(diagnosticFor(error,
+        markedTerminal?'proposal_validation':'session_stream'));
       if (!markedTerminal) {
         try {await this.journal.markUncertain(runId);} catch { /* fail closed; never retry create */ }
       }
-      throw error;
+      throw failure;
     } finally {
       if (sessionId) {
         // An unconfirmed delete blocks delivery, because stream close != task cancellation.
         try {await this.provider.deleteSession(sessionId);}
-        catch {throw new ControlDenied('hosted-session-termination-unconfirmed');}
+        catch(error) {
+          const cleanup=new PilotFailure(diagnosticFor(error,'session_delete'));
+          throw new PilotCleanupFailure(failure??new ControlDenied('hosted-session-termination-unconfirmed'),cleanup);
+        }
       }
     }
   }

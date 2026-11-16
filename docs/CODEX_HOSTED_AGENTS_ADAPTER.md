@@ -1,5 +1,7 @@
 # Sovereign — OpenAI-hosted Agents API adapter (draft, OFFLINE ONLY)
 
+**Current pipeline repair (2026-11-16):** see [SOVEREIGN_PIPELINE_REPAIR.md](SOVEREIGN_PIPELINE_REPAIR.md) for failed-run evidence, current API review, safe diagnostics, cleanup and corrected validation ordering. Earlier sections retain historical design/authorization context. The owner-removed custom $45 gate is not an active pilot requirement and is not reintroduced. Diagnostic or CI success does not authorize a paid session.
+
 **Status:** integration candidate, **NOT a live launcher**, not independently security-reviewed, not approved for paid activation. This change is a dependent draft on PR #80; PR #78 remains hard-disabled. No merge, deployment, existing/production DB access, credentials, paid session, or GitHub Actions dispatch.
 
 ## Verified API capabilities

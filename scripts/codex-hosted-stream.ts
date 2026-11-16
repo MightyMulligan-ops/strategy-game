@@ -6,10 +6,11 @@ import { ControlDenied, requireControl } from './codex-run-control.ts';
 import { OpenAIHostedArtifacts } from './codex-openai-artifacts.ts';
 import type { HostedProvider, HostedPacket } from './codex-hosted-orchestrator.ts';
 import type { HostedSessionRequest } from './codex-hosted-agents.ts';
+import {pilotRequest,diagnosticFor,PilotFailure,PROVIDER_ID,type PilotReporter,type PilotHttpContext} from './codex-pilot-diagnostics.ts';
 
 const ENDPOINT = 'https://api.openai.com/v1/agents/sessions';
-const SESSION_ID = /^sess_[A-Za-z0-9_-]{1,128}$/;
-const TURN_ID = /^turn_[A-Za-z0-9_-]{1,128}$/;
+const SESSION_ID = PROVIDER_ID;
+const TURN_ID = PROVIDER_ID;
 type Fetcher = (url: string, init: RequestInit) => Promise<Response>;
 const asObj = (value: unknown): Record<string,unknown> => {
   requireControl(value !== null && typeof value === 'object' && !Array.isArray(value),'hosted-stream-object');
@@ -28,7 +29,7 @@ function sessionIdFor(event: AgentStreamEvent): string|undefined {
   return value;
 }
 function eventFrom(raw: string): AgentStreamEvent {
-  requireControl(Buffer.byteLength(raw,'utf8') <= 32_768,'hosted-stream-event-size');
+  requireControl(Buffer.byteLength(raw,'utf8') <= 1024*1024,'hosted-stream-event-size');
   let parsed: unknown;
   try {parsed=JSON.parse(raw);} catch {throw new ControlDenied('hosted-stream-json');}
   const data=asObj(parsed);
@@ -67,7 +68,6 @@ export async function* parseAgentSse(
       requireControl(total<=maxBytes,'hosted-stream-total');
       // Match CRLF or LF record terminators across arbitrary network chunks.
       buffer+=decoder.decode(value,{stream:true});
-      requireControl(Buffer.byteLength(buffer,'utf8')<=64*1024,'hosted-stream-buffer');
       let boundary:RegExpExecArray|null;
       while((boundary=/\r?\n\r?\n/.exec(buffer))!==null) {
         const block=buffer.slice(0,boundary.index);
@@ -75,6 +75,8 @@ export async function* parseAgentSse(
         const ev=extract(block);
         if(ev)yield ev;
       }
+      // Check the unfinished record, not a coalesced chunk of many valid records.
+      requireControl(Buffer.byteLength(buffer,'utf8')<=1024*1024,'hosted-stream-buffer');
     }
     buffer+=decoder.decode();
     requireControl(buffer.trim()==='' && eventData.length===0,'hosted-stream-incomplete');
@@ -87,24 +89,30 @@ export async function* parseAgentSse(
 /** No retries. The caller must durably claim the run before createSession is invoked. */
 export class OpenAIHostedStreamingProvider implements HostedProvider {
   private readonly artifacts:OpenAIHostedArtifacts;
-  constructor(private readonly key:string, private readonly fetcher:Fetcher=fetch) {
+  constructor(private readonly key:string, private readonly fetcher:Fetcher=fetch,
+    private readonly report:PilotReporter=()=>{}) {
     requireControl(typeof key==='string'&&key.length>0,'hosted-credential-missing');
-    this.artifacts=new OpenAIHostedArtifacts(key,fetcher);
+    this.artifacts=new OpenAIHostedArtifacts(key,fetcher,report);
   }
   async *createSession(request:HostedSessionRequest):AsyncGenerator<HostedPacket> {
     requireControl(request.environment.type==='openai_hosted'&&
       request.environment.network.access==='disabled'&&request.stream===true,
       'hosted-stream-policy');
-    const response=await this.fetcher(ENDPOINT,{
+    let http:PilotHttpContext={};
+    const response=await pilotRequest('session_create',ENDPOINT,{
       method:'POST',redirect:'error',cache:'no-store',
       headers:{Authorization:'Bearer '+this.key,'OpenAI-Beta':'agents=v1',
         'Content-Type':'application/json',Accept:'text/event-stream'},
       body:JSON.stringify(request),
-    });
-    requireControl((response.status===200 || response.status===201) && response.body !== null,'hosted-create-failed');
+    },this.fetcher,d=>{
+      if(d.code==='request_succeeded')http={httpStatus:d.httpStatus!,
+        ...(d.requestId?{requestId:d.requestId}:{}),...(d.clientRequestId?{clientRequestId:d.clientRequestId}:{})};
+      this.report(d);
+    },'hosted-create-failed',[200,201],13*60_000);
+    requireControl(response.body !== null,'hosted-create-failed');
     let knownSession:string|undefined;
     let rootDone=false;
-    for await(const event of parseAgentSse(response.body!)) {
+    try {for await(const event of parseAgentSse(response.body!)) {
       const found=sessionIdFor(event);
       if(found!==undefined) {
         requireControl(!knownSession||knownSession===found,'hosted-stream-session-switch');
@@ -118,10 +126,12 @@ export class OpenAIHostedStreamingProvider implements HostedProvider {
         rootTurnId=event.turn.id;
         rootDone=true;
       }
-      yield {sessionId:knownSession,event, ...(rootTurnId?{rootTurnId}:{})};
+      yield {sessionId:knownSession,event,http, ...(rootTurnId?{rootTurnId}:{})};
       if(rootDone) return;
     }
     throw new ControlDenied('hosted-stream-disconnected');
+    }catch(error){throw new PilotFailure({...diagnosticFor(error,'session_stream'),
+      ...http,...(knownSession?{sessionId:knownSession}:{} )});}
   }
   listArtifacts(sessionId:string) {return this.artifacts.listArtifacts(sessionId);}
   downloadBounded(sessionId:string,artifactId:string,maxBytes:number) {

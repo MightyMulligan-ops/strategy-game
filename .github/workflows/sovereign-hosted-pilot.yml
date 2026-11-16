@@ -76,6 +76,16 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: node --experimental-transform-types scripts/codex-pilot-agent.ts
+      - name: Retain sanitized controller diagnostics even on failure
+        if: ${{ always() }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: sovereign-controller-diagnostics
+          path: |
+            ${{ runner.temp }}/sovereign-pilot/diagnostics.jsonl
+            ${{ runner.temp }}/sovereign-pilot/session-state.json
+          retention-days: 7
+          if-no-files-found: ignore
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: sovereign-untrusted-proposal
@@ -100,6 +110,13 @@ jobs:
         with:
           name: sovereign-untrusted-proposal
           path: ${{ runner.temp }}/sovereign-pilot/validated
+      # Replay requires a completely clean checkout, including ignored paths.
+      # Do it BEFORE dependency installation creates ignored node_modules.
+      - name: Credential-free exact-tree patch reconstruction
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/codex-proposal-replay.py "$RUNNER_TEMP/sovereign-pilot/validated/scope.json" "$RUNNER_TEMP/sovereign-pilot/validated/manifest.json" "$RUNNER_TEMP/sovereign-pilot/validated/proposal.patch" > "$RUNNER_TEMP/sovereign-pilot/validated/validated-report.json"
       # Install only the unchanged, trusted main-branch lockfile before applying agent code.
       - uses: pnpm/action-setup@f53f5227a9e83886ab598c617f3c170fab62f0d3 # v6
         with:
@@ -111,11 +128,10 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
       - name: Install trusted locked dependencies before untrusted patch
         run: pnpm install --frozen-lockfile
-      - name: Credential-free exact-tree patch reconstruction (never execute the patch on host)
+      - name: Apply reconstructed patch without executing generated code
         shell: bash
         run: |
           set -euo pipefail
-          python3 scripts/codex-proposal-replay.py "$RUNNER_TEMP/sovereign-pilot/validated/scope.json" "$RUNNER_TEMP/sovereign-pilot/validated/manifest.json" "$RUNNER_TEMP/sovereign-pilot/validated/proposal.patch" > "$RUNNER_TEMP/sovereign-pilot/validated/validated-report.json"
           git apply --check "$RUNNER_TEMP/sovereign-pilot/validated/proposal.patch"
           git apply "$RUNNER_TEMP/sovereign-pilot/validated/proposal.patch"
           git diff --check
