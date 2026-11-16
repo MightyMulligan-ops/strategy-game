@@ -268,6 +268,18 @@ Some detailed reference formulas have been observed in atWar documentation but r
 - Battle reports and playback are desired features.
 - Exact damage, casualty, initiative, randomness, rounding, and tie-breaking formulas are not finalized in this baseline. Do not invent or silently finalize them.
 
+### Combat Prototype 1A — Issue #76 (restricted server-only foundation)
+
+[Issue #76](https://github.com/MightyMulligan-ops/strategy-game/issues/76) approves a pure, isolated two-hostile-formation prototype. Combat is fight-to-destruction: ATK and DEF both produce damage, never mitigation. Opposing damage is committed before either hit is applied within an exchange; a unit killed by that exchange still delivers its committed damage. Wounds persist throughout the encounter. Surviving units heal only after complete resolution, not between exchanges/rounds or on a stalemate/work-limit result.
+
+The versioned `combat-prototype-1a-v1` input explicitly supplies hostility, first-round roles, mode, seed, integer Infantry HP/ATK/DEF and work limits. Mutual attackers alternate formation ATK/DEF each round; a one-sided assault keeps its designated roles. Only Infantry and at most one Infantry-specialized Lieutenant per formation are supported. The Lieutenant has 1 HP, no damage output/bonus, stays behind Infantry and is removed if no Infantry remain. Higher ranks, succession across ranks, and their bonuses remain outside this slice; the general leadership rules above are unchanged.
+
+`two-formation-ordered-pairs-v1` is a **provisional prototype scheduling policy**, not a permanent balance decision or a multi-army algorithm. Formations and Infantry use code-unit ID ordering; leaders follow Infantry in the target roster. Each exchange pairs the next living Infantry that has not acted this round. Pairing selects actors, not individual duel targets: damage follows the enemy's first living roster entry, with overflow continuing along that roster. Unmatched Infantry may attack once without extra retaliation from enemies that already acted. Units killed in earlier exchanges lose uncommitted actions; same-exchange attacks are retained. The encounter stops once either formation has no Infantry. Different scheduling or balance requires an explicit rules/version decision before integration.
+
+`provisional-lcg32-scaled-v1` uses a separate per-battle stream with the existing 32-bit LCG recurrence, one draw per positive-stat attack and floor scaling to 1..stat. Stat zero produces zero damage without a draw. Scaling has a small bias and is not asserted to reproduce atWar. The illustrative 7 HP / 4 ATK / 6 DEF values exist only in caller-supplied test fixtures. Technical ceilings are 2,048 units/formation, 1,000 rounds, 10,000 exchanges and stats up to 1,000,000; lower round/exchange budgets are injected. These are execution safeguards, not match balance or capacity certification.
+
+Results and full frozen audits (including exact inputs, seed, roles, rolls, damage, casualties and surviving encounter/final HP) are server-only. Unsupported versions, mechanics, relationships and multi-army topology are rejected explicitly. This module is not exported through the package entry point or connected to movement, persistence, APIs or participant projections. Existing movement encounters remain pending; there is no live combat or Turn 2. [PR #88](https://github.com/MightyMulligan-ops/strategy-game/pull/88) is the implementation under review, not a merged gameplay milestone.
+
 ## 7. Diplomacy, visibility, and intelligence
 
 ### Initial visibility baseline

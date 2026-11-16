@@ -1,4 +1,5 @@
 import { auditHash, compareIds } from "./determinism.js";
+import { isProxy } from "node:util/types";
 
 /** Server-only prototype. Never pass this input/result to a public or own-player
  * DTO. Deliberately not exported from index.ts or wired into pending encounters.
@@ -92,7 +93,7 @@ function fail(code: CombatErrorCode): never { throw new CombatInputError(code); 
 // transport/world data can enter the audit. Accessors and non-plain objects are
 // rejected without invoking getters. No recursive traversal of unknown fields.
 function record(value: unknown, keys: readonly string[]): Record<string, unknown> {
-  if (value === null || typeof value !== "object" ||
+  if (value === null || typeof value !== "object" || isProxy(value) ||
       (Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null)) fail("INVALID_INPUT");
   const own = Reflect.ownKeys(value);
   if (own.some(key => typeof key !== "string" || !keys.includes(key))) fail("UNSUPPORTED_FIELDS");
@@ -106,13 +107,13 @@ function record(value: unknown, keys: readonly string[]): Record<string, unknown
   return copy;
 }
 function array(value: unknown, max: number): unknown[] {
-  if (!Array.isArray(value)) fail("INVALID_INPUT");
+  if (isProxy(value) || !Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) fail("INVALID_INPUT");
   if (value.length > max) fail("INPUT_LIMIT");
   if (Reflect.ownKeys(value).length !== value.length + 1) fail("INVALID_INPUT");
   const copy: unknown[] = [];
   for (let index = 0; index < value.length; index++) {
     const field = Object.getOwnPropertyDescriptor(value, String(index));
-    if (!field || !("value" in field)) fail("INVALID_INPUT");
+    if (!field || !("value" in field) || !field.enumerable) fail("INVALID_INPUT");
     copy.push(field.value);
   }
   return copy;
@@ -149,7 +150,8 @@ function parseInput(value: unknown): CombatInput {
   const maxRounds = integer(rules.maxRounds, 1, COMBAT_LIMITS.rounds);
   const maxExchanges = integer(rules.maxExchanges, 1, COMBAT_LIMITS.exchanges);
   // Reject cardinality before reading any participant in a surrounding world.
-  if (!Array.isArray(input.formations)) fail("INVALID_INPUT");
+  if (isProxy(input.formations) || !Array.isArray(input.formations) ||
+      Object.getPrototypeOf(input.formations) !== Array.prototype) fail("INVALID_INPUT");
   if (input.formations.length !== 2) fail("UNSUPPORTED_TOPOLOGY");
   const seenUnits = new Set<string>();
   const formations = array(input.formations, 2).map(raw => {
@@ -159,7 +161,7 @@ function parseInput(value: unknown): CombatInput {
     if (f.firstRoundRole !== "ATK" && f.firstRoundRole !== "DEF") fail("UNSUPPORTED_TOPOLOGY");
     let leaders = 0;
     const units = array(f.units, COMBAT_LIMITS.unitsPerFormation).map((rawUnit): CombatUnit => {
-      if (rawUnit === null || typeof rawUnit !== "object") fail("INVALID_INPUT");
+      if (rawUnit === null || typeof rawUnit !== "object" || isProxy(rawUnit)) fail("INVALID_INPUT");
       const kind = Object.getOwnPropertyDescriptor(rawUnit, "kind")?.value;
       if (kind !== "INFANTRY" && kind !== "LEADER") fail("UNSUPPORTED_UNIT");
       const u = record(rawUnit, kind === "INFANTRY" ? ["unitId", "kind", "hp"] : ["unitId", "kind", "hp", "rank", "specialization"]);
@@ -192,10 +194,13 @@ const primary = (side: Side): string | null => side.leader && side.leader.hp > 0
 const roleFor = (side: Side, round: number, mutual: boolean): Role =>
   mutual && round % 2 === 0 ? (side.formation.firstRoundRole === "ATK" ? "DEF" : "ATK") : side.formation.firstRoundRole;
 
-/** Restricted scheduling policy (not an approved multi-army algorithm):
+/** Provisional, input-selected two-formation scheduling policy for Issue #76.
+ * This is neither a permanent balance rule nor an approved multi-army algorithm.
  * - Sort formations and Infantry by code-unit ID; commanders follow all Infantry.
  * - Each round pairs the next living, not-yet-used Infantry of each formation.
  *   Unpaired troops still attack, without extra retaliation from used enemies.
+ *   Pairing selects actors only: targets always follow the enemy's ordered roster,
+ *   including surviving troops that already attacked. There is no individual duel.
  * - Commit both rolls before applying either hit; deaths earlier in the round
  *   skip future attacks, but same-exchange deaths never cancel committed damage.
  * - Overflow follows the enemy's one ordered roster. No mid-encounter healing.

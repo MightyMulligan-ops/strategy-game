@@ -1,11 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { describe, it } from "vitest";
 import { COMBAT_LIMITS, COMBAT_ROLL, COMBAT_SCHEDULE, COMBAT_VERSION, resolveCombat } from "../src/combat.js";
 import type { CombatAudit, CombatInput, CombatUnit } from "../src/combat.js";
 
-// Use the repository runner when installed, or Node's built-in runner for the
-// dependency-free frozen archive. Assertions and cases are identical in both.
-const { describe, it } = process.env.VITEST ? await import("vitest") : await import("node:test");
 type Mutable<T> = { -readonly [K in keyof T]: T[K] extends object ? Mutable<T[K]> : T[K] };
 function fixture(): Mutable<CombatInput> {
   return { schemaVersion: 1, rulesetVersion: COMBAT_VERSION, seed: 1, relationship: "hostile", mode: "assault",
@@ -20,13 +18,11 @@ const lieutenant = (unitId: string): Mutable<CombatUnit> => ({ unitId, kind: "LE
 function audit(input: unknown): CombatAudit {
   const result = resolveCombat(input);
   assert.equal(result.ok, true);
-  if (!result.ok) throw new Error(result.error.code);
   return result.audit;
 }
 function rejected(input: unknown, code?: string) {
   const result = resolveCombat(input);
   assert.equal(result.ok, false);
-  if (result.ok) throw new Error("Expected rejected input");
   assert.deepEqual(Object.keys(result).sort(), ["error", "ok"]);
   assert.deepEqual(Object.keys(result.error), ["code"]);
   if (code) assert.equal(result.error.code, code);
@@ -139,6 +135,33 @@ describe("server-only Combat Prototype 1A", () => {
     assert.deepEqual(result.units.map(u => [u.unitId, u.encounterHp]), [["a1", 9], ["a2", 10], ["a3", 10], ["b1", 7]]);
   });
 
+  it("uses the same unmatched-unit policy for the defender and targets the roster rather than its paired actor", () => {
+    const input = fixture(); input.rules.maxRounds = 1;
+    input.rules.infantry = { maxHp: 10, attack: 1, defense: 1 };
+    input.formations[0].units = [infantry("a1", 10)];
+    input.formations[1].units = [infantry("b3", 10), infantry("b1", 10), infantry("b2", 10)];
+    const result = audit(input);
+    assert.deepEqual(exchanges(result).map(e => e.rolls.map(r => [r.unitId, r.role])),
+      [[["a1", "ATK"], ["b1", "DEF"]], [["b2", "DEF"]], [["b3", "DEF"]]]);
+    assert.deepEqual(result.units.map(u => [u.unitId, u.encounterHp]), [["a1", 7], ["b1", 9], ["b2", 10], ["b3", 10]]);
+
+    input.formations[0].units.push(infantry("a2", 10));
+    const paired = exchanges(audit(input));
+    assert.deepEqual(paired[1]!.rolls.map(r => r.unitId), ["a2", "b2"]);
+    assert.deepEqual(paired[1]!.damage.map(d => [d.sourceUnitId, d.targetUnitId]), [["a2", "b1"], ["b2", "a1"]]);
+  });
+
+  it("stops on destruction without granting unmatched troops another attack or opening a round", () => {
+    const input = fixture(); input.rules.infantry = { maxHp: 1, attack: 1, defense: 1 };
+    input.formations[0].units = [infantry("a1", 1), infantry("a2", 1)];
+    input.formations[1].units = [infantry("b1", 1)];
+    const result = audit(input);
+    assert.equal(result.status, "resolved"); assert.equal(result.winnerFormationId, "a");
+    assert.equal(result.rounds.length, 1); assert.equal(exchanges(result).length, 1);
+    assert.deepEqual(rolls(result).map(r => r.unitId), ["a1", "b1"]);
+    assert.deepEqual(result.survivingUnitIds, ["a2"]);
+  });
+
   it("alternates formation ATK/DEF for mutual attackers using supplied first roles", () => {
     const input = mutual(fixture());
     input.rules.infantry = { maxHp: 100, attack: 2, defense: 5 };
@@ -229,6 +252,26 @@ describe("server-only Combat Prototype 1A", () => {
     assert.equal(audit(kill).status, "resolved"); // destruction at the limit is still complete
   });
 
+  it("keeps wounds in a partial round and bounds a productive encounter at the maximum round limit", () => {
+    const input = fixture(); input.rules.infantry = { maxHp: COMBAT_LIMITS.stat, attack: 1, defense: 1 };
+    input.rules.maxRounds = COMBAT_LIMITS.rounds;
+    input.rules.maxExchanges = COMBAT_LIMITS.exchanges;
+    input.formations.forEach(f => { f.units = [infantry(`${f.formationId}1`, 20), infantry(`${f.formationId}2`, 20)]; });
+    input.rules.maxExchanges = 1;
+    const partial = audit(input);
+    assert.equal(partial.limit, "exchanges"); assert.equal(partial.status, "limit_reached");
+    assert.deepEqual(partial.units.map(u => u.finalHp), [19, 20, 19, 20]);
+    assert.deepEqual(partial.units.map(u => u.finalHp), partial.units.map(u => u.encounterHp));
+
+    input.rules.maxExchanges = COMBAT_LIMITS.exchanges;
+    input.formations.forEach(f => { f.units = [infantry(`${f.formationId}1`, COMBAT_LIMITS.stat)]; });
+    const bounded = audit(input);
+    assert.equal(bounded.status, "limit_reached"); assert.equal(bounded.limit, "rounds");
+    assert.equal(bounded.rounds.length, COMBAT_LIMITS.rounds);
+    assert.equal(exchanges(bounded).length, COMBAT_LIMITS.rounds);
+    assert.ok(bounded.units.every(u => u.encounterHp === COMBAT_LIMITS.stat - COMBAT_LIMITS.rounds && u.finalHp === u.encounterHp));
+  });
+
   it("copies exact accepted data, deeply freezes output, and has no shared RNG/state", () => {
     const input = fixture(), before = structuredClone(input), first = audit(input);
     assert.deepEqual(input, before); assert.equal(Object.isFrozen(input), false); assertFrozen(first);
@@ -307,6 +350,39 @@ describe("server-only Combat Prototype 1A", () => {
     const sparse = fixture(); delete sparse.formations[0].units[0]; rejected(sparse, "INVALID_INPUT");
     const getter = fixture(); Object.defineProperty(getter, "seed", { get() { assert.fail("must not call getters"); }, enumerable: true }); rejected(getter, "INVALID_INPUT");
     const cyclic = { ...fixture(), hidden: {} }; cyclic.hidden = cyclic; rejected(cyclic, "UNSUPPORTED_FIELDS");
+  });
+
+  it("rejects proxies at every input layer without invoking their traps", () => {
+    let traps = 0;
+    const proxy = (value: object) => new Proxy(value, {
+      get() { traps++; throw new Error("must not read proxy"); },
+      getPrototypeOf() { traps++; throw new Error("must not inspect proxy"); },
+      ownKeys() { traps++; throw new Error("must not enumerate proxy"); },
+      getOwnPropertyDescriptor() { traps++; throw new Error("must not inspect proxy fields"); }
+    });
+    const base = fixture();
+    const values: unknown[] = [proxy(base), { ...base, rules: proxy(base.rules) },
+      { ...base, rules: { ...base.rules, infantry: proxy(base.rules.infantry) } },
+      { ...base, formations: proxy(base.formations) },
+      { ...base, formations: [proxy(base.formations[0]), base.formations[1]] },
+      { ...base, formations: [{ ...base.formations[0], units: proxy(base.formations[0].units) }, base.formations[1]] },
+      { ...base, formations: [{ ...base.formations[0], units: [proxy(base.formations[0].units[0]!)] }, base.formations[1]] }];
+    const revoked = Proxy.revocable(base, {}); revoked.revoke(); values.push(revoked.proxy);
+    for (const value of values) rejected(value, "INVALID_INPUT");
+    assert.equal(traps, 0);
+  });
+
+  it("rejects custom array prototypes, hidden elements and index accessors without executing hooks", () => {
+    const input = fixture();
+    const custom = [...input.formations]; Object.setPrototypeOf(custom, null);
+    rejected({ ...input, formations: custom }, "INVALID_INPUT");
+    const units = [...input.formations[0].units]; Object.setPrototypeOf(units, null);
+    rejected({ ...input, formations: [{ ...input.formations[0], units }, input.formations[1]] }, "INVALID_INPUT");
+    const hidden = [...input.formations]; Object.defineProperty(hidden, "0", { enumerable: false });
+    rejected({ ...input, formations: hidden }, "INVALID_INPUT");
+    const accessor = [...input.formations];
+    Object.defineProperty(accessor, "0", { enumerable: true, get() { assert.fail("must not execute index getter"); } });
+    rejected({ ...input, formations: accessor }, "INVALID_INPUT");
   });
 
   it("runs representative large encounters repeatably with bounded audit allocation", () => {
