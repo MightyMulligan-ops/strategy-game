@@ -100,7 +100,7 @@ export class OpenAIHostedStreamingProvider implements HostedProvider {
         'Content-Type':'application/json',Accept:'text/event-stream'},
       body:JSON.stringify(request),
     });
-    requireControl(response.status===200 && response.body !== null,'hosted-create-failed');
+    requireControl((response.status===200 || response.status===201) && response.body !== null,'hosted-create-failed');
     let knownSession:string|undefined;
     let rootDone=false;
     for await(const event of parseAgentSse(response.body!)) {
