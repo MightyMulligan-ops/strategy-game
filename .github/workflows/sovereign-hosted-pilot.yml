@@ -20,7 +20,7 @@ permissions:
 
 jobs:
   prepare:
-    if: ${{ github.ref == 'refs/heads/main' && github.actor == 'MightyMulligan-ops' && github.actor_id == 353505747 && github.run_attempt == 1 && inputs.issue_number == '76' }}
+    if: ${{ github.ref == 'refs/heads/main' && github.actor == 'MightyMulligan-ops' && github.actor_id == '353505747' && github.run_attempt == '1' && inputs.issue_number == '76' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
@@ -65,7 +65,7 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '24'
-      - uses: actions/download-artifact@c850b930e6ba9a02185ca48e6fbd81c1692cf7c5 # v7
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: sovereign-pilot-source
           path: ${{ runner.temp }}/sovereign-pilot
@@ -93,7 +93,7 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@c850b930e6ba9a02185ca48e6fbd81c1692cf7c5 # v7
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: sovereign-untrusted-proposal
           path: ${{ runner.temp }}/sovereign-pilot/validated
@@ -148,7 +148,7 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '24'
-      - uses: actions/download-artifact@c850b930e6ba9a02185ca48e6fbd81c1692cf7c5 # v7
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: sovereign-validated-proposal
           path: ${{ runner.temp }}/sovereign-pilot/validated
