@@ -5,8 +5,10 @@
 import {readFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
-import {canonicalScope,sha256,REPOSITORY,validPath,SHA,type TaskScope} from './codex-automation-policy.ts';
+import {canonicalScope,sha256,REPOSITORY,SHA} from './codex-automation-policy.ts';
 import {requireControl,ControlDenied} from './codex-run-control.ts';
+import {verifyValidationReceipt,verifyBundle} from './codex-pilot-receipt.ts';
+import {readValidationBundle} from './codex-pilot-validator.ts';
 
 const API='https://api.github.com/repos/'+REPOSITORY;
 const BRANCH_PREFIX='issue/76-sovereign-pilot-';
@@ -14,27 +16,13 @@ function decode(v:unknown):Record<string,unknown>{
   requireControl(v!==null&&typeof v==='object'&&!Array.isArray(v),'pilot-publisher-object');
   return v as Record<string,unknown>;
 }
-export type PilotReceipt=Readonly<{
-  tree_sha:string;source_sha:string;scope_digest:string;patch_sha256:string;
-  paths:readonly string[];result:'RECONSTRUCTED_NO_EXECUTION';
-}>;
-export function verifyPilotReceipt(receipt:PilotReceipt,scope:TaskScope,patch:Uint8Array){
-  requireControl(receipt&&SHA.test(receipt.source_sha)&&SHA.test(receipt.tree_sha)&&
-    receipt.source_sha===scope.sourceSha&&
-    receipt.scope_digest===sha256(canonicalScope(scope))&&
-    receipt.patch_sha256===sha256(patch)&&
-    receipt.result==='RECONSTRUCTED_NO_EXECUTION'&&
-    Array.isArray(receipt.paths)&&receipt.paths.length>=1&&receipt.paths.length<=25&&
-    receipt.paths.every(p=>validPath(p)&&scope.approvedPaths.includes(p))&&
-    new Set(receipt.paths).size===receipt.paths.length,'pilot-publisher-receipt');
-}
 class GitHubApi {
-  constructor(private readonly token:string){
+  constructor(private readonly token:string,private readonly fetcher:typeof fetch){
     requireControl(token.length>0,'pilot-publisher-token');
   }
   async request(method:'GET'|'POST',path:string,data?:unknown):Promise<unknown>{
     requireControl(path.startsWith('/')&&!path.includes('..')&&path.length<300,'pilot-publisher-path');
-    const response=await fetch(API+path,{
+    const response=await this.fetcher(API+path,{
       method,redirect:'error',cache:'no-store',
       headers:{Authorization:'Bearer '+this.token,Accept:'application/vnd.github+json',
         'X-GitHub-Api-Version':'2022-11-28',...(data===undefined?{}:{'Content-Type':'application/json'})},
@@ -46,8 +34,7 @@ class GitHubApi {
     try{return JSON.parse(body);}catch{throw new ControlDenied('pilot-publisher-response-json');}
   }
 }
-async function main():Promise<void>{
-  const env=process.env;
+export async function runPilotPublisher(env:NodeJS.ProcessEnv,fetcher:typeof fetch=fetch,repo=process.cwd()):Promise<void>{
   requireControl(env.GITHUB_REPOSITORY===REPOSITORY&&
     env.GITHUB_ACTOR==='MightyMulligan-ops'&&env.GITHUB_ACTOR_ID==='353505747'&&
     env.GITHUB_REF==='refs/heads/main'&&
@@ -57,15 +44,16 @@ async function main():Promise<void>{
     typeof env.RUNNER_TEMP==='string'&&env.OPENAI_API_KEY===undefined,
     'pilot-publisher-environment');
   const dir=join(env.RUNNER_TEMP!,'sovereign-pilot','validated');
-  const scope=JSON.parse(await readFile(join(dir,'scope.json'),'utf8')) as TaskScope & {scopeDigest:string};
-  const patch=new Uint8Array(await readFile(join(dir,'proposal.patch')));
-  const receipt=JSON.parse(await readFile(join(dir,'validated-report.json'),'utf8')) as PilotReceipt;
-  const summary=await readFile(join(dir,'summary.txt'),'utf8');
+  const bundle=readValidationBundle(dir);
+  const validationBytes=await readFile(join(dir,'validation-receipt.json'));
+  verifyValidationReceipt(validationBytes,env.EXPECTED_VALIDATION_SHA256,
+    {runId:env.GITHUB_RUN_ID!,sourceSha:env.GITHUB_SHA!},bundle);
+  const {scope,replay:receipt}=verifyBundle(bundle);
+  const summary=new TextDecoder('utf8',{fatal:true}).decode(bundle.summary);
   requireControl(Buffer.byteLength(summary)<=16*1024,'pilot-publisher-summary');
-  verifyPilotReceipt(receipt,scope,patch);
   requireControl(scope.issue===76&&scope.sourceSha===env.GITHUB_SHA&&
     scope.scopeDigest===sha256(canonicalScope(scope)),'pilot-publisher-scope');
-  const api=new GitHubApi(env.GITHUB_TOKEN);
+  const api=new GitHubApi(env.GITHUB_TOKEN,fetcher);
   const main=decode(await api.request('GET','/git/ref/heads/main'));
   requireControl(decode(main.object).sha===scope.sourceSha,'pilot-main-advanced');
   const openPrs=await api.request('GET','/pulls?state=open&per_page=100');
@@ -82,7 +70,7 @@ async function main():Promise<void>{
   const index=join(env.RUNNER_TEMP!,'sovereign-publisher-index');
   const gitEnv={...process.env,GIT_INDEX_FILE:index};
   const run=(...args:string[])=>execFileSync('git',['-c','core.hooksPath=/dev/null',...args],
-    {encoding:'utf8',timeout:30_000,env:gitEnv,stdio:['ignore','pipe','pipe']}).trim();
+    {cwd:repo,encoding:'utf8',timeout:30_000,env:gitEnv,stdio:['ignore','pipe','pipe']}).trim();
   try{
     run('read-tree',scope.sourceSha);
     run('apply','--cached','--check',out);
@@ -93,7 +81,7 @@ async function main():Promise<void>{
   for(const path of receipt.paths){
     let binary:Buffer;
     try{binary=execFileSync('git',['-c','core.hooksPath=/dev/null','show',':'+path],
-      {env:gitEnv,timeout:30_000,maxBuffer:1_500_000});}
+      {cwd:repo,env:gitEnv,timeout:30_000,maxBuffer:1_500_000});}
     catch{throw new ControlDenied('pilot-publisher-file');}
     const content=new TextDecoder('utf8',{fatal:true}).decode(binary);
     treeEntries.push({path,mode:'100644',type:'blob',content});
@@ -119,5 +107,5 @@ async function main():Promise<void>{
   process.stdout.write('Sovereign published draft PR #'+pr.number+'; owner review required.\n');
 }
 if(process.argv[1]?.endsWith('codex-pilot-publish.ts')){
-  void main().catch(()=>{process.stderr.write('Sovereign draft publisher denied. No automatic retry.\n');process.exitCode=1;});
+  void runPilotPublisher(process.env).catch(()=>{process.stderr.write('Sovereign draft publisher denied. No automatic retry.\n');process.exitCode=1;});
 }

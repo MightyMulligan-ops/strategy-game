@@ -1,5 +1,34 @@
 # Sovereign hosted pipeline repair — 2026-11-16
 
+## False-success validator repair (current candidate)
+
+The earlier sections below are historical. [Run 43888968238](https://github.com/MightyMulligan-ops/strategy-game/actions/runs/43888968238) exposed a separate **confirmed false-success defect**, not successful independent validation: Corepack failed with `EAI_AGAIN registry.npmjs.org` inside the network-disabled container, yet the validate job and publisher succeeded. The owner authorized this focused subscription-Codex repair, normal CI and its disposable PostgreSQL service, but no paid session/dispatch, queue, deployment or existing database access.
+
+### Confirmed causes and trust gaps
+
+1. The image prepared Corepack as root in its default home/cache. Runtime execution switched to a non-root UID and `HOME=/tmp`; that cache was unavailable under the new home, so Corepack tried to download pnpm after networking was disabled. A successful image build had not proved the actual runtime could execute pnpm offline. See [Corepack's cache configuration](https://github.com/nodejs/corepack#environment-variables).
+2. Bash `-e` does not exit for a failed nonfinal command in an AND-list. The `pnpm build && ...` chain stopped, but subsequent Git commands succeeded and became the shell's final exit status. A tree comparison says nothing about whether checks ran. This is the documented [Bash errexit exception](https://www.gnu.org/software/bash/manual/html_node/The-Set-Builtin.html).
+3. The publisher accepted `RECONSTRUCTED_NO_EXECUTION` as its only receipt. It had no independently checked evidence of build/typecheck/test/lint execution. That receipt proves patch reconstruction only.
+4. The old sandbox checked its own mutable Git metadata; the outside check examined the separate original checkout. Neither was an independent host check of the tested workspace's bytes. This was a confirmed trust gap, not evidence that a worker exploited it.
+
+### Corrected execution and publication guarantees
+
+- `scripts/sovereign-validation.Dockerfile` installs exactly pnpm 12.18.0 with lifecycle scripts disabled under `/opt/sovereign`, verifies its version, and checks Git/Python availability. The absolute pnpm entry point and PATH no longer depend on a HOME-scoped Corepack cache. Runtime preflight checks the exact version under the actual non-root UID, read-only root filesystem, `HOME=/tmp` and disabled network before running application code.
+- Clean replay still precedes dependency installation. Locked dependencies and `prepare:checks` (including Prisma engine/client preparation) run only on unchanged trusted source, before applying the generated patch. No OpenAI key or GitHub write permission is present in validation.
+- The trusted host invokes build, typecheck, test and lint **separately**, each in a fresh restricted Docker container. Missing pnpm, nonzero status, spawn error, signal, timeout, interrupted checks or tree drift throw before later checks or receipt creation. There is no shell AND-list or fallback Git command whose success can mask a check failure. Container output is captured, never interpreted as Actions commands or receipt evidence.
+- Source/dependencies are copied to a separate workspace; Git metadata, prior diagnostics and environment files are excluded. No receipt directory, `GITHUB_OUTPUT`, Docker socket, credential or host Git directory is mounted. Existing network/capability/user/resource restrictions remain. Fresh containers also prevent a background process from surviving a check and racing host verification.
+- Before checks and after each successful check, the host reads expected objects from trusted Git and hashes the actual tracked file bytes/modes in the tested workspace. Missing/changed files, symlinked tracked paths and unexpected non-ignored files fail. Worker Git config/index/hooks cannot substitute a fake tree. Ignored build outputs/dependencies are not claimed to be part of the validated Git tree.
+- Only complete success writes `validation-receipt.json`: schema/policy, repository, run/attempt, source/tree identity, exact image ID, pnpm version, disabled network, all four ordered successful command records and SHA-256 bindings for scope, manifest, patch, summary and replay receipt. The host rechecks bundle bytes before writing. An old replay receipt alone is rejected.
+- The receipt's digest is transferred separately through the trusted validate-step/job output to `needs.validate.outputs.validation_sha256`. It is **not** supplied by an artifact file or worker output. The publisher requires a successful validate job and nonempty digest, then verifies the raw receipt digest, complete checks, context and every artifact binding before any GitHub request. Missing/incomplete/failed/skipped/edited/stale receipts or changed artifacts fail closed. The publisher still independently reconstructs the exact tree in a detached trusted index and creates only a draft PR.
+
+### Verification and limits
+
+Offline fixtures exercise each failed command, unavailable pnpm, the historical Corepack failure shape, process interruptions, tree/receipt/artifact drift, missing/incomplete/forged receipts, zero GitHub calls on denial and successful draft-only publication through a mocked GitHub API. The normal credential-free CI quality job additionally builds the real image and runs **all four workspace checks offline** using the production controller, without an Agents session. This smoke mode neither creates a publication receipt nor calls GitHub/OpenAI APIs. Final-head run/count evidence is recorded in the repair PR and DEVELOPMENT_STATUS.
+
+The receipt authenticates trusted-controller execution/status and exact source binding; it is not an independent semantic code review or proof that every test is meaningful. Application tests intentionally exclude live database cases; the separate normal CI PostgreSQL job verifies those. Security still depends on trusted workflow/main, Actions output/artifact provenance, the runner and Docker isolation. Node's `24-bookworm` base tag remains mutable: pnpm/version and lockfile are pinned, and the exact built image ID is recorded, but bit-for-bit reproducible images/build output are not claimed. No historical false-green receipt is upgraded or replayed as valid evidence.
+
+Local Docker is not running; no local service was started. Actual offline-container verification must come from the new normal CI smoke check. The overnight queue remains unimplemented/disabled, the hosted pilot stays manual, and no internal spending cutoff, paid retry, automatic merge or deployment is added.
+
 ## Evidence
 
 Audited source: `c9f41cd8cd2846102ebd929a865284ebcd728154` and [Actions run 43880452526](https://github.com/MightyMulligan-ops/strategy-game/actions/runs/43880452526).
