@@ -29,3 +29,5 @@ Do not weaken or remove this spending gate without a fresh owner decision. If th
 - Existing verified prior head `31b38e84990859ed1d0956f81f34f170ccf06779`: CI 1,804 application + 262 DB tests passed.
 - New preflight and workflow are additive and require **new exact-head** CI before they can be described as tested.
 - All paths are draft-only. No cloud activation or paid inference was attempted.
+
+CI note: GitHub's standard pull_request trigger runs on new commits while this draft PR temporarily targets main; after exact-head CI, restore its dependent base on PR #80. Never merge or activate the cloud workflow from this test.
