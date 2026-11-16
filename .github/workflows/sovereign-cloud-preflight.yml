@@ -1,0 +1,44 @@
+# Explicitly OFFLINE / NO PAID AGENT EXECUTION / NO ENVIRONMENT SECRETS.
+# This workflow may be dispatched only from main. It is NOT the live controller.
+name: Sovereign cloud preflight (offline only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Offline pilot issue number (only 76 is accepted)'
+        required: true
+        type: string
+        default: '76'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sovereign-offline-preflight
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: ${{ github.ref == 'refs/heads/main' }}
+    name: Verify trusted cloud execution identity (NO SECRETS)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    # Do not set an environment: this job must not access sovereign-controller secrets.
+    # Do not add OPENAI_API_KEY, GH_TOKEN, GITHUB_TOKEN, third-party tokens, or keys.
+    env:
+      SOVEREIGN_CLOUD_MODE: offline-preflight
+      SOVEREIGN_ISSUE: ${{ inputs.issue_number }}
+    steps:
+      - name: Checkout trusted main without credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Install Node.js 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - name: Offline admission preflight
+        run: node --experimental-strip-types scripts/codex-cloud-preflight.ts
+      - name: Report limitation
+        run: echo 'Preflight only. No key, no paid Agents session, no publisher, and no independent security approval.'
