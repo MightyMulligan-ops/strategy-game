@@ -5,7 +5,7 @@ import {createHash} from 'node:crypto';
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {join} from 'node:path';
 import {canonicalScope,sha256,REPOSITORY,type TaskScope} from './codex-automation-policy.ts';
-import {requireControl} from './codex-run-control.ts';
+import {ControlDenied,requireControl} from './codex-run-control.ts';
 const SHA=/^[a-f0-9]{40}$/;
 const APPROVED_PATHS=['packages/game-engine/src/combat.ts',
   'packages/game-engine/tests/combat.test.ts'] as const;
@@ -53,7 +53,7 @@ async function main():Promise<void>{
   const response=await fetch('https://api.github.com/repos/'+REPOSITORY+'/issues/76',{
     redirect:'error',headers:{Authorization:'Bearer '+e.GITHUB_TOKEN,
       Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}});
-  requireControl(response.status===200,'pilot-issue-http');
+  requireControl(response.status===200,'pilot-issue-http-'+String(response.status));
   const issue=await response.json() as Record<string,unknown>;
   requireControl(issue.number===76&&issue.state==='open'&&
     typeof issue.body==='string'&&Buffer.byteLength(issue.body)<=32*1024,'pilot-issue');
@@ -66,5 +66,9 @@ async function main():Promise<void>{
   process.stdout.write('Sovereign pilot input frozen; no paid execution.\n');
 }
 if(process.argv[1]?.endsWith('codex-pilot-prepare.ts')){
-  void main().catch(()=>{process.stderr.write('Sovereign pilot prepare denied.\n');process.exitCode=1;});
+  void main().catch((error:unknown)=>{
+    const reason=error instanceof ControlDenied ? error.message : 'unexpected-error';
+    process.stderr.write('Sovereign pilot prepare denied: '+reason+'\\n');
+    process.exitCode=1;
+  });
 }
