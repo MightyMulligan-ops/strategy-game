@@ -75,6 +75,19 @@ class ReplayTests(unittest.TestCase):
     def test_ignored_source_rejected(self):
         (self.root/'ignored-secret.txt').write_text('synthetic ignored fixture')
         self.assertNotEqual(self.run_replay().returncode,0)
+    def test_dependencies_must_be_installed_after_clean_replay(self):
+        ignored = self.root/'.git/info/exclude'
+        ignored.write_text('node_modules/\n')
+        modules = self.root/'node_modules'
+        modules.mkdir()
+        installed = modules/'fixture.js'
+        installed.write_text('module.exports = {};\n')
+        result = self.run_replay()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(b'dirty-source', result.stderr)
+        installed.unlink()
+        modules.rmdir()
+        self.assertEqual(self.run_replay().returncode, 0)
     def test_null_manifest_rejected(self):
         self.manifest=None;self.assertNotEqual(self.run_replay().returncode,0)
     def test_null_scope_rejected(self):

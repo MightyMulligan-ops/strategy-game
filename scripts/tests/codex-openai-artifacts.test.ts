@@ -72,3 +72,23 @@ test('HTTP failures never echo response bodies or secrets',async()=>{
   expect(message).not.toContain('secret-fixture');
   expect(message).not.toContain('private provider error');
 });
+
+test('409 cleanup cancels active work once and retries only deletion with a fixed bound',async()=>{
+  const calls:{url:string;init:RequestInit}[]=[];
+  const client=new OpenAIHostedArtifacts('fixture',async(url,init)=>{
+    calls.push({url,init});
+    if(init.method==='POST')return Response.json({object:'agent.session.events'});
+    if(calls.length===1)return new Response('private conflict',{status:409});
+    return Response.json({id:session,deleted:true,object:'agent.session.deleted'});
+  },()=>{},async()=>{});
+  await client.deleteSession(session);
+  expect(calls.map(c=>c.init.method)).toEqual(['DELETE','POST','DELETE']);
+  expect(calls[1]!.url).toBe('https://api.openai.com/v1/agents/sessions/'+session+'/events');
+  expect(JSON.parse(calls[1]!.init.body as string)).toEqual({events:[{type:'agent.session.input.cancel'}]});
+  const stuckCalls:string[]=[];
+  const stuck=new OpenAIHostedArtifacts('fixture',async(_url,init)=>{
+    stuckCalls.push(init.method!);return new Response('{}',{status:init.method==='POST'?200:409});
+  },()=>{},async()=>{});
+  await expect(stuck.deleteSession(session)).rejects.toThrow('hosted-delete-unconfirmed');
+  expect(stuckCalls).toEqual(['DELETE','POST','DELETE','DELETE']);
+});

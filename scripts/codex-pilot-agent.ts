@@ -2,26 +2,38 @@
  * No standalone invocation outside an owner-dispatched GitHub Actions job.
  */
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import {appendFileSync,writeFileSync,mkdirSync,existsSync,readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {validatePilotInput,type PilotInput} from './codex-pilot-prepare.ts';
 import {uploadPinnedSource} from './codex-openai-source.ts';
 import {HostedAgentOrchestrator} from './codex-hosted-orchestrator.ts';
-import {HostedSessionJournal,type HostedJournal,type HostedJournalStore} from './codex-hosted-journal.ts';
+import {HostedSessionJournal,validateHostedJournal,type HostedJournal,type HostedJournalStore} from './codex-hosted-journal.ts';
 import {OpenAIHostedStreamingProvider} from './codex-hosted-stream.ts';
 import {requireControl} from './codex-run-control.ts';
 import {REPOSITORY} from './codex-automation-policy.ts';
+import {failureDiagnostics,sanitizeDiagnostic,type PilotStage,type PilotReporter,type PilotFetcher} from './codex-pilot-diagnostics.ts';
 
 class OneProcessJournalStore implements HostedJournalStore {
+  constructor(private readonly path:string){
+    if(existsSync(path)){
+      const saved=JSON.parse(readFileSync(path,'utf8')) as {revision:number;value:HostedJournal};
+      requireControl(Number.isSafeInteger(saved.revision)&&saved.revision>0,'pilot-state-invalid');
+      validateHostedJournal(saved.value);this.revision=saved.revision;this.state=saved.value;
+    }
+  }
   private revision=0;private state:HostedJournal|null=null;
   async read(){return {revision:String(this.revision),
     value:this.state?structuredClone(this.state):null};}
   async compareAndSwap(_runId:string,revision:string,next:HostedJournal) {
     if(revision!==String(this.revision))return false;
-    this.state=structuredClone(next);this.revision++;return true;
+    this.state=structuredClone(next);this.revision++;
+    writeFileSync(this.path,JSON.stringify({revision:this.revision,value:this.state}),{mode:0o600});return true;
   }
 }
-async function main():Promise<void> {
-  const env=process.env;
+export async function runPilotAgent(env:NodeJS.ProcessEnv,fetcher:PilotFetcher=fetch):Promise<void> {
+  let stage:PilotStage='admission';
+  let report:PilotReporter=d=>process.stderr.write(JSON.stringify(sanitizeDiagnostic(d))+'\n');
+  try {
   requireControl(env.GITHUB_REPOSITORY===REPOSITORY&&
     env.GITHUB_ACTOR==='MightyMulligan-ops'&&
     env.GITHUB_ACTOR_ID==='353505747'&&
@@ -34,12 +46,21 @@ async function main():Promise<void> {
   // No durable Git ledger and no local USD cutoff in this simplified pilot.
   // A crash before a session ID is received remains an ambiguous paid-session state.
   const dir=join(env.RUNNER_TEMP!,'sovereign-pilot');
+  mkdirSync(dir,{recursive:true});
+  report=d=>{
+    const line=JSON.stringify(sanitizeDiagnostic(d))+'\n';
+    appendFileSync(join(dir,'diagnostics.jsonl'),line,{mode:0o600});
+    process.stdout.write(line);
+  };
   const archive=new Uint8Array(await readFile(join(dir,'source.tar.gz')));
   const input=JSON.parse(await readFile(join(dir,'pilot-input.json'),'utf8')) as PilotInput;
   validatePilotInput(input,archive,new Date());
   requireControl(input.runId==='run_'+env.GITHUB_RUN_ID &&
     input.scope.sourceSha===env.GITHUB_SHA,'pilot-source-run-drift');
-  const uploaded=await uploadPinnedSource(env.OPENAI_API_KEY,archive,input.archiveSha256);
+  const journalStore=new OneProcessJournalStore(join(dir,'session-state.json'));
+  requireControl((await journalStore.read()).value===null,'hosted-duplicate-run');
+  stage='source_upload';
+  const uploaded=await uploadPinnedSource(env.OPENAI_API_KEY!,archive,input.archiveSha256,fetcher,report);
   const admission={
     ...input,
     sourceArchiveFileId:uploaded.fileId,
@@ -53,10 +74,12 @@ async function main():Promise<void> {
     hostedSandboxPolicyReviewed:true,
     sessionTerminationVerified:true,
   };
-  const provider=new OpenAIHostedStreamingProvider(env.OPENAI_API_KEY);
+  stage='session_create';
+  const provider=new OpenAIHostedStreamingProvider(env.OPENAI_API_KEY!,fetcher,report);
   const orchestrator=new HostedAgentOrchestrator(
-    new HostedSessionJournal(new OneProcessJournalStore()),provider);
+    new HostedSessionJournal(journalStore),provider,report);
   const result=await orchestrator.run(input.runId,admission);
+  stage='output_write';
   const outputDir=join(dir,'untrusted-output');
   await mkdir(outputDir,{recursive:true});
   await writeFile(join(outputDir,'proposal.patch'),result.patch);
@@ -65,7 +88,11 @@ async function main():Promise<void> {
   await writeFile(join(outputDir,'scope.json'),JSON.stringify({
     ...input.scope,scopeDigest:input.scopeDigest}));
   process.stdout.write('Sovereign hosted session returned untrusted proposal. Independent validation required.\n');
+  }catch(error){
+    for(const diagnostic of failureDiagnostics(error,stage))report(diagnostic);
+    throw error;
+  }
 }
 if(process.argv[1]?.endsWith('codex-pilot-agent.ts')) {
-  void main().catch(()=>{process.stderr.write('Sovereign pilot agent failed; never automatically retry.\n');process.exitCode=1;});
+  void runPilotAgent(process.env).catch(()=>{process.stderr.write('Sovereign pilot agent failed; see sanitized diagnostics. Never automatically retry.\n');process.exitCode=1;});
 }

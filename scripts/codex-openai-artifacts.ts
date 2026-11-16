@@ -4,9 +4,10 @@
  */
 import {ControlDenied,requireControl} from './codex-run-control.ts';
 import type {HostedArtifact} from './codex-hosted-agents.ts';
+import {boundedBody,pilotRequest,diagnosticFor,PilotFailure,PROVIDER_ID,type PilotReporter,type PilotStage} from './codex-pilot-diagnostics.ts';
 
 const API = 'https://api.openai.com/v1/agents/sessions';
-const ID = /^[A-Za-z0-9_-]{1,128}$/;
+const ID = PROVIDER_ID;
 type Fetcher = (url:string,init:RequestInit)=>Promise<Response>;
 const obj=(v:unknown):Record<string,unknown>=>{
   requireControl(v!==null && typeof v==='object' && !Array.isArray(v),'hosted-http-shape');
@@ -16,18 +17,20 @@ export type ArtifactListing = {items:HostedArtifact[];allPagesRead:boolean};
 
 /** The caller supplies a project-scoped credential ONLY in the controller process. */
 export class OpenAIHostedArtifacts {
-  constructor(private readonly key:string,private readonly fetcher:Fetcher=fetch) {
+  constructor(private readonly key:string,private readonly fetcher:Fetcher=fetch,
+    private readonly report:PilotReporter=()=>{},
+    private readonly pause:(ms:number)=>Promise<void>=ms=>new Promise(resolve=>setTimeout(resolve,ms))) {
     requireControl(typeof key==='string' && key.length>0,'hosted-credential-missing');
   }
-  private async request(method:'GET'|'DELETE',path:string):Promise<Response>{
+  private async request(method:'GET'|'DELETE',path:string,stage:PilotStage,
+    accepted:readonly number[]=[200]):Promise<Response>{
     requireControl(path.startsWith('/') && !path.includes('..') &&
       !/[?#]/.test(path.split('?')[0]!) && path.length<500,'hosted-url');
-    const response=await this.fetcher(API+path,{
+    const response=await pilotRequest(stage,API+path,{
       method,redirect:'error',cache:'no-store',
       headers:{Authorization:'Bearer '+this.key,'OpenAI-Beta':'agents=v1',
         Accept:method==='DELETE'?'application/json':'*/*'},
-    });
-    requireControl(response.status===200,'hosted-http-status');
+    },this.fetcher,this.report,'hosted-http-status',accepted,10_000);
     return response;
   }
   private async json(response:Response,max=64*1024):Promise<Record<string,unknown>> {
@@ -38,6 +41,7 @@ export class OpenAIHostedArtifacts {
     return obj(data);
   }
   async listArtifacts(sessionId:string):Promise<ArtifactListing>{
+    try {
     requireControl(ID.test(sessionId),'hosted-session-id');
     const items:HostedArtifact[]=[];
     const seen=new Set<string>();
@@ -45,7 +49,7 @@ export class OpenAIHostedArtifacts {
     for(let page=0;page<4;page++){
       const url='/'+sessionId+'/artifacts?limit=100&order=asc'+
         (cursor?'&after='+encodeURIComponent(cursor):'');
-      const data=await this.json(await this.request('GET',url));
+      const data=await this.json(await this.request('GET',url,'artifact_list'));
       requireControl(data.object==='list' && Array.isArray(data.data) &&
         data.data.length<=100 && typeof data.has_more==='boolean','hosted-artifacts-page');
       for (const raw of data.data) {
@@ -64,43 +68,39 @@ export class OpenAIHostedArtifacts {
       cursor=data.last_id;
     }
     throw new ControlDenied('hosted-artifacts-pagination-limit');
+    }catch(error){throw new PilotFailure(diagnosticFor(error,'artifact_list'));}
   }
   /** Byte limits are checked DURING streamed delivery, never after reading an unbounded body. */
   async downloadBounded(sessionId:string,artifactId:string,maxBytes:number):Promise<Uint8Array>{
+    try {
     requireControl(ID.test(sessionId) && ID.test(artifactId) && Number.isSafeInteger(maxBytes) &&
       maxBytes>0 && maxBytes<=1_500_000,'hosted-download-input');
-    const response=await this.request('GET','/'+sessionId+'/artifacts/'+artifactId+'/content');
-    return boundedBody(response,maxBytes);
+    const response=await this.request('GET','/'+sessionId+'/artifacts/'+artifactId+'/content','artifact_download');
+    return await boundedBody(response,maxBytes);
+    }catch(error){throw new PilotFailure(diagnosticFor(error,'artifact_download'));}
   }
-  /** 409/unknown deletion outcome must be reconciled by a trusted operator. */
+  /** Only cleanup retries: cancel current work on 409, then bounded delete attempts.
+   * Never creates a session, resubmits a task, or retries an ambiguous paid call. */
   async deleteSession(sessionId:string):Promise<void>{
     requireControl(ID.test(sessionId),'hosted-session-id');
-    const reply=await this.json(await this.request('DELETE','/'+sessionId));
-    requireControl(reply.deleted===true && reply.id===sessionId &&
-      reply.object==='agent.session.deleted','hosted-delete-unconfirmed');
-  }
-}
-async function boundedBody(response:Response,maxBytes:number):Promise<Uint8Array>{
-  const size=response.headers.get('content-length');
-  if(size!==null){
-    const n=Number(size);
-    requireControl(Number.isSafeInteger(n)&&n>=0&&n<=maxBytes,'hosted-body-content-length');
-  }
-  const reader=response.body?.getReader();
-  requireControl(reader,'hosted-empty-body');
-  const chunks:Uint8Array[]=[];
-  let total=0;
-  try {
-    for (;;) {
-      const next=await reader.read();
-      if(next.done)break;
-      total+=next.value.byteLength;
-      requireControl(total<=maxBytes,'hosted-body-size');
-      chunks.push(next.value);
+    for(let attempt=0;attempt<3;attempt++){
+      const response=await this.request('DELETE','/'+sessionId,'session_delete',[200,409]);
+      if(response.status===200){
+        const reply=await this.json(response);
+        requireControl(reply.deleted===true && reply.id===sessionId &&
+          reply.object==='agent.session.deleted','hosted-delete-unconfirmed');return;
+      }
+      await response.body?.cancel();
+      if(attempt===0){
+        const cancelled=await pilotRequest('session_cancel',API+'/'+sessionId+'/events',{
+          method:'POST',redirect:'error',cache:'no-store',headers:{Authorization:'Bearer '+this.key,
+            'OpenAI-Beta':'agents=v1','Content-Type':'application/json'},
+          body:JSON.stringify({events:[{type:'agent.session.input.cancel'}]}),
+        },this.fetcher,this.report,'hosted-http-status',[200,201],10_000);
+        await cancelled.body?.cancel();
+      }
+      if(attempt<2)await this.pause(1000);
     }
-    const result=new Uint8Array(total);
-    let offset=0;
-    for(const chunk of chunks){result.set(chunk,offset);offset+=chunk.byteLength;}
-    return result;
-  }finally{reader.releaseLock();}
+    throw new ControlDenied('hosted-delete-unconfirmed');
+  }
 }

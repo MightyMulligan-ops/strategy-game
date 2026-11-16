@@ -3,6 +3,7 @@
  * A separate authenticated admission collector and run ledger MUST authorize begin().
  */
 import { ControlDenied, requireControl } from './codex-run-control.ts';
+import {PROVIDER_ID} from './codex-pilot-diagnostics.ts';
 
 export type HostedPhase = 'reserved' | 'creating' | 'running' | 'completed' | 'failed' | 'ambiguous';
 export type HostedJournal = Readonly<{
@@ -16,8 +17,8 @@ export interface HostedJournalStore {
 }
 const runPattern = /^[a-zA-Z0-9_-]{1,80}$/;
 const sha256 = /^[a-f0-9]{64}$/;
-const sessionPattern = /^sess_[A-Za-z0-9_-]{1,128}$/;
-const turnPattern = /^turn_[A-Za-z0-9_-]{1,128}$/;
+const sessionPattern = PROVIDER_ID;
+const turnPattern = PROVIDER_ID;
 export function validateHostedJournal(j: HostedJournal): void {
   requireControl(j && j.version === 1 && runPattern.test(j.runId) && sha256.test(j.scopeDigest) &&
     ['reserved','creating','running','completed','failed','ambiguous'].includes(j.phase),

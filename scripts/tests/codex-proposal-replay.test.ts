@@ -13,7 +13,7 @@ it('reconstructs or rejects synthetic Git patches using credential-free Python v
   });
   expect(run.error?.message).toBeUndefined();
   expect(run.status, run.stderr || run.stdout).toBe(0);
-  expect(run.stderr).toMatch(/Ran 18 tests/);
+  expect(run.stderr).toMatch(/Ran 19 tests/);
   expect(run.stderr).toMatch(/OK/);
 }, 35000);
 
