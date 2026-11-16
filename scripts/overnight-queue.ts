@@ -6,6 +6,7 @@ import {requireControl} from './codex-run-control.ts';
 import {taskScope,manifestDigest,type QueueAuthority,type QueueManifest,type QueueTask} from './overnight-policy.ts';
 import {QueueJournal,type QueueLedger} from './overnight-ledger.ts';
 import {verifyBundle,verifyValidationReceipt,type ValidationBundle} from './codex-pilot-receipt.ts';
+import {sanitizeDiagnostic} from './codex-pilot-diagnostics.ts';
 
 export type BoundaryContext=Readonly<{manifest:QueueManifest;task:QueueTask;index:number;runId:string;branch:string;signal:AbortSignal;
   recordSession:(authenticatedSessionId:string)=>Promise<void>}>;
@@ -94,8 +95,16 @@ export function morningReport(ledger:QueueLedger,queueId:string):string{
     'Provider usage/billing: UNKNOWN. No dollar estimate or spending guarantee is inferred.',
     'No PR was merged or deployed by this queue.'];
   for(const t of r.tasks){
+    const completed=['validating','publishing','draft_pr_created'].includes(t.phase)&&t.terminated&&
+      (t.terminationReceipt!==undefined||t.receipt!==null||t.pr!==null);
+    const coding=t.sessions===0?'not started':t.phase==='failed'?'success not verified (task failed)':
+      t.phase==='stopped'?'success not verified (task stopped or canceled)':completed?'completion verified':'in progress or UNKNOWN; success not verified';
+    const id=sanitizeDiagnostic({version:1,stage:'session_stream',code:'session_observed',...(t.sessionId!==null?{sessionId:t.sessionId}:{})}).sessionId;
+    const sessionId=id&&!/^gh[pousr]_/i.test(id)?id:t.sessionId===null?'UNKNOWN':'WITHHELD (unsafe identifier)';
     lines.push('',`## Issue #${t.issue}: ${safe(t.title)}`,`State: ${t.phase}. Execution: ${t.sessions?'start reserved; inspect provider reconciliation if identity is missing':'not started'}.`,
-      `Coding: ${t.terminated?'completed with confirmed termination':t.sessions?'failed, in progress or UNKNOWN':'not started'}.`,
+      `Session ID: ${sessionId}.`,
+      `Coding: ${coding}.`,
+      `Provider termination: ${t.terminated?'confirmed':t.sessions?'unconfirmed':'not applicable'}.`,
       `Validation: ${t.receipt?'passed; receipt '+t.receipt.digest:'no verified successful receipt'}.`,
       `Checks executed: ${t.receipt?t.receipt.checks.map(c=>c.command+': passed').join(', '):'UNKNOWN or not reached; no pass inferred'}. Test case counts: UNKNOWN (not supplied by receipt).`,
       `Draft PR: ${t.pr?t.pr.url:'none confirmed; publishing/failed states may require remote reconciliation'}.`,

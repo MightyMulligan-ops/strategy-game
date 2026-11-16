@@ -22,8 +22,19 @@ does not claim independence or grant activation, merge, deployment or paid appro
 The final bounded review also strengthened: App installation/repository/permission
 binding; exact existing-PR body identity; unique actual GitHub job IDs; source-bound
 recovery; strict output-name allowlist; and persisted termination before validation.
-No additional material defect was observed in the reviewed final implementation.
-This statement is limited to code inspection and the recorded automated checks.
+The later read-only check found OVERNIGHT-REPORT-001: provider termination was
+incorrectly described as coding completion after recovery, and known session IDs
+were omitted. The owner explicitly authorized one additional narrow correction
+pass as an exception to the exhausted five-pass budget; it is not a reset.
+
+The formatter now separates coding evidence, task state and provider termination.
+Failed/stopped/canceled or uncertain tasks never gain a successful coding label
+from deletion alone. Safe known IDs are shown; absent IDs are UNKNOWN and unsafe
+or credential-shaped IDs are withheld using the existing diagnostic sanitization
+plus GitHub credential-prefix filtering. Regression cases include successful,
+failed, canceled, owner-reconciled and uncertain outcomes, prior completion
+evidence, pending publication, redaction and report immutability. No orchestration,
+authorization, ledger, provider, validation or workflow behavior changes.
 
 ## Required owner configuration and operational confirmation
 
@@ -66,7 +77,27 @@ review waiver, while excluding paid execution/activation/settings/merge/deployme
 Foundation correction history2/5 is preserved. Completion used passes3–5:
 3 retired-entry actionlint correction;4 output-name fix and termination sealing;
 5 test-selector correction and final App/publication/recovery security hardening.
-The shared five-pass budget is exhausted. No post-review repair or automatic CI
-retry is authorized or performed. Tests use synthetic credentials/keys/provider
+The shared five-pass budget remains exhausted. OVERNIGHT-REPORT-001 has one
+separately owner-authorized exception pass, recorded independently; no further
+correction is authorized. No automatic CI retry is authorized or performed.
+Tests use synthetic credentials/keys/provider
 responses; no paid API request, live approval, configuration/ledger provisioning,
 existing database access, task-side PostgreSQL/Docker/migration, merge or deployment.
+
+## OVERNIGHT-REPORT-001 — owner-authorized exception result
+
+The active owner message explicitly authorized one narrow exception, including
+same-branch publication and normal hosted CI, starting from PR91 source
+`2d208f3fbd0550e34d675b62e5d9eb065734d791`, base
+`7fd8327c77858b8f4e5bf728528021aab294c40d`. Clean branch/head/draft identity and
+owner repository admin permission were verified before edits.
+
+One exception pass used, **1/1**, with no reset of the original5/5 history.
+Changed only the formatter, its regression tests and this assessment. All13 new
+regressions passed. Focused queue/policy/production/App tests: **137 passed,
+0 failed,0 skipped** across4 files. Full database-free suite: **2047 passed,
+0 failed,262 intentional database skips**,85 passed/15 skipped files. Build,
+full TypeScript, lint and whitespace checks passed with AUTH_ENABLED=false and
+RUN_DATABASE_TESTS=0. No ledger/provider/authorization/validation/workflow behavior
+was changed. The approved finding is resolved locally; exact published-head CI
+evidence is recorded in the PR handoff. No live provider or queue was activated.

@@ -192,3 +192,55 @@ test('local inspection CLI reports disabled state and offers no launch command',
   expect(inspect(['manifest',new URL('../../config/overnight-queue.disabled.json',import.meta.url).pathname])).toContain('Queue DISABLED');
   expect(()=>inspect(['launch','anything'])).toThrow();
 });
+
+test('OVERNIGHT-REPORT-001 reports successful coding separately from confirmed termination',async()=>{
+  const f=setup(1);await f.run();const before=structuredClone(f.store.ledger);
+  const report=morningReport(f.store.ledger,f.m.queueId);
+  expect(report).toContain('Coding: completion verified.');expect(report).toContain('Provider termination: confirmed.');
+  expect(report).toContain('Session ID: sess_101.');expect(report).toContain('Draft PR: https://github.com/'+REPOSITORY+'/pull/201');
+  expect(f.store.ledger).toEqual(before);
+});
+test.each(['failed','stopped'] as const)('OVERNIGHT-REPORT-001 never promotes %s tasks even with prior completion evidence',async(phase)=>{
+  const f=setup(1);await f.run();const ledger=structuredClone(f.store.ledger),r=ledger.runs[0]!,t=r.tasks[0]!;
+  r.status=phase;t.phase=phase;t.pr=null;t.reason=phase==='stopped'?'canceled':'boundary-failed-or-uncertain';
+  t.terminationReceipt='a'.repeat(64);validateQueueLedger(ledger);
+  const report=morningReport(ledger,f.m.queueId);
+  expect(report).toContain(phase==='failed'?'Coding: success not verified (task failed).':'Coding: success not verified (task stopped or canceled).');
+  expect(report).toContain('Provider termination: confirmed.');expect(report).toContain('Session ID: sess_101.');
+  expect(report).not.toMatch(/Coding: (?:completed|completion verified)/);
+});
+test('OVERNIGHT-REPORT-001 owner-reconciled uncertain coding stays stopped and never becomes successful',async()=>{
+  const f=setup(1);await f.journal.reserve(f.m,'123',now);
+  await f.journal.step(f.m.queueId,'123',0,'pending','preparing',now);await f.journal.step(f.m.queueId,'123',0,'preparing','agent_running',now);
+  await f.journal.observeSession(f.m.queueId,'123',0,'opaque-failed-session');await f.journal.fail(f.m.queueId,'123',0,now);
+  const revision=(await f.store.read()).revision;
+  await f.journal.reconcileStop(revision,f.m.queueId,'123','owner-report-regression','a'.repeat(64),['opaque-failed-session'],[],now);
+  const before=structuredClone(f.store.ledger),report=morningReport(f.store.ledger,f.m.queueId);
+  expect(report).toContain('Status: stopped.');expect(report).toContain('Coding: success not verified (task stopped or canceled).');
+  expect(report).toContain('Session ID: opaque-failed-session.');expect(report).toContain('Provider termination: confirmed.');
+  expect(report).toContain('Validation: no verified successful receipt.');expect(report).not.toMatch(/Coding: (?:completed|completion verified)/);
+  expect(f.store.ledger).toEqual(before);
+});
+test.each([false,true])('OVERNIGHT-REPORT-001 active uncertain coding stays unverified with termination=%s',async(terminated)=>{
+  const f=setup(1);await f.journal.reserve(f.m,'123',now);
+  await f.journal.step(f.m.queueId,'123',0,'pending','preparing',now);await f.journal.step(f.m.queueId,'123',0,'preparing','agent_running',now);
+  const ledger=structuredClone(f.store.ledger);ledger.runs[0]!.tasks[0]!.terminated=terminated;validateQueueLedger(ledger);
+  const report=morningReport(ledger,f.m.queueId);
+  expect(report).toContain('Coding: in progress or UNKNOWN; success not verified.');expect(report).toContain('Session ID: UNKNOWN.');
+  expect(report).not.toMatch(/Coding: (?:completed|completion verified)/);
+});
+test('OVERNIGHT-REPORT-001 sealed successful coding remains distinct from pending publication',async()=>{
+  const f=setup(1);await f.journal.reserve(f.m,'123',now);
+  await f.journal.step(f.m.queueId,'123',0,'pending','preparing',now);await f.journal.step(f.m.queueId,'123',0,'preparing','agent_running',now);
+  await f.journal.step(f.m.queueId,'123',0,'agent_running','validating',now,{sessionId:'opaque-sealed-session',terminationReceipt:'a'.repeat(64)});
+  const report=morningReport(await f.journal.snapshot(),f.m.queueId);
+  expect(report).toContain('Coding: completion verified.');expect(report).toContain('Validation: no verified successful receipt.');
+  expect(report).toContain('Draft PR: none confirmed;');expect(report).toContain('Session ID: opaque-sealed-session.');
+});
+test.each(['sk-proj-synthetic-secret','github_pat_synthetic_secret','ghp_synthetic_secret','Bearer_synthetic_secret','unsafe\nidentifier','x'.repeat(257)])(
+  'OVERNIGHT-REPORT-001 withholds unsafe/credential-shaped session identifier %s',async(id)=>{
+    const f=setup(1);await f.journal.reserve(f.m,'123',now);
+    const ledger=structuredClone(f.store.ledger);ledger.runs[0]!.tasks[0]!.sessionId=id;
+    const before=structuredClone(ledger),report=morningReport(ledger,f.m.queueId);
+    expect(report).toContain('Session ID: WITHHELD (unsafe identifier).');expect(report).not.toContain(id);expect(ledger).toEqual(before);
+  });
