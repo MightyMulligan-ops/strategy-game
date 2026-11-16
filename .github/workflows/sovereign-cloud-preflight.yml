@@ -39,6 +39,6 @@ jobs:
         with:
           node-version: '24'
       - name: Offline admission preflight
-        run: node --experimental-strip-types scripts/codex-cloud-preflight.ts
+        run: node --experimental-transform-types scripts/codex-cloud-preflight.ts
       - name: Report limitation
         run: echo 'Preflight only. No key, no paid Agents session, no publisher, and no independent security approval.'
