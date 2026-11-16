@@ -3,12 +3,24 @@ import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {execFileSync} from 'node:child_process';
 import {beforeEach,afterEach,expect,test,vi} from 'vitest';
-import {runIsolatedChecks,isolatedArguments,writeValidationReceipt,copyValidationWorkspace,verifyWorkspaceTree,PNPM_EXECUTABLE,execute,type Runner} from '../codex-pilot-validator.ts';
+import {runIsolatedChecks,isolatedArguments,writeValidationReceipt,copyValidationWorkspace,verifyWorkspaceTree,PNPM_EXECUTABLE,execute,smokeCommand,type Runner} from '../codex-pilot-validator.ts';
 import {REQUIRED_CHECKS,PNPM_VERSION,verifyValidationReceipt,type ValidationBundle} from '../codex-pilot-receipt.ts';
 import {sha256} from '../codex-automation-policy.ts';
 import {validationFixture,fixtureImage} from './codex-pilot-validation-fixture.ts';
 afterEach(()=>vi.restoreAllMocks());
 beforeEach(()=>{vi.spyOn(process.stderr,'write').mockImplementation(()=>true);});
+
+test('smoke-only failure details are bounded, redacted JSON data rather than workflow commands',()=>{
+  vi.stubEnv('SESSION_SECRET','fixture_session_secret');
+  try{
+    smokeCommand('docker',[],undefined,()=>({status:1,stdout:'x'.repeat(20000),stderr:'::error::unsafe\nfixture_session_secret'}));
+    const line=vi.mocked(process.stderr.write).mock.calls.at(-1)![0] as string;
+    expect(line.split('\n')).toHaveLength(2);expect(line.startsWith('{')).toBe(true);
+    const data=JSON.parse(line);expect(data.kind).toBe('untrusted_smoke_diagnostic');
+    expect(data.tail.length).toBeLessThanOrEqual(16*1024);expect(data.tail).toContain('[REDACTED]');
+    expect(line).not.toContain('fixture_session_secret');
+  }finally{vi.unstubAllEnvs();}
+});
 
 test('a timed-out Docker client is hard-killed and its named container gets bounded cleanup',()=>{
   const name='sovereign-validation-'+'a'.repeat(36);

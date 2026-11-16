@@ -9,9 +9,10 @@ import {fileURLToPath} from 'node:url';
 import {requireControl,ControlDenied} from './codex-run-control.ts';
 import {sha256,REPOSITORY,SHA} from './codex-automation-policy.ts';
 import {REQUIRED_CHECKS,PNPM_VERSION,makeValidationReceipt,verifyBundle,type CheckSuccess,type ValidationBundle,type ValidationContext} from './codex-pilot-receipt.ts';
+import {sanitizeLog} from './ci-reports.ts';
 
 export const PNPM_EXECUTABLE='/opt/sovereign/node_modules/.bin/pnpm';
-export type CommandResult={status:number|null;signal?:string|null;error?:unknown;stdout?:string};
+export type CommandResult={status:number|null;signal?:string|null;error?:unknown;stdout?:string;stderr?:string};
 export type Runner=(executable:string,args:readonly string[],input?:string)=>CommandResult;
 export function execute(executable:string,args:readonly string[],input?:string,spawn:typeof spawnSync=spawnSync):CommandResult{
   const r=spawn(executable,[...args],{input,encoding:'utf8',timeout:5*60_000,killSignal:'SIGKILL',maxBuffer:8*1024*1024,
@@ -25,7 +26,17 @@ export function execute(executable:string,args:readonly string[],input?:string,s
       try{spawn('docker',['rm','--force',name],{encoding:'utf8',timeout:30_000,killSignal:'SIGKILL',stdio:'pipe'});}catch{}
     }
   }
-  return {status:r.status,signal:r.signal,error:r.error,stdout:r.stdout??''};
+  return {status:r.status,signal:r.signal,error:r.error,stdout:r.stdout??'',stderr:r.stderr??''};
+}
+/** CI-only diagnostics for this repository's offline smoke. Quoted JSON cannot
+ * become an Actions command. Production worker output remains captured only. */
+export function smokeCommand(executable:string,args:readonly string[],input?:string,run:Runner=execute):CommandResult{
+  const result=run(executable,args,input);
+  if(result.status!==0||result.error||result.signal){
+    const tail=sanitizeLog((result.stdout??'')+'\n'+(result.stderr??''),process.env).slice(-16*1024);
+    process.stderr.write(JSON.stringify({kind:'untrusted_smoke_diagnostic',tail})+'\n');
+  }
+  return result;
 }
 function checked(run:Runner,exe:string,args:readonly string[],code:string,input?:string):string{
   let result:CommandResult;
@@ -156,9 +167,10 @@ function main():void{
   const bundle=smoke?undefined:readValidationBundle(dir);
   const expected=bundle?verifyBundle(bundle).replay.tree_sha:
     checked(execute,'git',['rev-parse','HEAD^{tree}'],'validation-source-tree').trim();
-  const image=buildValidationImage(repo,'sovereign-validation:'+env.GITHUB_RUN_ID);
+  const run=smoke?smokeCommand:execute;
+  const image=buildValidationImage(repo,'sovereign-validation:'+env.GITHUB_RUN_ID,run);
   copyValidationWorkspace(repo,workspace);
-  const checks=runIsolatedChecks(workspace,image,user,()=>verifyWorkspaceTree(repo,workspace,expected));
+  const checks=runIsolatedChecks(workspace,image,user,()=>verifyWorkspaceTree(repo,workspace,expected),run);
   if(bundle){
     requireControl(typeof env.GITHUB_OUTPUT==='string'&&typeof env.GITHUB_SHA==='string','validation-output');
     writeValidationReceipt(dir,{runId:env.GITHUB_RUN_ID!,sourceSha:env.GITHUB_SHA!},image,checks,bundle,env.GITHUB_OUTPUT!);
