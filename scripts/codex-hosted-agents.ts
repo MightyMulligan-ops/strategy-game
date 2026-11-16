@@ -26,12 +26,11 @@ export type HostedAdmission = Readonly<{
   sourceArchiveBytes: number;
   sourceArchiveVerifiedFromGitTree: boolean;
   currentOwnerGrantVerified: boolean;
-  durableRunClaimAndFullCostReservationVerified: boolean;
+  durableRunClaimVerified: boolean;
   projectKeyBindingVerified: boolean;
   exclusiveProjectRoutingVerified: boolean;
   hostedSandboxPolicyReviewed: boolean;
-  modelAndSandboxPricingVerified: boolean;
-  boundedSessionCostAndCancellationVerified: boolean;
+  sessionTerminationVerified: boolean;
 }>;
 
 export type HostedSessionRequest = Readonly<{
@@ -59,10 +58,10 @@ export function buildHostedSessionRequest(e: HostedAdmission): HostedSessionRequ
     e.sourceArchiveBytes <= 50 * 1024 * 1024 && e.sourceArchiveVerifiedFromGitTree === true,
     'hosted-source-archive');
   requireControl(e.currentOwnerGrantVerified === true &&
-    e.durableRunClaimAndFullCostReservationVerified === true &&
+    e.durableRunClaimVerified === true &&
     e.projectKeyBindingVerified === true && e.exclusiveProjectRoutingVerified === true &&
-    e.hostedSandboxPolicyReviewed === true && e.modelAndSandboxPricingVerified === true &&
-    e.boundedSessionCostAndCancellationVerified === true, 'hosted-launch-evidence');
+    e.hostedSandboxPolicyReviewed === true &&
+    e.sessionTerminationVerified === true, 'hosted-launch-evidence');
 
   const approved = e.scope.approvedPaths.join(', ');
   return {
