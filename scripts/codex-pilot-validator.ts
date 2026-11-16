@@ -1,7 +1,7 @@
 /** Credential-free trusted host controller. Never import generated application
  * code here. Docker stdout/stderr is untrusted and is never an Actions command. */
 import {spawnSync} from 'node:child_process';
-import {createHash} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
 import {cpSync,readFileSync,writeFileSync,appendFileSync,mkdtempSync,rmSync,lstatSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {resolve,join,relative,sep,basename} from 'node:path';
@@ -13,16 +13,30 @@ import {REQUIRED_CHECKS,PNPM_VERSION,makeValidationReceipt,verifyBundle,type Che
 export const PNPM_EXECUTABLE='/opt/sovereign/node_modules/.bin/pnpm';
 export type CommandResult={status:number|null;signal?:string|null;error?:unknown;stdout?:string};
 export type Runner=(executable:string,args:readonly string[],input?:string)=>CommandResult;
-export const execute:Runner=(executable,args,input)=>{
-  const r=spawnSync(executable,[...args],{input,encoding:'utf8',timeout:5*60_000,maxBuffer:8*1024*1024,
+export function execute(executable:string,args:readonly string[],input?:string,spawn:typeof spawnSync=spawnSync):CommandResult{
+  const r=spawn(executable,[...args],{input,encoding:'utf8',timeout:5*60_000,killSignal:'SIGKILL',maxBuffer:8*1024*1024,
     // Capture, do not forward workflow commands printed by untrusted code.
     stdio:['pipe','pipe','pipe']});
+  if(executable==='docker'&&args[0]==='run'&&(r.status!==0||r.error||r.signal)){
+    const name=args[args.indexOf('--name')+1];
+    if(name&&/^sovereign-validation-[a-f0-9-]{36}$/.test(name)){
+      // Killing the client alone does not stop daemon-owned work. Keep the
+      // original failure even if bounded cleanup fails; never issue a receipt.
+      try{spawn('docker',['rm','--force',name],{encoding:'utf8',timeout:30_000,killSignal:'SIGKILL',stdio:'pipe'});}catch{}
+    }
+  }
   return {status:r.status,signal:r.signal,error:r.error,stdout:r.stdout??''};
-};
+}
 function checked(run:Runner,exe:string,args:readonly string[],code:string,input?:string):string{
   let result:CommandResult;
   try{result=run(exe,args,input);}catch{throw new ControlDenied(code);}
-  requireControl(result.status===0&&!result.error&&!result.signal,code);
+  if(result.status!==0||result.error||result.signal){
+    const nativeCode=(result.error as NodeJS.ErrnoException|undefined)?.code;
+    process.stderr.write(JSON.stringify({code,exitCode:result.status,
+      signal:result.signal&&/^SIG[A-Z0-9]{1,12}$/.test(result.signal)?result.signal:null,
+      processCode:['ENOENT','ETIMEDOUT','ENOBUFS','EACCES'].includes(nativeCode??'')?nativeCode:undefined})+'\n');
+    throw new ControlDenied(code);
+  }
   return result.stdout??'';
 }
 export function buildValidationImage(repo:string,tag:string,run:Runner=execute):string{
@@ -35,7 +49,7 @@ export function buildValidationImage(repo:string,tag:string,run:Runner=execute):
 export function isolatedArguments(workspace:string,image:string,user:string):string[]{
   requireControl(/^sha256:[a-f0-9]{64}$/.test(image)&&/^\d+:\d+$/.test(user),'validation-container-identity');
   requireControl(!/[\r\n,]/.test(workspace),'validation-workspace-path');
-  return ['run','--rm','--network','none','--cap-drop','ALL','--security-opt','no-new-privileges','--read-only',
+  return ['run','--rm','--name','sovereign-validation-'+randomUUID(),'--network','none','--cap-drop','ALL','--security-opt','no-new-privileges','--read-only',
     '--tmpfs','/tmp:rw,nosuid,nodev,size=256m','--pids-limit','256','--memory','4g','--cpus','2',
     '--user',user,'--env','HOME=/tmp','--env','AUTH_ENABLED=false','--env','RUN_DATABASE_TESTS=0',
     '--env','PYTHONDONTWRITEBYTECODE=1',

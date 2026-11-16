@@ -2,12 +2,34 @@ import {mkdtempSync,writeFileSync,readFileSync,existsSync,rmSync,mkdirSync} from
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {execFileSync} from 'node:child_process';
-import {afterEach,expect,test,vi} from 'vitest';
-import {runIsolatedChecks,isolatedArguments,writeValidationReceipt,copyValidationWorkspace,verifyWorkspaceTree,PNPM_EXECUTABLE,type Runner} from '../codex-pilot-validator.ts';
+import {beforeEach,afterEach,expect,test,vi} from 'vitest';
+import {runIsolatedChecks,isolatedArguments,writeValidationReceipt,copyValidationWorkspace,verifyWorkspaceTree,PNPM_EXECUTABLE,execute,type Runner} from '../codex-pilot-validator.ts';
 import {REQUIRED_CHECKS,PNPM_VERSION,verifyValidationReceipt,type ValidationBundle} from '../codex-pilot-receipt.ts';
 import {sha256} from '../codex-automation-policy.ts';
 import {validationFixture,fixtureImage} from './codex-pilot-validation-fixture.ts';
 afterEach(()=>vi.restoreAllMocks());
+beforeEach(()=>{vi.spyOn(process.stderr,'write').mockImplementation(()=>true);});
+
+test('a timed-out Docker client is hard-killed and its named container gets bounded cleanup',()=>{
+  const name='sovereign-validation-'+'a'.repeat(36);
+  const failure={status:null,signal:'SIGKILL',error:Object.assign(Error('private'),{code:'ETIMEDOUT'}),stdout:'private output'};
+  const spawn=vi.fn().mockReturnValueOnce(failure).mockReturnValueOnce({status:0,signal:null,stdout:''});
+  const result=execute('docker',['run','--name',name],undefined,spawn as unknown as typeof import('node:child_process').spawnSync);
+  expect(spawn.mock.calls[0]![2]).toMatchObject({timeout:300000,killSignal:'SIGKILL',stdio:['pipe','pipe','pipe']});
+  expect(spawn.mock.calls[1]).toMatchObject(['docker',['rm','--force',name],{timeout:30000,killSignal:'SIGKILL'}]);
+  expect(result.error).toBe(failure.error);expect(result.status).toBe(null);
+});
+
+test('cleanup never targets an unrelated container and never masks the primary failure',()=>{
+  const failure={status:9,signal:null,stdout:''};
+  const spawn=vi.fn().mockReturnValue(failure);
+  execute('docker',['run','--name','existing-db'],undefined,spawn as unknown as typeof import('node:child_process').spawnSync);
+  expect(spawn).toHaveBeenCalledTimes(1);
+  spawn.mockClear();spawn.mockReturnValueOnce(failure).mockImplementationOnce(()=>{throw Error('cleanup failed');});
+  const result=execute('docker',['run','--name','sovereign-validation-'+'b'.repeat(36)],undefined,
+    spawn as unknown as typeof import('node:child_process').spawnSync);
+  expect(result.status).toBe(9);
+});
 
 test.each(['missing pnpm','Corepack download failure'])('%s aborts preflight without checks or tree-success masking',reason=>{
   const calls:string[]=[];const tree=vi.fn();
