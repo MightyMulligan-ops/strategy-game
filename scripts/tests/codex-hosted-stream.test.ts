@@ -22,6 +22,23 @@ test('SSE parser supports split chunks and ignores status/comments',async()=>{
   for await(const item of parseAgentSse(stream(chunks)))result.push(item);
   expect(result.map(x=>x.type)).toEqual(['agent.session.idle','agent.session.turn.completed']);
 });
+test('stream parser handles CRLF records split between carriage return and newline',async()=>{
+  const raw='data: '+JSON.stringify({type:'agent.session.turn.completed',session_id:'sess_fixture',turn:{id:'turn_fixture',subagent_id:null}})+'\r\n\r\n';
+  const split=raw.indexOf('\r\n');
+  const parts=[raw.slice(0,split+1),raw.slice(split+1,raw.length-2),raw.slice(raw.length-2)];
+  const received=[];
+  for await(const e of parseAgentSse(stream(parts)))received.push(e.type);
+  expect(received).toEqual(['agent.session.turn.completed']);
+});
+
+test('HTTP 201 accepted for streamed session creation',async()=>{
+  const provider=new OpenAIHostedStreamingProvider('fixture-key',async()=>
+    new Response(stream([event({type:'agent.session.turn.completed',session_id:'sess_fixture',turn:{id:'turn_fixture',subagent_id:null}})]),{status:201}));
+  const output=[];
+  for await(const e of provider.createSession(request))output.push(e);
+  expect(output[0]?.rootTurnId).toBe('turn_fixture');
+});
+
 test('session create stays fixed-origin, authenticates session id, stops at completed root',async()=>{
   let url='',init:RequestInit={};
   const response=new Response(stream([
