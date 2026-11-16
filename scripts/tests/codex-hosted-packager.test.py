@@ -56,11 +56,14 @@ class HostedPackagerTests(unittest.TestCase):
         self.commit()
         with self.assertRaisesRegex(packager.PackagingDenied,"nonregular-source-entry"):
             self.archive()
-    def test_environment_files_denied(self):
+    def test_environment_and_workflow_files_are_not_exported(self):
         (self.repo/".env.production").write_text("FAKE_KEY=abc")
+        (self.repo/".github").mkdir()
+        (self.repo/".github"/"workflow.yml").write_text("name: never export")
         self.commit()
-        with self.assertRaisesRegex(packager.PackagingDenied,"unsafe-source-path"):
-            self.archive()
+        self.archive()
+        with tarfile.open(self.root/"source.tar.gz","r:gz") as tar:
+            self.assertEqual(tar.getnames(),["apps/combat.ts"])
     def test_embedded_key_denied(self):
         (self.repo/"apps"/"combat.ts").write_text("const key='sk-proj-"+"x"*20+"';")
         self.commit()
