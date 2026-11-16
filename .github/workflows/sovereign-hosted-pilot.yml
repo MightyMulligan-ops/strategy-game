@@ -97,12 +97,7 @@ jobs:
         with:
           name: sovereign-untrusted-proposal
           path: ${{ runner.temp }}/sovereign-pilot/validated
-      - name: Credential-free exact-tree patch reconstruction
-        run: |
-          python3 scripts/codex-proposal-replay.py "$RUNNER_TEMP/sovereign-pilot/validated/scope.json" "$RUNNER_TEMP/sovereign-pilot/validated/manifest.json" "$RUNNER_TEMP/sovereign-pilot/validated/proposal.patch" > "$RUNNER_TEMP/sovereign-pilot/validated/validated-report.json"
-          git apply --check "$RUNNER_TEMP/sovereign-pilot/validated/proposal.patch"
-          git apply "$RUNNER_TEMP/sovereign-pilot/validated/proposal.patch"
-          git diff --check
+      # Install only the unchanged, trusted main-branch lockfile before applying agent code.
       - uses: pnpm/action-setup@f53f5227a9e83886ab598c617f3c170fab62f0d3 # v6
         with:
           run_install: false
@@ -111,14 +106,43 @@ jobs:
           node-version: '24'
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
-      - name: Install unchanged locked dependencies
+      - name: Install trusted locked dependencies before untrusted patch
         run: pnpm install --frozen-lockfile
-      - name: Build, typecheck, database-free tests and lint
+      - name: Credential-free exact-tree patch reconstruction (never execute the patch on host)
+        shell: bash
         run: |
-          pnpm build
-          pnpm typecheck
-          pnpm test
-          pnpm lint
+          set -euo pipefail
+          python3 scripts/codex-proposal-replay.py "$RUNNER_TEMP/sovereign-pilot/validated/scope.json" "$RUNNER_TEMP/sovereign-pilot/validated/manifest.json" "$RUNNER_TEMP/sovereign-pilot/validated/proposal.patch" > "$RUNNER_TEMP/sovereign-pilot/validated/validated-report.json"
+          git apply --check "$RUNNER_TEMP/sovereign-pilot/validated/proposal.patch"
+          git apply "$RUNNER_TEMP/sovereign-pilot/validated/proposal.patch"
+          git diff --check
+      - name: Build isolated validation image using trusted Node.js and pinned pnpm
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build --network default -t "sovereign-pilot-validation:$GITHUB_RUN_ID" - <<'DOCKERFILE'
+          FROM node:24-bookworm
+          RUN corepack enable && corepack prepare pnpm@12.18.0 --activate
+          WORKDIR /workspace
+          DOCKERFILE
+      - name: Run untrusted build and tests ONLY inside isolated networkless container
+        shell: bash
+        run: |
+          set -euo pipefail
+          VALIDATION="$RUNNER_TEMP/sovereign-validation-sandbox"
+          mkdir -p "$VALIDATION/repo"
+          cp -a . "$VALIDATION/repo/"
+          EXPECTED=$(node -e 'console.log(require(process.argv[1]).tree_sha)' "$RUNNER_TEMP/sovereign-pilot/validated/validated-report.json")
+          docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges --read-only \
+            --tmpfs /tmp:rw,nosuid,nodev,size=256m --pids-limit 256 --memory 4g --cpus 2 \
+            --user "$(id -u):$(id -g)" --env HOME=/tmp --env AUTH_ENABLED=false \
+            --env RUN_DATABASE_TESTS=0 --env "EXPECTED_TREE=$EXPECTED" \
+            --mount "type=bind,source=$VALIDATION/repo,target=/workspace" -w /workspace \
+            "sovereign-pilot-validation:$GITHUB_RUN_ID" bash -euc '
+              pnpm build && pnpm typecheck && pnpm test && pnpm lint
+              git -c safe.directory=/workspace add -A
+              test "$(git -c safe.directory=/workspace write-tree)" = "$EXPECTED_TREE"
+            '
       - name: Verify the exact tested tree matches the replayed source
         run: |
           git add -A
