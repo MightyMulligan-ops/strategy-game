@@ -47,3 +47,17 @@ The first pilot keeps a **15-minute wall-time bound**, one simultaneous run, cur
 
 ### Verification
 New TypeScript tests must pass on exact-head GitHub CI. They mock provider responses; no actual paid session has been executed. The create adapter's SSE object shape must be checked against a real session's documented/provider event format before live rollout, especially session and root-turn identifiers and recovery after a disconnected stream.
+
+
+## Simplified four-job manual pilot workflow (draft)
+
+The newly authored `.github/workflows/sovereign-hosted-pilot.yml` is **not active on main**. It is staged only in draft PR #81. It is explicitly limited to one owner-dispatched Issue #76 attempt, one queued run at a time, and one 15-minute hosted-agent job. There is **no internal $45 launch cutoff**; the existing OpenAI project budget is the billing control and may have enforcement lag.
+
+1. `prepare` (GitHub read only, no OpenAI secret) checks owner/ref/attempt, retrieves current Issue #76 from GitHub, freezes the exact source SHA and two permitted paths (`packages/game-engine/src/combat.ts` and `packages/game-engine/tests/combat.test.ts`), and exports a sanitized pinned-Git source archive and SHA-256 digest.
+2. `agent` is the **only job** referencing `environment: sovereign-controller` and `secrets.OPENAI_API_KEY`. It never executes generated code on the GitHub runner. It uploads the pinned source as a one-hour-expiring Files API `user_data` file, starts one non-retrying OpenAI-hosted Agents session with disabled network, and downloads the bounded proposal after a completed root turn. The local session journal is only within one Actions job, and stream-loss before receiving a session ID remains an ambiguous charge/cleanup risk.
+3. `validate` is a separate GitHub-hosted job with **no OpenAI API key and no GitHub write credentials**. It checks exact scope, archive/manifest patch digests and reconstructed tree, applies the approved patch, installs unchanged locked dependencies, and runs build, typecheck, DB-free tests and lint. It checks the exact tested Git tree against the reconstructed tree.
+4. `publish` has a short-lived GitHub Actions token with contents and pull-request write permissions **but no OpenAI key**. It executes no generated code. It verifies the separately validated artifact and tree, creates one new branch, and opens **one draft PR**. Publication errors do not retry automatically. Nothing merges or deploys.
+
+The workflow is **manual only** (`workflow_dispatch`), requires protected main and an un-retried owner invocation, and may require enabling GitHub Actions to create pull requests in repository Actions settings. It has not been executed end-to-end. Existing app CI passing does **not** establish actual hosted session compatibility, GitHub Actions permissions, a verified project key binding, or a secure crash recovery guarantee.
+
+**Activation requires merging the reviewed infrastructure workflow to main**, which is still excluded by the existing no-merge instruction. Do not merge this draft without an explicit owner decision. The initial paid pilot can only run after that step and after validating the particular launch settings. No billable session is launched by adding the workflow file to this draft branch.
