@@ -10,12 +10,6 @@ import {requireControl,ControlDenied} from './codex-run-control.ts';
 
 const API='https://api.github.com/repos/'+REPOSITORY;
 const BRANCH_PREFIX='issue/76-sovereign-pilot-';
-function git(...args:string[]):string{
-  try{return execFileSync('git',['-c','core.hooksPath=/dev/null',
-      '-c','diff.external=',...args],{encoding:'utf8',timeout:30_000,
-      env:{...process.env,GIT_CONFIG_NOSYSTEM:'1',GIT_CONFIG_GLOBAL:'/dev/null'}}).trim();}
-  catch{throw new ControlDenied('pilot-publisher-git');}
-}
 function decode(v:unknown):Record<string,unknown>{
   requireControl(v!==null&&typeof v==='object'&&!Array.isArray(v),'pilot-publisher-object');
   return v as Record<string,unknown>;
@@ -97,13 +91,11 @@ async function main():Promise<void>{
   }catch{throw new ControlDenied('pilot-publisher-tree');}
   const treeEntries=[];
   for(const path of receipt.paths){
-    let content:string;
-    try{content=run('show',':'+path);}catch{throw new ControlDenied('pilot-publisher-file');}
-    // git show via encoding UTF-8 may remove trailing newline in .trim(); obtain exact
-    // bytes from git cat-file for successful digest/tree reconstruction instead.
-    const binary=execFileSync('git',['-c','core.hooksPath=/dev/null','show',':'+path],
-      {env:gitEnv,timeout:30_000,maxBuffer:1_500_000});
-    content=new TextDecoder('utf8',{fatal:true}).decode(binary);
+    let binary:Buffer;
+    try{binary=execFileSync('git',['-c','core.hooksPath=/dev/null','show',':'+path],
+      {env:gitEnv,timeout:30_000,maxBuffer:1_500_000});}
+    catch{throw new ControlDenied('pilot-publisher-file');}
+    const content=new TextDecoder('utf8',{fatal:true}).decode(binary);
     treeEntries.push({path,mode:'100644',type:'blob',content});
   }
   const remoteTree=decode(await api.request('POST','/git/trees',
