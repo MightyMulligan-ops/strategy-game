@@ -31,3 +31,19 @@ Do not weaken or remove this spending gate without a fresh owner decision. If th
 - All paths are draft-only. No cloud activation or paid inference was attempted.
 
 CI note: GitHub's standard pull_request trigger runs on new commits while this draft PR temporarily targets main; after exact-head CI, restore its dependent base on PR #80. Never merge or activate the cloud workflow from this test.
+
+
+## Pilot simplification decision (owner authorized 2026-11-15)
+
+Owner explicitly approved **removing the internal $45 hard-stop as a launch requirement**, relying on the configured OpenAI Platform spending control instead. Platform budget enforcement may lag, so the provider budget is **not a guaranteed cap** and bills may exceed its displayed threshold. No additional budget increase was made by this change.
+
+The first pilot keeps a **15-minute wall-time bound**, one simultaneous run, current authenticated owner grant, immutable approved paths, source SHA binding, restricted GitHub permissions, disabled hosted agent network, server-side cleanup and separate validation. The earlier `BoundedResponsesGate` and stricter ledger remain in draft as optional infrastructure rather than a prerequisite for the simplified pilot. New `scripts/codex-pilot-admission.ts` is a *pure decision function* which cannot authenticate its own observation booleans; a trusted cloud controller must supply them. Do not mistake a passed fixture for live grant verification.
+
+### Current implementation additions
+- `scripts/codex-hosted-stream.ts` provides a fixed-origin, non-retrying POST to the documented Agents sessions endpoint, bounded incremental SSE parsing, session identity pinning, root-turn confirmation and delegation to the separate bounded artifact/cleanup adapter. **It is not invoked by any active workflow.**
+- `scripts/codex-pilot-admission.ts` removes the internal USD launch test while retaining owner/ref/one-run/isolation/time boundaries. **It is not wired to a live admission collector.**
+- The prior offline `sovereign-cloud-preflight.yml` still never reads the `sovereign-controller` API key or makes an inference call.
+- Missing: trusted issue/grant collector, durable one-run claim, upload/frozen-source installation, confirmed production session ID/event payloads, separate clean validator, PR publication, and GitHub main-branch activation. These are required before honestly calling this end-to-end autonomous.
+
+### Verification
+New TypeScript tests must pass on exact-head GitHub CI. They mock provider responses; no actual paid session has been executed. The create adapter's SSE object shape must be checked against a real session's documented/provider event format before live rollout, especially session and root-turn identifiers and recovery after a disconnected stream.
