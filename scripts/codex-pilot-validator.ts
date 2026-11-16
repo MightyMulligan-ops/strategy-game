@@ -38,6 +38,7 @@ export function isolatedArguments(workspace:string,image:string,user:string):str
   return ['run','--rm','--network','none','--cap-drop','ALL','--security-opt','no-new-privileges','--read-only',
     '--tmpfs','/tmp:rw,nosuid,nodev,size=256m','--pids-limit','256','--memory','4g','--cpus','2',
     '--user',user,'--env','HOME=/tmp','--env','AUTH_ENABLED=false','--env','RUN_DATABASE_TESTS=0',
+    '--env','PYTHONDONTWRITEBYTECODE=1',
     '--mount',`type=bind,source=${workspace},target=/workspace`,'-w','/workspace',image,PNPM_EXECUTABLE];
 }
 /** No shell/AND-list. A nonzero exit, missing executable, signal, timeout or
@@ -62,6 +63,7 @@ export function copyValidationWorkspace(repo:string,workspace:string):void{
   requireControl(relative(repo,workspace).startsWith('..'),'validation-workspace-outside-source');
   cpSync(repo,workspace,{recursive:true,verbatimSymlinks:true,filter:path=>
     !['.git','.cache','.worktrees'].includes(relative(repo,path).split(sep)[0]??'')&&
+    basename(path)!=='__pycache__'&&
     (!/^\.env(?:\.|$)/.test(basename(path))||basename(path)==='.env.example')});
 }
 /** Trusted Git reads expected objects only. Hash actual workspace bytes ourselves

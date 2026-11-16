@@ -68,6 +68,7 @@ test('all untrusted execution arguments preserve isolation and exclude credentia
   const args=isolatedArguments('/workspace-copy',fixtureImage,'1001:1001');
   expect(args).toEqual(expect.arrayContaining(['--network','none','--cap-drop','ALL','--read-only','--user','1001:1001','--security-opt','no-new-privileges']));
   expect(args.at(-1)).toBe(PNPM_EXECUTABLE);
+  expect(args).toContain('PYTHONDONTWRITEBYTECODE=1');
   expect(args.join(' ')).not.toMatch(/OPENAI|GITHUB|docker.sock|validation-receipt|host-output/);
   const dockerfile=readFileSync(new URL('../sovereign-validation.Dockerfile',import.meta.url),'utf8');
   expect(dockerfile).toContain('pnpm@'+PNPM_VERSION);expect(dockerfile).toContain('--ignore-scripts');
@@ -75,6 +76,7 @@ test('all untrusted execution arguments preserve isolation and exclude credentia
   expect(JSON.parse(readFileSync(new URL('../../package.json',import.meta.url),'utf8')).packageManager).toBe('pnpm@'+PNPM_VERSION);
 });
 test('host checks actual source bytes, not worker Git metadata, and rejects new source files',()=>{
+  vi.spyOn(process.stderr,'write').mockImplementation(()=>true);
   const root=mkdtempSync(join(tmpdir(),'validator-tree-')),repo=join(root,'trusted'),workspace=join(root,'sandbox');
   mkdirSync(repo);const git=(...args:string[])=>execFileSync('git',['-C',repo,...args],{encoding:'utf8'}).trim();
   try{
@@ -83,15 +85,22 @@ test('host checks actual source bytes, not worker Git metadata, and rejects new 
     git('add','.');git('commit','-qm','fixture');const tree=git('rev-parse','HEAD^{tree}');
     mkdirSync(join(repo,'.cache'));writeFileSync(join(repo,'.cache','private-log'),'not mounted');
     writeFileSync(join(repo,'.env'),'synthetic private fixture');
+    mkdirSync(join(repo,'scripts/__pycache__'),{recursive:true});
+    writeFileSync(join(repo,'scripts/__pycache__/fixture.pyc'),'generated host bytecode');
     copyValidationWorkspace(repo,workspace);
     expect(existsSync(join(workspace,'.git'))).toBe(false);expect(existsSync(join(workspace,'.cache'))).toBe(false);
     expect(existsSync(join(workspace,'.env'))).toBe(false);
+    expect(existsSync(join(workspace,'scripts/__pycache__'))).toBe(false);
     verifyWorkspaceTree(repo,workspace,tree);
     // Fake Git metadata cannot make changed bytes compare equal.
     mkdirSync(join(workspace,'.git'));writeFileSync(join(workspace,'source.ts'),'export const x = 999;\n');
     expect(()=>verifyWorkspaceTree(repo,workspace,tree)).toThrow('validation-tree');
     writeFileSync(join(workspace,'source.ts'),'export const x = 1;\n');
     writeFileSync(join(workspace,'extra.ts'),'unexpected');
+    expect(()=>verifyWorkspaceTree(repo,workspace,tree)).toThrow('validation-tree-untracked');
+    rmSync(join(workspace,'extra.ts'));
+    mkdirSync(join(workspace,'scripts/__pycache__'),{recursive:true});
+    writeFileSync(join(workspace,'scripts/__pycache__/unexpected.ts'),'still rejected after execution');
     expect(()=>verifyWorkspaceTree(repo,workspace,tree)).toThrow('validation-tree-untracked');
   }finally{rmSync(root,{recursive:true,force:true});}
 });
