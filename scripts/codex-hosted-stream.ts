@@ -65,12 +65,13 @@ export async function* parseAgentSse(
       if(done)break;
       total+=value.byteLength;
       requireControl(total<=maxBytes,'hosted-stream-total');
-      buffer+=decoder.decode(value,{stream:true}).replace(/\r\n/g,'\n');
+      // Match CRLF or LF record terminators across arbitrary network chunks.
+      buffer+=decoder.decode(value,{stream:true});
       requireControl(Buffer.byteLength(buffer,'utf8')<=64*1024,'hosted-stream-buffer');
-      let boundary:number;
-      while((boundary=buffer.indexOf('\n\n'))!==-1) {
-        const block=buffer.slice(0,boundary);
-        buffer=buffer.slice(boundary+2);
+      let boundary:RegExpExecArray|null;
+      while((boundary=/\r?\n\r?\n/.exec(buffer))!==null) {
+        const block=buffer.slice(0,boundary.index);
+        buffer=buffer.slice(boundary.index+boundary[0].length);
         const ev=extract(block);
         if(ev)yield ev;
       }
