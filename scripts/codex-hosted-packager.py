@@ -68,6 +68,11 @@ def package(repo: Path, source: str, destination: Path) -> dict:
             raise PackagingDenied("malformed-tree-entry") from exc
         if mode not in ("100644", "100755") or kind != "blob" or not SHA.fullmatch(object_sha):
             raise PackagingDenied("nonregular-source-entry")
+        # Never send dotfiles or workflows to an untrusted coding sandbox.
+        # This repository intentionally tracks .github and .gitignore, which are
+        # omitted from the *agent archive*, not treated as an invalid repository.
+        if any(part.startswith(".") for part in raw_path.decode("utf-8", "strict").split("/")):
+            continue
         name = safe_path(raw_path)
         size_text = git(repo, "cat-file", "-s", object_sha).decode().strip()
         try:
