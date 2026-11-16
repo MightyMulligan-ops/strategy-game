@@ -222,12 +222,13 @@ describe("server-only Combat Prototype 1A", () => {
 
   it("bounds zero-stat stalemates and consumes no RNG for zero damage", () => {
     const input = fixture(); input.rules.infantry.attack = 0; input.rules.infantry.defense = 0;
+    input.formations[0].units[0]!.hp = 2;
     const fixed = audit(input), alternating = audit(mutual(input));
     assert.equal(fixed.status, "stalemate"); assert.equal(fixed.rounds.length, 1);
     assert.equal(alternating.status, "stalemate"); assert.equal(alternating.rounds.length, 2);
     assert.equal(fixed.outcome, "unresolved");
     assert.ok(rolls(alternating).every(r => r.damage === 0 && r.raw === null));
-    assert.deepEqual(fixed.units.map(u => [u.encounterHp, u.finalHp]), [[7, 7], [7, 7]]);
+    assert.deepEqual(fixed.units.map(u => [u.encounterHp, u.finalHp]), [[2, 2], [7, 7]]);
     input.rules.infantry.defense = 1;
     const productive = audit(input);
     assert.equal(productive.status, "resolved");
