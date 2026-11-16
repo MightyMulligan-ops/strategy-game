@@ -1,0 +1,182 @@
+# OFF by default until merged to protected main. Manual, single-issue pilot.
+# No AI-generated code ever runs in a job containing OPENAI_API_KEY or GitHub write token.
+name: Sovereign hosted coding pilot (draft PR only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Authorized pilot issue; initially only 76'
+        type: string
+        required: true
+        default: '76'
+
+concurrency:
+  group: sovereign-hosted-pilot
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    if: ${{ github.ref == 'refs/heads/main' && github.actor == 'MightyMulligan-ops' && github.actor_id == '353505747' && github.run_attempt == '1' && inputs.issue_number == '76' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      SOVEREIGN_ISSUE: ${{ inputs.issue_number }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - name: Package sanitized exact main source
+        run: |
+          mkdir -p "$RUNNER_TEMP/sovereign-pilot"
+          python3 scripts/codex-hosted-packager.py --repo . --source "$GITHUB_SHA" --output "$RUNNER_TEMP/sovereign-pilot/source.tar.gz"
+      - name: Freeze current issue and scope
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node --experimental-transform-types scripts/codex-pilot-prepare.ts
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: sovereign-pilot-source
+          path: |
+            ${{ runner.temp }}/sovereign-pilot/source.tar.gz
+            ${{ runner.temp }}/sovereign-pilot/pilot-input.json
+          retention-days: 1
+          if-no-files-found: error
+
+  agent:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: sovereign-controller
+    permissions:
+      contents: read
+    env:
+      SOVEREIGN_ISSUE: ${{ inputs.issue_number }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: sovereign-pilot-source
+          path: ${{ runner.temp }}/sovereign-pilot
+      - name: Run one hosted coding session (NO untrusted code execution here)
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: node --experimental-transform-types scripts/codex-pilot-agent.ts
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: sovereign-untrusted-proposal
+          path: ${{ runner.temp }}/sovereign-pilot/untrusted-output/
+          retention-days: 1
+          if-no-files-found: error
+
+  validate:
+    needs: agent
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      RUN_DATABASE_TESTS: '0'
+      AUTH_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: sovereign-untrusted-proposal
+          path: ${{ runner.temp }}/sovereign-pilot/validated
+      # Install only the unchanged, trusted main-branch lockfile before applying agent code.
+      - uses: pnpm/action-setup@f53f5227a9e83886ab598c617f3c170fab62f0d3 # v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install trusted locked dependencies before untrusted patch
+        run: pnpm install --frozen-lockfile
+      - name: Credential-free exact-tree patch reconstruction (never execute the patch on host)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/codex-proposal-replay.py "$RUNNER_TEMP/sovereign-pilot/validated/scope.json" "$RUNNER_TEMP/sovereign-pilot/validated/manifest.json" "$RUNNER_TEMP/sovereign-pilot/validated/proposal.patch" > "$RUNNER_TEMP/sovereign-pilot/validated/validated-report.json"
+          git apply --check "$RUNNER_TEMP/sovereign-pilot/validated/proposal.patch"
+          git apply "$RUNNER_TEMP/sovereign-pilot/validated/proposal.patch"
+          git diff --check
+      - name: Build isolated validation image using trusted Node.js and pinned pnpm
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build --network default -t "sovereign-pilot-validation:$GITHUB_RUN_ID" - <<'DOCKERFILE'
+          FROM node:24-bookworm
+          RUN corepack enable && corepack prepare pnpm@12.18.0 --activate
+          WORKDIR /workspace
+          DOCKERFILE
+      - name: Run untrusted build and tests ONLY inside isolated networkless container
+        shell: bash
+        run: |
+          set -euo pipefail
+          VALIDATION="$RUNNER_TEMP/sovereign-validation-sandbox"
+          mkdir -p "$VALIDATION/repo"
+          cp -a . "$VALIDATION/repo/"
+          EXPECTED=$(node -e 'console.log(require(process.argv[1]).tree_sha)' "$RUNNER_TEMP/sovereign-pilot/validated/validated-report.json")
+          docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges --read-only \
+            --tmpfs /tmp:rw,nosuid,nodev,size=256m --pids-limit 256 --memory 4g --cpus 2 \
+            --user "$(id -u):$(id -g)" --env HOME=/tmp --env AUTH_ENABLED=false \
+            --env RUN_DATABASE_TESTS=0 --env "EXPECTED_TREE=$EXPECTED" \
+            --mount "type=bind,source=$VALIDATION/repo,target=/workspace" -w /workspace \
+            "sovereign-pilot-validation:$GITHUB_RUN_ID" bash -euc '
+              pnpm build && pnpm typecheck && pnpm test && pnpm lint
+              git -c safe.directory=/workspace add -A
+              test "$(git -c safe.directory=/workspace write-tree)" = "$EXPECTED_TREE"
+            '
+      - name: Verify the exact tested tree matches the replayed source
+        run: |
+          git add -A
+          EXPECTED=$(node -e 'console.log(require(process.argv[1]).tree_sha)' "$RUNNER_TEMP/sovereign-pilot/validated/validated-report.json")
+          ACTUAL=$(git write-tree)
+          test "$EXPECTED" = "$ACTUAL"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: sovereign-validated-proposal
+          path: ${{ runner.temp }}/sovereign-pilot/validated/
+          retention-days: 1
+          if-no-files-found: error
+
+  publish:
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      SOVEREIGN_ISSUE: ${{ inputs.issue_number }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: sovereign-validated-proposal
+          path: ${{ runner.temp }}/sovereign-pilot/validated
+      - name: Publish EXACT tested tree as one draft PR (NEVER execute code)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node --experimental-transform-types scripts/codex-pilot-publish.ts
