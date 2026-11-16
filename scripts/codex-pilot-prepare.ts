@@ -66,5 +66,9 @@ async function main():Promise<void>{
   process.stdout.write('Sovereign pilot input frozen; no paid execution.\n');
 }
 if(process.argv[1]?.endsWith('codex-pilot-prepare.ts')){
-  void main().catch((error:unknown)=>{\n    const reason=error instanceof ControlDenied ? error.message : 'unexpected-error';\n    process.stderr.write('Sovereign pilot prepare denied: '+reason+'\\n');\n    process.exitCode=1;\n  });
+  void main().catch((error:unknown)=>{
+    const reason=error instanceof ControlDenied ? error.message : 'unexpected-error';
+    process.stderr.write('Sovereign pilot prepare denied: '+reason+'\\n');
+    process.exitCode=1;
+  });
 }
