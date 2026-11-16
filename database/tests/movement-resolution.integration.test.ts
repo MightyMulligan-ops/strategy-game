@@ -62,7 +62,14 @@ describe.skipIf(process.env.RUN_DATABASE_TESTS !== "1")("movement resolution (se
       expect(await new TurnReadRepository(second).getResolution(f.id,f.host)).toMatchObject({state:"RESOLVED",summary:{completed:1,stopped:0,notExecuted:0,pendingEncounters:0}});
       expect(await new MovementDraftRepository(second).getDraft(f.id,1,f.host)).toMatchObject({schemaVersion:3,turn:{status:"resolved"}});
     }finally{await second.$disconnect()}
-    expect(await inspect(f.id)).toEqual(after);
+    // Prisma does not guarantee ordering for nested relation arrays without orderBy.
+    // Compare the same persisted participants by identity; preserve the order of each
+    // player's revisions and orders as returned, so behavioral changes still fail.
+    const byPlayerId = (row: Awaited<ReturnType<typeof inspect>>) => ({...row,
+      turns: row.turns.map(turn => ({...turn, players:
+        [...turn.players].sort((a,b) => a.playerId.localeCompare(b.playerId))})),
+    });
+    expect(byPlayerId(await inspect(f.id))).toEqual(byPlayerId(after));
   },30_000);
   it("serializes competing resolver processes without changing seed, result or snapshot",async()=>{
     const f=await fresh();await f.close();const second=createDatabaseClient(testDatabaseUrl(process.env.TEST_DATABASE_URL));
