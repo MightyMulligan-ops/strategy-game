@@ -111,3 +111,78 @@ canonical formation order and reserve each assigned final position. Any final
 hostile overlap caused by placement is an execution failure, never a completed
 invalid state. The minimal inspector labels opposing recipients accurately and
 shows own survivor HP; all opponent IDs/HP and raw audit/timing remain private.
+
+## Stage C acceptance map and frozen scope — Issue #103
+
+Stage B is merged as249b6e4aa0d5a14ec7fd54ba95c118fc692f8b73 through PR102.
+Its exact-head CI44162233401 attempt1 passed2172 application tests and283 SQL
+integration tests across17 files, zero SQL skips, migrations and disposable cleanup.
+These are completed historical results, not Stage C execution claims.
+
+Before Stage C edits, the actual remaining scope is frozen to eight paths:
+apps/web/src/MovementResolution.tsx, apps/web/src/CombatAftermath.tsx,
+apps/web/src/CombatAftermath.test.tsx, apps/web/src/WorldView.tsx,
+apps/web/src/WorldView.test.tsx, README.md, docs/COMBAT_TURN.md,
+and docs/DEVELOPMENT_STATUS.md. No transport, server, engine or SQL changes.
+
+| Stage C criterion | Already shipped evidence | Remaining gap |
+|---|---|---|
+| Own-only result and survivor HP | combat-turn-view.ts explicit allowlists; combat-turn-storage.test.ts; combat-aftermath.test.ts; real-session combat-turn.integration.test.ts | Accessible grouped results, human labels, combined losses, all own surviving formations and destroyed participants |
+| Waiting, no-contact, historical, error states | Strict aftermath DTO and legacy MovementResolution.test.tsx | Separate combat loading/waiting/not-started/unsupported/error/no-own-battle wording |
+| Capture without private opponents | Own/ally/opponent/unchanged enum and hostile-recipient regression | Human labels and archive-versus-current ownership explanation |
+| Stale private-data boundaries | Abort/clear on refresh/reconnect; Stage B basic reconnect assertion | Delayed-response acceptance for refresh, unmount, match/cohort changes and authorization loss |
+| Restart/replay and historical cohorts | combat-turn-storage.test.ts, combat-turn.integration.test.ts, existing movement-resolution/prototype suites | Reuse unchanged; do not reimplement |
+| Duplicate/concurrent resolution and rollback | Six-stage fake transaction injection; hosted concurrent execution, four write-stage failures and forged complete bundles | Reuse unchanged |
+
+Association boundary, reported before implementation: lostUnitIds are combined for
+all ownFormationIds in one battle; no per-destroyed-formation unit membership or
+final position is transported. Show these as explicitly combined battle losses,
+list participating own formations, and use survivor membership/positions from
+formations for individual survivor inspection. Never parse IDs to guess membership,
+assign a combined loss to one formation, or label the encounter center as a
+destroyed formation's final position. No new exposure is needed. Native details/
+summary disclosures provide keyboard inspection; Escape closes and returns focus.
+The initial map stays archived, with original colors/owners; capture descriptions
+come only from authorized own aftermath. No claim of a current ownership map.
+
+### Parent #89 A/B/C criterion evidence map
+
+A is merged through PR99 (reviewed head986adcbde74b9133bf5728a5d2f9854e1659a34f,
+merge cefad2e50b175a957cbc168a432e19815ce1a3dc). Exact-head CI44151801998
+passed2123 application and262 SQL cases. B is merged through PR102, evidenced
+above. C remains candidate/unmerged until its exact-head checks and merge are
+observed. This table maps each staged criterion and the required scenario groups;
+passing synthetic tests is not balance playtesting or capacity certification.
+
+| Parent criterion | Concrete evidence |
+|---|---|
+| A: new pure typed version/audit; old prototype preserved | multi-force-combat.ts; MULTI_FORCE_COMBAT.md; combat.test.ts historical replay/strict-entry-point guard |
+| A: own grouping, frozen relations, stationary DEF and mover pair roles | multi-force-combat.test.ts: same-player grouping, allied contribution, three hostile movers, stationary owner versus already-stationary enemies, defender destruction with continuing mover alternation |
+| A: exact 3+ scheduling, one action per round actor, persistent target/overflow/RNG | tests for uneven rosters/round-start deaths, incoming/overflow rotation, elimination without queue resets, odd allied contributions, independent exact-integer damage oracle; reviewed repair1 retained |
+| A: simultaneous casualties, wounded ordinary units first/leaders last, leader changes and final strength/ties | wounded target and leader-last cases; dying round-start bonuses; own-only rank/specialization bonuses; surviving modified strength, post-leader-death strength, seeded highest ties, mutual destruction |
+| A: explicit numeric policies/invalid input/resource failure | minimum-one/LCG/equivalence policy in MULTI_FORCE_COMBAT.md; strict policy/rank/seed/provenance tests; resource exhaustion returns no audit; bounded deterministic matrix, unit ceiling and40-player scenario |
+| A: deterministic identities/spawn/replay with no live integration in A | input permutation/immutable audit tests; per-encounter RNG; no UI/storage in Stage A changes; old prototype source preserved |
+| B: creation pin and isolated immutable historical meanings | combat-turn/1 contracts; combat-turn-storage.test.ts corruption/replay guards; historical movement/prototype suites; SQL admission-body equivalence test |
+| B: chronological reachable contacts/first block/stance/placement | combat-turn.test.ts: mutual relative contact, vacated path, first interception and no resumption, allied actual arrival versus blocked force, same-owner formations, three hostile movers, defender death, capture/allied nearest placement, map edges and exhausted placement |
+| B: complete explicit alliance/stat policy integration | canonical complete validated matrices and explicit setup frozen in snapshot/input; missing/asymmetric/non-transitive policy rejection; engine equivalence and leadership scenarios |
+| B: atomic complete aftermath/replay/recovery | combat-turn-storage.test.ts: semantic CLOSED/RESOLVED replay, detached restart, separate next-snapshot check, duplicate no-op, six injected rollback boundaries; hosted combat-turn.integration.test.ts: real duplicate/concurrent, restart, four write-stage rollbacks, malformed complete bundles, immutability |
+| B: no-contact2/4/40 and no Turn2, immutable geography/capture | same hosted suite executes2/4/40 no-contact initialization/freeze/resolve/restart and reachable mutual contact; pure synthetic city capture/adjacent placement and unchanged world archive; no real stationary city-assault claim |
+| B: additive SQL exercised only disposable hosted CI | migration202611170001_combat_turn applied in CI44162233401;283 tests/17 files/no skips and service/network cleanup, no existing database accessed |
+| C: own outcome/casualty/survivor/position/ownership inspection | Stage B own allowlist projection plus signed HTTP/schema privacy suites; Stage C CombatAftermath.test.tsx presentation, combined-loss limitation, survivor HP/final positions, destroyed participants and authorized recipient categories |
+| C: authentication/membership/filtering and stale boundaries | reused server combat-aftermath.test.ts and real-session SQL suite; new delayed fetch/body, refresh/reconnect/auth-loss/match/cohort/unmount UI cases; strict rejection of extra root/battle/unit fields and mismatched match |
+| C: reuse recovery/no-contact/historical checks; no animation/scheduler/dependency | existing B suites unchanged; full database-free and fresh-hosted suite counts will be recorded per final head; scope limited to eight UI/product-doc paths |
+
+The required scenario list is covered by the corresponding A/B rows: stationary
+assault/owner-defender; two/three hostile movers; allied and same-player arrivals;
+whole-round actors/uneven sizes; wounded targeting/leadership; strength/ties/mutual
+destruction; earliest interception/blocked reinforcements; city/edge/failure placement;
+permutations/independent encounter RNG/restart/external-clock isolation; completed
+bounded inputs and atomic technical failure. Evidence for executable mechanics is
+separate from the remaining human gameplay playtest, especially balance/readability.
+No Turn2, Europe map, production rollout or deployment is implied by parent closure.
+
+External-clock isolation is supported by the pure engine's reviewed absence of
+clock inputs/ambient clock reads and durable frozen seeds, plus replay/independent
+encounter tests; no additional live-clock experiment is claimed here. Stage C's
+synthetic DOM acceptance checks native disclosure structure and Escape focus return;
+human browser usability and gameplay/balance playtesting remain separate.

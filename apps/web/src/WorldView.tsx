@@ -43,7 +43,7 @@ function MapView({ world, formation, route, choose, inspection,policy }: { inspe
   }
   const adjacent = world.links.filter((e) => e.a === selected.territoryId || e.b === selected.territoryId).map((e) => e.a === selected.territoryId ? e.b : e.a)
   return <>
-    <p className="muted" id={`${mapId}-instructions`}>Initial map shared with active participants. Tab enters the map at the selected territory. Arrow keys select neighboring territories without wrapping; Enter or Space selects. Tab reaches your own formation marker when available, or leaves the map; Shift+Tab moves back. Enter or Space on the marker opens formation details; Escape in details returns to the marker. Scroll to explore. Borders show adjacency; {policy?'movement outcomes are server-authoritative.':'movement is not implemented.'}</p>
+    <p className="muted" id={`${mapId}-instructions`}>Initial map shared with active participants. Ownership colors and territory owners are archived initial data, not current ownership. Authorized capture changes appear only in your battle aftermath. Tab enters the map at the selected territory. Arrow keys select neighboring territories without wrapping; Enter or Space selects. Tab reaches your own formation marker when available, or leaves the map; Shift+Tab moves back. Enter or Space on the marker opens formation details; Escape in details returns to the marker. Scroll to explore. Borders show adjacency; {policy?'movement outcomes are server-authoritative.':'movement is not implemented.'}</p>
     <ul className="world-legend" aria-label="Player identifiers">{world.players.map((p) => <li key={p.playerId}><span aria-hidden="true" style={{ color: color(p.playerId) }}>■</span> {ownerId(p.playerId)}: {p.username}</li>)}<li>★ Capital · Unmarked territories are neutral</li></ul>
     <p className="small muted">Terrain patterns: dots = plains, diagonal lines = forest, peaks = hills. Selection has a solid gold border; keyboard focus has an inset dashed outline.</p>
     <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">Selected {selected.territoryId}.</p>
@@ -101,7 +101,7 @@ function MapView({ world, formation, route, choose, inspection,policy }: { inspe
           <dt>City</dt><dd>{selected.city ? 'Capital' : 'None'}</dd><dt>Position</dt><dd>{selected.center.x}, {selected.center.y}</dd>
           <dt>Resources</dt><dd>{selected.resources.length ? 'Military Supplies: 0 (initial fixture)' : 'None'}</dd>
           <dt>Adjacent territories</dt><dd>{adjacent.join(', ')}</dd></dl>
-        <p className="small muted">{policy?.combat?'Immutable initial map; formations show stored battle aftermath. Turn 2 has not opened.':policy?'Immutable initial map; formation markers show stored movement state. No combat or Turn 2.':'Read-only initial world. A saved Turn 1 may be open; movement, economy processing and turn controls are not available.'}</p>
+        <p className="small muted">{policy?.combat?'Immutable initial map; formation positions come from stored state. Consult your battle aftermath for authorized capture changes. Turn 2 has not opened.':policy?'Immutable initial map; formation markers show stored movement state. No combat or Turn 2.':'Read-only initial world. A saved Turn 1 may be open; movement, economy processing and turn controls are not available.'}</p>
       </section>
     </div>
   </>
