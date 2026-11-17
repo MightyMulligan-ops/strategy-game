@@ -990,3 +990,63 @@ base main cefad2e50b175a957cbc168a432e19815ce1a3dc, first published implementati
 status-only commit records the real handoff URL. Exact final-head hosted CI and
 any observed merge evidence will be retained in PR102's conversation. No failed
 workflow is rerun; final-source publication is not a reset of5/5 passes.
+
+## Issue #103 — owner-started Stage C (November17)
+
+Stage B PR102 is observed merged as249b6e4aa0d5a14ec7fd54ba95c118fc692f8b73;
+#101 completed. CI44162233401 passed2172 application and283 SQL tests, zero SQL
+skips, including new migration and successful disposable cleanup. Its earlier
+publication snapshots above remain historical. Stage B5/5 and Stage A3/5 plus
+post-review1/2 remain intact. This UI/acceptance task starts0/5, not a Stage B repair.
+
+Clean checkout, current main, no competing103 claim/PR; existing97/101 branches
+preserved. Branch issue/103-combat-aftermath from verified main above. Issue103
+body-plus-newline SHA256 eb1b867ecc6e967e910d5af6beb44bbbda7deb6c51607093fc5edbba515312b1.
+The explicit owner launch grants bounded implementation/tests, TASK_SCOPE feature
+publication/draft PR, unchanged hosted fresh disposable PostgreSQL CI, author/
+coordinator review and merge after required checks; independent review waived.
+Authority lasts this task unless revoked/transferred; no future-task standing grant.
+No additional agents, paid API tasks, existing DB access/startup/provisioning/
+migration execution, dependencies/security/workflow changes or deployment.
+
+Eight-path gap scope and acceptance map frozen before edits in COMBAT_TURN.md.
+Combined losses versus individual survivor membership/final positions are an
+explicit existing transport limit; no new fields or enemy inference. Reuse shipped
+recovery/privacy/SQL evidence; add only UI/state/stale-response acceptance gaps.
+Currently in progress/unmerged; checks and new-task correction history follow.
+
+Initial frozen install and db:generate exit0. Initial focused acceptance:130/130
+passed across5 files. Completing the initial acceptance set with immediate
+render-boundary privacy (before the next match fetch starts) yields131/131 passed;
+an additional stored wounded-survivor fixture distinguishes5/7 from7/7 HP, with
+its verification pending the full run. These are
+synthetic UI fixtures, not played city assaults. No corrective source edits or
+failed checks so far:0/5, not exercised. Build passed; full checks still running.
+
+Stage C verification: frozen install and db:generate exit0; full pnpm build,
+typecheck, lint and test each exit0. Full suite2201 passed,283 deliberate DB skips,
+0 failed (93 passed files/17 skipped). Focused5 files131 passed; final aftermath
+suite29/29 includes wounded-survivor5/7 HP and immediate render-boundary privacy.
+Final web build/typecheck and lint rechecked after completing initial copy/fixtures;
+all exit0. Staged diff check includes the new component. Implementation corrections
+0/5, not exercised; no failed assertions removed, no recovery tests reimplemented.
+Author self-review, not independent review: complete eight-path scope, strict
+transport unchanged, native disclosure/Escape/focus handling, no opponent-derived
+inference, archived ownership, and aborted-response suppression reviewed.
+
+Publication gate: owner launch explicitly covers this #103 TASK_SCOPE feature
+head/publication and unchanged hosted fresh disposable PostgreSQL CI, as well as
+merge after required checks; no additional approval is needed for covered steps.
+Current main remains249b6e4aa0d5a14ec7fd54ba95c118fc692f8b73; no competing claim/PR.
+Hosted CI for this task is pending, not inherited from Stage B. The A/B/C evidence
+map is in COMBAT_TURN.md; #89 remains open until observed Stage C completion.
+Eight changed paths only; no transport, SQL, gameplay, dependency, security or
+workflow changes. Human browser/gameplay playtesting, Turn2, Europe map and
+existing-environment rollout/deployment remain separate. Feature remains unmerged.
+
+Publication observed: [draft PR104](https://github.com/MightyMulligan-ops/strategy-game/pull/104),
+base249b6e4aa0d5a14ec7fd54ba95c118fc692f8b73, implementation
+43e475aae3eaf99254d1ab5945dbaf5574d71120. In review/unmerged at this checkpoint.
+This status-only commit records the real URL; exact final-head CI/observed merge
+and parent89 acceptance disposition follow in the PR conversation/handoff, without
+self-referential SHA commits or retrying failed workflows. Stage C history0/5 intact.

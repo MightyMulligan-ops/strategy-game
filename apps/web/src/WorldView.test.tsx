@@ -509,3 +509,12 @@ describe('own formation selection and private lifecycle (Issue 74)', () => {
     expect(transport.mock.calls.every(([, options]) => options.method !== 'POST')).toBe(true)
   })
 })
+
+it('labels ownership as archived initial data and retains original colors and territory owners',async()=>{
+ await mount();const map=host.querySelector('svg')!,before=[...map.querySelectorAll('.world-territory')].map(p=>({label:p.getAttribute('aria-label'),stroke:p.getAttribute('stroke')}));
+ expect(host.textContent).toContain('Ownership colors and territory owners are archived initial data, not current ownership');
+ expect(host.textContent).toContain('Authorized capture changes appear only in your battle aftermath');
+ expect(before[0]!.label).toContain('Commander');expect(before[1]!.label).toContain('Captain');
+ await click('Refresh world');expect([...host.querySelectorAll('.world-territory')].map(p=>({label:p.getAttribute('aria-label'),stroke:p.getAttribute('stroke')}))).toEqual(before);
+ expect(world.territories.map(t=>t.ownerPlayerId)).toEqual(['a','b']);
+})
