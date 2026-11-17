@@ -1,6 +1,6 @@
 import {expect,test,vi} from 'vitest';
 import {generateKeyPairSync,sign} from 'node:crypto';
-import {mkdtempSync,writeFileSync,readFileSync,existsSync,rmSync} from 'node:fs';
+import {mkdtempSync,mkdirSync,writeFileSync,readFileSync,existsSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
@@ -16,7 +16,11 @@ function fixture(){
   const config={version:1,enabled:true,enrollment,manifest:m,signature:sign(null,Buffer.from(signaturePayload(m)),privateKey).toString('base64')};
   writeFileSync(keyPath,privateKey.export({type:'pkcs8',format:'pem'}),{mode:0o600});
   const content=Buffer.from(JSON.stringify(config)).toString('base64');writeFileSync(source,JSON.stringify({branch:'sovereign-overnight-config-v1',content,sha:'c'.repeat(40)}));
-  const state={manualSource:readFileSync(new URL('../overnight-manual.ts',import.meta.url),'utf8'),main:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),remote:{sha:'c'.repeat(40),content},config,ledger:emptyLedger(),calls:[] as string[][],dispatches:0,failDispatch:false};
+  const repo=join(root,'repo');mkdirSync(repo);
+  const git=(...args:string[])=>execFileSync('git',['-c','core.hooksPath=/dev/null',...args],{cwd:repo,encoding:'utf8',stdio:'pipe'}).trim();
+  git('init','-q');writeFileSync(join(repo,'fixture.ts'),'export const fixture = true;\n');git('add','.');
+  git('-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','-qm','Synthetic baseline');
+  const state={manualSource:readFileSync(new URL('../overnight-manual.ts',import.meta.url),'utf8'),main:git('rev-parse','HEAD'),remote:{sha:'c'.repeat(40),content},config,ledger:emptyLedger(),calls:[] as string[][],dispatches:0,failDispatch:false};
   writeFileSync(statePath,JSON.stringify(state));
   writeFileSync(gh,`#!${process.execPath}
 const fs=require('node:fs');const path=${JSON.stringify(statePath)};
@@ -40,45 +44,45 @@ process.stdout.write(JSON.stringify(reply));
 `,{mode:0o700});
   const old=process.env.SOVEREIGN_GH;process.env.SOVEREIGN_GH=gh;
   const read=()=>JSON.parse(readFileSync(statePath,'utf8')) as typeof state;
-  return {source,keyPath,output,statePath,read,cleanup(){if(old===undefined)delete process.env.SOVEREIGN_GH;else process.env.SOVEREIGN_GH=old;rmSync(root,{recursive:true,force:true})}};
+  return {source,keyPath,output,statePath,read,run:(args:readonly string[])=>manualCli(args,repo),cleanup(){if(old===undefined)delete process.env.SOVEREIGN_GH;else process.env.SOVEREIGN_GH=old;rmSync(root,{recursive:true,force:true})}};
 }
 test('owner-local preparation signs without GitHub writes or exposing the private key',async()=>{
   const f=fixture(),out=vi.spyOn(console,'log').mockImplementation(()=>{});
   try{
-    await manualCli(['prepare',f.source,f.keyPath,f.output,'--platform-limit-50']);
+    await f.run(['prepare',f.source,f.keyPath,f.output,'--platform-limit-50']);
     const request=JSON.parse(readFileSync(f.output,'utf8')),config=JSON.parse(Buffer.from(request.content,'base64').toString('utf8'));
     expect(config.manifest).toMatchObject({version:2,softLimitUsd:50,tasks:[{codingSeconds:null,maxSessions:1}]});
     expect(f.read().calls.every(args=>args[0]==='api'&&args[1]!=='--method')).toBe(true);
     expect(JSON.stringify(f.read().calls)).not.toContain(f.keyPath);
     expect(readFileSync(f.output,'utf8')).not.toContain('PRIVATE KEY');
-    await expect(manualCli(['prepare',f.source,f.keyPath,f.output,'--platform-limit-50'])).rejects.toThrow();
+    await expect(f.run(['prepare',f.source,f.keyPath,f.output,'--platform-limit-50'])).rejects.toThrow();
   }finally{out.mockRestore();f.cleanup()}
 });
 test.each([false,true])('one owner launch publishes exact bytes and never retries uncertain dispatch=%s',async failDispatch=>{
   const f=fixture(),out=vi.spyOn(console,'log').mockImplementation(()=>{});
   try{
-    await manualCli(['prepare',f.source,f.keyPath,f.output,'--platform-limit-50']);
+    await f.run(['prepare',f.source,f.keyPath,f.output,'--platform-limit-50']);
     const state=f.read();state.failDispatch=failDispatch;writeFileSync(f.statePath,JSON.stringify(state));
-    const started=manualCli(['start',f.output,'--platform-limit-50']);
+    const started=f.run(['start',f.output,'--platform-limit-50']);
     if(failDispatch)await expect(started).rejects.toThrow();else await started;
     expect(existsSync(f.output+'.attempted')).toBe(true);expect(f.read().dispatches).toBe(1);
     expect(f.read().calls).toContainEqual(['variable','set','SOVEREIGN_OVERNIGHT_SCHEDULE_ENABLED','--body','false','--repo',REPOSITORY]);
     expect(f.read().calls).toContainEqual(['workflow','run','sovereign-overnight-queue.yml','--repo',REPOSITORY,'--ref','main','--field','mode=execute']);
     const writes=f.read().calls.filter(args=>args[0]!=='api'||args[1]==='--method').length;
-    await expect(manualCli(['start',f.output,'--platform-limit-50'])).rejects.toThrow();
+    await expect(f.run(['start',f.output,'--platform-limit-50'])).rejects.toThrow();
     expect(f.read().dispatches).toBe(1);
     expect(f.read().calls.filter(args=>args[0]!=='api'||args[1]==='--method')).toHaveLength(writes);
   }finally{out.mockRestore();f.cleanup()}
 });
 test('owner must attest to the enforced Platform spend setting; missing attestation does nothing',async()=>{
-  const f=fixture();try{await expect(manualCli(['prepare',f.source,f.keyPath,f.output])).rejects.toThrow('manual-usage');expect(f.read().calls).toEqual([])}finally{f.cleanup()}
+  const f=fixture();try{await expect(f.run(['prepare',f.source,f.keyPath,f.output])).rejects.toThrow('manual-usage');expect(f.read().calls).toEqual([])}finally{f.cleanup()}
 });
 test('main drift between preparation and bedtime blocks all publication/dispatch mutations',async()=>{
   const f=fixture(),out=vi.spyOn(console,'log').mockImplementation(()=>{});
   try{
-    await manualCli(['prepare',f.source,f.keyPath,f.output,'--platform-limit-50']);
+    await f.run(['prepare',f.source,f.keyPath,f.output,'--platform-limit-50']);
     const state=f.read();state.main='e'.repeat(40);writeFileSync(f.statePath,JSON.stringify(state));
-    await expect(manualCli(['start',f.output,'--platform-limit-50'])).rejects.toThrow('manual-config-or-main-changed');
+    await expect(f.run(['start',f.output,'--platform-limit-50'])).rejects.toThrow('manual-config-or-main-changed');
     expect(f.read().dispatches).toBe(0);expect(existsSync(f.output+'.attempted')).toBe(false);
     expect(f.read().calls.every(args=>args[0]==='api'&&args[1]!=='--method')).toBe(true);
   }finally{out.mockRestore();f.cleanup()}

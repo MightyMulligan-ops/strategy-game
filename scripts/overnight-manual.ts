@@ -25,7 +25,7 @@ function readJson(path:string){
   const s=lstatSync(path);requireControl(s.isFile()&&!s.isSymbolicLink()&&s.size>0&&s.size<=256*1024,'manual-file');
   return JSON.parse(readFileSync(path,'utf8'));
 }
-export async function manualCli(args:readonly string[]){
+export async function manualCli(args:readonly string[],repo=process.cwd()){
   const [mode,input,keyOrFlag,output,confirmation]=args;
   requireControl((mode==='prepare'&&args.length===5&&confirmation==='--platform-limit-50')||
     (mode==='start'&&args.length===3&&keyOrFlag==='--platform-limit-50'),'manual-usage');
@@ -59,7 +59,7 @@ export async function manualCli(args:readonly string[]){
     requireControl(canonical(current)===canonical(prior)||current.enabled===false&&current.signature===null&&
       current.manifest.enabled===false&&current.manifest.tasks.length===0,'manual-other-config');
     // Require the reviewed merged script, not a feature-branch entry point.
-    const head=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();requireControl(head===main,'manual-update-checkout-to-main');
+    const head=execFileSync('git',['rev-parse','HEAD'],{cwd:repo,encoding:'utf8'}).trim();requireControl(head===main,'manual-update-checkout-to-main');
     const m=manualManifest(old,main);
     const ids=[...old.tasks,...m.tasks].map(t=>t.approvalId);
     requireControl(!ledger.runs.some(r=>r.tasks.some(t=>ids.includes(t.approvalId))),'manual-approval-consumed');

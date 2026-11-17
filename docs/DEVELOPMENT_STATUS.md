@@ -28,7 +28,17 @@ A readonly fixture assignment was corrected before the passing typecheck.
 Branch `fix/manual-single-use-coding` is prepared for review. On November 17 the
 owner explicitly approved opening the draft PR and its normal hosted CI, including
 the unchanged disposable PostgreSQL tests. [Draft PR #96](https://github.com/MightyMulligan-ops/strategy-game/pull/96) is open;
-exact-head hosted results are pending. No merge, deployment, paid session, live configuration/secret/billing
+[CI #219](https://github.com/MightyMulligan-ops/strategy-game/actions/runs/44095816572)
+passed build/typecheck/unit tests/lint and all disposable PostgreSQL integration
+checks, then correctly failed the real restricted validator smoke: the five new
+owner-local CLI tests assumed the repository's .git directory was present inside
+the networkless container. Implementation correction pass 2/5 gives those tests
+their own synthetic temporary Git repository and passes its root explicitly to
+the owner-local CLI seam; production CLI defaults still use the current checkout.
+No tests, validation steps, isolation protections or admission checks were removed.
+All 22 focused manual tests and script typecheck pass after correction. The five
+CLI tests also pass from a source copy with no .git directory. New-head hosted CI
+is pending; the failed run is retained and is not rerun. No merge, deployment, paid session, live configuration/secret/billing
 change, existing database access or workflow dispatch performed.
 
 
