@@ -1,0 +1,74 @@
+# Explicit one-time administrative operation. Never runs automatically or creates paid sessions.
+name: Sovereign queue ledger bootstrap (non-paid)
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Enter BOOTSTRAP_EMPTY_LEDGER to create the protected empty ledger once'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sovereign-ledger-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    if: >-
+      github.repository == 'MightyMulligan-ops/strategy-game' &&
+      github.ref == 'refs/heads/main' &&
+      github.actor == 'MightyMulligan-ops' &&
+      github.actor_id == '353505747' &&
+      github.run_attempt == '1' &&
+      inputs.confirmation == 'BOOTSTRAP_EMPTY_LEDGER'
+    environment: sovereign-queue-control
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout protected main without credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - name: Verify disabled owner configuration and bootstrap once with dedicated App
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SOVEREIGN_OWNER_KEY_SHA256: ${{ vars.SOVEREIGN_OWNER_KEY_SHA256 }}
+          SOVEREIGN_LEDGER_APP_ID: ${{ vars.SOVEREIGN_LEDGER_APP_ID }}
+          SOVEREIGN_LEDGER_INSTALLATION_ID: ${{ vars.SOVEREIGN_LEDGER_INSTALLATION_ID }}
+          SOVEREIGN_LEDGER_APP_PRIVATE_KEY: ${{ secrets.SOVEREIGN_LEDGER_APP_PRIVATE_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --experimental-transform-types --input-type=module <<'NODE'
+          import {createPublicKey, createHash} from 'node:crypto';
+          import {GitHubHttpsTransport} from './scripts/codex-github-control.ts';
+          import {enrolledKey} from './scripts/overnight-production.ts';
+          import {ledgerAppTransport} from './scripts/overnight-ledger-auth.ts';
+          import {GitHubQueueStore} from './scripts/overnight-ledger.ts';
+          const env=process.env;
+          if(env.OPENAI_API_KEY!==undefined||env.GITHUB_REPOSITORY!=='MightyMulligan-ops/strategy-game'||
+             env.GITHUB_REF!=='refs/heads/main'||env.GITHUB_ACTOR!=='MightyMulligan-ops'||
+             env.GITHUB_ACTOR_ID!=='353505747'||env.GITHUB_RUN_ATTEMPT!=='1'||
+             env.GITHUB_EVENT_NAME!=='workflow_dispatch')throw Error('Bootstrap identity denied');
+          const api=new GitHubHttpsTransport(env.GITHUB_TOKEN);
+          const {config,key}=await enrolledKey(api,env);
+          const publicKey=createPublicKey(key.publicKeyPem);
+          const fingerprint=createHash('sha256').update(publicKey.export({type:'spki',format:'der'})).digest('hex');
+          if(publicKey.asymmetricKeyType!=='ed25519'||fingerprint!==env.SOVEREIGN_OWNER_KEY_SHA256||
+             config.enabled!==false||config.signature!==null||
+             config.manifest?.enabled!==false||config.manifest?.repository!=='MightyMulligan-ops/strategy-game'||
+             !Array.isArray(config.manifest.tasks)||config.manifest.tasks.length!==0)
+             throw Error('Bootstrap requires disabled, correctly enrolled configuration');
+          const app=await ledgerAppTransport(env);
+          await new GitHubQueueStore(app).bootstrap();
+          console.log('Empty Sovereign queue ledger initialized with dedicated GitHub App. Paid queue remains DISABLED.');
+          NODE
