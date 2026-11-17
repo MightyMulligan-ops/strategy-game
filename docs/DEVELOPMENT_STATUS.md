@@ -983,3 +983,10 @@ rollback/concurrency/restart and signed-session SQL HTTP tests remain PENDING.
 SQL structural guards complement strict application semantic replay; shaped hashes
 are not proof. No Stage C, Turn2, capacity certification or deployment is claimed.
 Current state: feature implementation committed for draft publication; unmerged.
+
+Publication observed: [draft PR102](https://github.com/MightyMulligan-ops/strategy-game/pull/102),
+base main cefad2e50b175a957cbc168a432e19815ce1a3dc, first published implementation
+4cda67eb415196e7170bd4cc2f082fca23ce301e. In review/unmerged; this appended
+status-only commit records the real handoff URL. Exact final-head hosted CI and
+any observed merge evidence will be retained in PR102's conversation. No failed
+workflow is rerun; final-source publication is not a reset of5/5 passes.
