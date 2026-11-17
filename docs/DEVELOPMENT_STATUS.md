@@ -828,3 +828,42 @@ functional checks above remain applicable, with no behavior/test/assertion chang
 Final correction accounting supersedes the earlier point-in-time2/5: **3/5 used**.
 
 Final source SHA256 after whitespace cleanup: `3e89566021e98b2131565880a3084ac848f759775b9474849c5c0c6f2dea96cc`.
+
+### Issue #97 publication continuation — November 17
+
+The owner's active continuation explicitly authorizes pushing exact implementation
+commit `a9a05ddbf18f60c09f1429d9e7553e29f95c018a`, opening its one draft PR and running
+unchanged hosted CI with fresh disposable PostgreSQL. Approval source: the owner's
+November17 project-chat answer to that exact publication/CI question, “Yes, do
+whatever it takes to fix this and move it forward,” explicitly confirmed by the
+current owner request. Necessary #97 status/evidence documentation updates within
+the original five paths are covered. This supersedes the earlier missing-D hold
+for this issue only, not the retained failure/correction history. No ready, merge,
+deploy, existing-DB, workflow/dependency, additional agent/task or paid API grant.
+[Publication authorization record](https://github.com/MightyMulligan-ops/strategy-game/issues/97#issuecomment-6953825707).
+
+Rechecked clean same workspace/branch/head, same current main/base
+`53180055dabde3d406935d76592505692d864cfc`, complete five-path diff, sole paused claim
+and no existing #97 PR/remote branch. Pushed the exact approved implementation
+commit unchanged, then opened [draft PR #99](https://github.com/MightyMulligan-ops/strategy-game/pull/99)
+from `issue/97-multi-force-combat` to same-repository main: **in review / unmerged**.
+This append-only evidence update is a separate status-only descendant commit;
+implementation/test files remain byte-identical to the owner's approved SHA.
+Correction history remains **3/5**; publication documentation is not another
+implementation correction or post-review repair. No amend, rebase or fixture fix.
+
+The coordinator independently reproduced all10 overnight-production failures on
+unchanged main and reports all27 tests pass with Date fixed to
+2026-11-17T03:30:00Z. This is owner/coordinator-supplied corroboration, not a new
+execution by this continuation. The separate fixture-only repair stays outside
+this branch. The actual local full result remains2103 passed/10 failed/262 skipped;
+no red result is concealed and no failed workflow will be automatically rerun.
+Prior frozen-install/generation/build/typecheck/lint and85 focused passes remain
+applicable to unchanged product/test bytes. This status-only delta receives diff
+and exact-scope checks; no redundant functional test run is claimed.
+
+At this publication snapshot, CI discovery has not yet returned an associated run;
+final-head hosted workflow/run/attempt/job evidence is PENDING/UNKNOWN, not a pass.
+The task completion/PR handoff will record the actual final head and observed runs
+without another status commit solely to embed its own SHA. Independent review,
+existing-database rollout and later movement/persistence/UI stages remain separate.
