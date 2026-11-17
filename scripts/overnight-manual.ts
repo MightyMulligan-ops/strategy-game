@@ -25,15 +25,16 @@ function readJson(path:string){
   const s=lstatSync(path);requireControl(s.isFile()&&!s.isSymbolicLink()&&s.size>0&&s.size<=256*1024,'manual-file');
   return JSON.parse(readFileSync(path,'utf8'));
 }
-export async function manualCli(args:readonly string[],repo=process.cwd()){
+export type ManualCommand=(parts:string[],input?:string)=>string;
+export async function manualCli(args:readonly string[],repo=process.cwd(),command?:ManualCommand){
   const [mode,input,keyOrFlag,output,confirmation]=args;
   requireControl((mode==='prepare'&&args.length===5&&confirmation==='--platform-limit-50')||
     (mode==='start'&&args.length===3&&keyOrFlag==='--platform-limit-50'),'manual-usage');
   // This flag is an owner attestation, not an API verification. The existing
   // project key cannot inspect admin billing settings; never request an admin key.
   const gh=process.env.SOVEREIGN_GH??'gh';
-  const call=(parts:string[],input?:string)=>execFileSync(gh,parts,{encoding:'utf8',timeout:30000,maxBuffer:1024*1024,
-    ...(input===undefined?{}:{input}),stdio:['pipe','pipe','pipe']});
+  const call:ManualCommand=command??((parts:string[],input?:string)=>execFileSync(gh,parts,{encoding:'utf8',timeout:30000,maxBuffer:1024*1024,
+    ...(input===undefined?{}:{input}),stdio:['pipe','pipe','pipe']}));
   const get=(path:string)=>JSON.parse(call(['api',path]));
   const api:GitHubTransport={async request(method,path){requireControl(method==='GET','manual-readonly-preflight');return {status:200,data:get(ROOT+path)}}};
   const user=get('user');requireControl(user.login===OWNER&&user.id===OWNER_ID,'manual-owner');

@@ -41,10 +41,10 @@ else if(route===root+'/issues/101')reply={number:101,state:'open',title:s.config
 else process.exit(3);
 fs.writeFileSync(path,JSON.stringify(s));if(args[0]==='workflow'&&s.failDispatch)process.exit(1);
 process.stdout.write(JSON.stringify(reply));
-`,{mode:0o700});
+`,{mode:0o600});
   const old=process.env.SOVEREIGN_GH;process.env.SOVEREIGN_GH=gh;
   const read=()=>JSON.parse(readFileSync(statePath,'utf8')) as typeof state;
-  return {source,keyPath,output,statePath,read,run:(args:readonly string[])=>manualCli(args,repo),cleanup(){if(old===undefined)delete process.env.SOVEREIGN_GH;else process.env.SOVEREIGN_GH=old;rmSync(root,{recursive:true,force:true})}};
+  return {source,keyPath,output,statePath,read,run:(args:readonly string[])=>manualCli(args,repo,(parts,input)=>execFileSync(process.execPath,[gh,...parts],{encoding:'utf8',input,stdio:['pipe','pipe','pipe']})),cleanup(){if(old===undefined)delete process.env.SOVEREIGN_GH;else process.env.SOVEREIGN_GH=old;rmSync(root,{recursive:true,force:true})}};
 }
 test('owner-local preparation signs without GitHub writes or exposing the private key',async()=>{
   const f=fixture(),out=vi.spyOn(console,'log').mockImplementation(()=>{});

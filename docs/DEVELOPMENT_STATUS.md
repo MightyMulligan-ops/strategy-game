@@ -38,7 +38,20 @@ the owner-local CLI seam; production CLI defaults still use the current checkout
 No tests, validation steps, isolation protections or admission checks were removed.
 All 22 focused manual tests and script typecheck pass after correction. The five
 CLI tests also pass from a source copy with no .git directory. New-head hosted CI
-is pending; the failed run is retained and is not rerun. No merge, deployment, paid session, live configuration/secret/billing
+is pending; the failed run is retained and is not rerun.
+
+[CI #220](https://github.com/MightyMulligan-ops/strategy-game/actions/runs/44096805325)
+again passed ordinary application checks and all disposable PostgreSQL checks,
+then exposed a second fixture incompatibility in restricted validation: `/tmp` is
+mounted noexec, so executing the synthetic gh script directly fails EACCES.
+Correction pass 3/5 introduces an injectable owner-local command seam; tests run
+that same synthetic GitHub CLI script through the already installed Node binary.
+Production still executes the configured gh binary with the same arguments/options.
+The tests keep real synthetic signing, subprocess calls and Git state, all prior
+assertions and the validator's noexec mount. The synthetic gh file itself is now
+non-executable (0600), and all five CLI tests plus script typecheck pass locally
+with that restriction. All 22 focused manual tests also pass. New-head hosted
+results are pending. No merge, deployment, paid session, live configuration/secret/billing
 change, existing database access or workflow dispatch performed.
 
 
