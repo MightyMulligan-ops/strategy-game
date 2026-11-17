@@ -27,8 +27,8 @@ A readonly fixture assignment was corrected before the passing typecheck.
 
 Branch `fix/manual-single-use-coding` is prepared for review. On November 17 the
 owner explicitly approved opening the draft PR and its normal hosted CI, including
-the unchanged disposable PostgreSQL tests. Draft publication and exact-head hosted
-results are pending; No merge, deployment, paid session, live configuration/secret/billing
+the unchanged disposable PostgreSQL tests. [Draft PR #96](https://github.com/MightyMulligan-ops/strategy-game/pull/96) is open;
+exact-head hosted results are pending. No merge, deployment, paid session, live configuration/secret/billing
 change, existing database access or workflow dispatch performed.
 
 
