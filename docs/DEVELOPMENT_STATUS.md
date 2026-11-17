@@ -618,3 +618,63 @@ Starting source 09626923dd42e4cc239ce7a8ebc2a4e9f05675be and base/main 4ac5fca59
 Local Node24/Vitest4.0.0/Vite7.1.12: six targeted suites, 49 passed and one skipped out of 50; Python wrapper executed 18 passing replay fixtures. The Unix fixture remains skipped locally because Work denies listening; the unchanged hosted job is needed for actual execution. Targeted tsc6.0.3 using the repository strict flags exited0. Temporary test tools were restored after workspace maintenance; no repository dependency or lockfile change.
 
 A fresh sandbox preflight still returns namespace-isolation-unavailable; the diagnostic binary fingerprint is not independent production toolchain approval. No runtime privilege, network policy, credential, live ledger, signer or paid worker change was attempted. PR78 remains unchanged and disabled. New-head hosted CI must be checked after publication; the previous run154 failure is historical evidence for the repaired fixture, not current-head evidence. The runtime/credential/billing/signing integration and independent security-review blockers remain.
+
+
+## Issue #94 / existing draft PR #93 — CI isolation and non-paid ledger bootstrap
+
+Owner-started subscription Codex task, isolated worktree on existing
+`chore/overnight-ledger-bootstrap`; original source
+`b9fcb6dc70ce49dc1b5934c8634bdce88a379eac`, main/base
+`02deba5e3e295f88f5cf600142b7035a42664b63`. Active owner request explicitly covers
+CI reliability/test-runner changes, bootstrap workflow completion, documentation,
+publication and bounded fresh disposable PostgreSQL CI. Owner account current admin
+permission verified; sole Issue94 claim recorded. Frozen issue body SHA256
+`97c320b88b3b38867b7433a3d47586d2e7f7512bd30b7f1e3bdcb18d494bdd66`.
+[Draft PR93](https://github.com/MightyMulligan-ops/strategy-game/pull/93) remains
+**in review / unmerged**. Original failed run43995211222 attempts1/2 (260/2 each)
+remain recorded. No failed job was silently retried or treated as success.
+
+Shared-schema fixture DDL and intentional5.1-second deferred transactions overlapped
+across Vitest files. Serialize integration files only; retain explicit concurrent
+connections, all262 assertions, existing timing limits and the no-skip guard.
+Bootstrap uses existing App/store, strict manual owner/main/attempt/confirmation,
+independent key pin, disabled empty unsigned config, verified empty readback and
+safe audit. No schema/migration/gameplay/dependency/production transaction or CI
+workflow changes. Only the bootstrap workflow is refined within approved scope.
+See CI.md for evidence/limitations and OVERNIGHT_QUEUE.md for the merged-only,
+separately owner-authorized bootstrap procedure.
+
+Issue94 correction pass1/5: initial focused run170 passed/6 failed/0 skipped.
+The new config regression expected explicit retry0 but Vitest represents default
+no-retry as undefined; assertion now uses its documented default. New bootstrap
+fixtures intercepted App token minting but not the returned transport; intercept
+both synthetic HTTP boundaries, with per-test restoration. No valid credentials
+or paid provider calls were used. Original PR91 history5/5 and separately authorized
+OVERNIGHT-REPORT-001 exception1/1 are unchanged; Issue94 is its own explicitly
+owner-started CI/bootstrap task, not a reset of those histories.
+
+Current checks and exact-source hosted evidence will be reported in the same PR
+handoff and Issue94 after publication. Operational bootstrap remains NOT_RUN;
+ledger absent at inspection; config disabled. Variable/secret metadata403 and App
+installation401 leave live pin/credential/installation verification pending.
+No task-side database/PostgreSQL/Docker/migration, settings changes, paid session,
+queue activation, merge or deployment is authorized or performed.
+
+Issue94 correction pass2/5: full script TypeScript found Vitest public declarations
+omit two runtime fields used by the new CLI/config assertions. Assert parsed CLI
+fileParallelism and resolved maxWorkers, and match reporter object shape without
+unsupported property access. Focused runtime behavior was already passing176/0/0.
+Added three post-create readback regressions (unavailable/corrupt/non-exact empty
+state) to ensure creation success alone is never reported as bootstrap completion.
+No production or timeout changes. Final verification follows in PR/issue evidence.
+
+Final task-side checks, Node24.22.1/pnpm12.18.0 with AUTH_ENABLED=false and
+RUN_DATABASE_TESTS=0: frozen install, Prisma7.10.1 generation, full build, full
+TypeScript, final script TypeScript, lint, actionlint1.7.12 and whitespace checks
+passed. Actionlint optional shellcheck/pyflakes integrations disabled (tools not
+installed); workflow analysis itself passed. Final focused7 files:179 passed,
+0 failed,0 skipped. Final full suite:2082 passed,0 failed,262 intentional database
+skips across102 files. Includes32 new bootstrap and3 new runner regressions.
+No skip is database verification. Real isolated validator smoke and262 PostgreSQL
+cases remain hosted-only; pending evidence UNKNOWN until final-source CI completes.
+Correction history2/5, no post-review repair; previous failures remain above.

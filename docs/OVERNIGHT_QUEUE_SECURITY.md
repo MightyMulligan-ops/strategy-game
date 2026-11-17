@@ -101,3 +101,56 @@ full TypeScript, lint and whitespace checks passed with AUTH_ENABLED=false and
 RUN_DATABASE_TESTS=0. No ledger/provider/authorization/validation/workflow behavior
 was changed. The approved finding is resolved locally; exact published-head CI
 evidence is recorded in the PR handoff. No live provider or queue was activated.
+
+## Issue #94 / PR #93 — bootstrap author assessment, activation OFF
+
+The owner-started Issue94 request authorizes focused CI reliability repair,
+bootstrap completion, same-PR publication and bounded fresh disposable hosted CI.
+It does not authorize settings changes, real bootstrap, paid provider work, merge
+or deployment. The original PR93 bootstrap commit remains in history. Its inline
+checks are extracted into a deterministic testable administrative entrypoint;
+current-main/owner checks, explicit confirmation, disabled activation flags,
+strict empty manifest and post-create readback are added. The existing App auth
+and GitHubQueueStore.bootstrap implementation remain unchanged. Tests sign/verify
+synthetic RSA App JWTs and exercise real store serialization/ref creation/readback
+through an offline HTTP model; no test mocks bootstrap itself as a success.
+
+Read-only GitHub evidence on2026-11-16 Eastern: public repository; active rulesets
+27421176(main PR + Application/PostgreSQL checks + delete/force denial, no bypass),
+27421291(config update restriction with owner353505747 bypass), and27421307(ledger
+update restriction with Integration5792895 bypass only). Both environments allow
+only the exact main branch. Protected config revision
+69ef61ab582bdcee4e80de854aed9806c7285067 has disabled empty unsigned manifest,
+unrevoked Ed25519 enrollment and self-consistent computed public fingerprint.
+Ledger ref returned404 and was not created.
+
+Remaining live gaps: repository-variable API403 prevents independent pin/activation
+flag verification; both environment secret-metadata APIs403 prevent verifying key
+placement; repository installation endpoint401 requires an App JWT, so installation
+scope/identity cannot be independently confirmed with this integration. No App key
+was accessed. Ruleset metadata demonstrates no generic token bypass but an actual
+rejected write was deliberately not attempted. Owner-side evidence is required
+before operational bootstrap. Tests cannot close these live-configuration gaps.
+No external/separate reviewer gate is reintroduced; owner review and separate
+operational authorization remain required. CI success does not activate the queue.
+
+### Non-paid acceptance coverage
+
+The full database-free suite includes these deterministic boundaries. GitHub and
+provider transports are synthetic; temporary Git packaging/replay is real. No
+provider session, protected-ref write or privileged workflow was run for testing.
+
+| Requested acceptance | Executable evidence |
+|---|---|
+| Disabled intake, invalid signature/pin/revocation, wrong repo/branch/actor | overnight-policy, overnight-production and new overnight-bootstrap tests |
+| Existing/inaccessible ledger cannot bootstrap/reset; missing execution ledger fails closed | overnight-queue and overnight-bootstrap tests, real store against HTTP model |
+| Dedicated App only, no generic token overwrite | RSA JWT/token repository/permission checks in overnight-ledger-auth + bootstrap tests; live no-bypass rulesets observed, actual denied write untested |
+| Inspection launches no work; legacy paid entries retired; cron is not approval | overnight-queue inspection and production workflow tests, policy signed-window cases |
+| Artifact cannot forge authenticated receipt | codex-pilot-receipt/validation/publish and production wrong-digest/job/scope cases |
+| Duplicate dispatch cannot create twice; uncertain termination retains lock | simultaneous durable admission, lost-create/deletion-uncertainty/recovery cases |
+| Publication only drafts, no merge/deploy | real temporary-Git production packaging with bounded mocked publisher HTTP; fixed-path transport rejects unrelated writes |
+| Disabled config preserved, empty ledger verified, manual owner bootstrap only |32 new bootstrap cases, including post-create revocation and mandatory readback failures |
+
+Final focused179/0/0 and full2082/0/262 intentional DB skips pass. Build, TypeScript,
+lint and actionlint pass. Exact-head hosted evidence and real offline validator
+smoke belong in the Issue94 / PR93 handoff; no local Docker smoke is claimed.
