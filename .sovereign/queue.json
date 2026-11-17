@@ -1,18 +1,62 @@
 {
-    "manifest":  {
-                     "enabled":  false,
-                     "tasks":  [
-
-                               ],
-                     "version":  1,
-                     "repository":  "MightyMulligan-ops/strategy-game"
-                 },
-    "signature":  null,
-    "version":  1,
-    "enrollment":  {
-                       "fingerprint":  "3e4bdc79e08072ea931c96f4c5a920687dfb067c48c66b098c55349024d3e9dc",
-                       "revoked":  false,
-                       "publicKeyPem":  "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA9unYuxDxyB5RrYjp0b+Fl0BKCwmTP5g1Xj8/Sckof6k=\n-----END PUBLIC KEY-----\n"
-                   },
-    "enabled":  false
+  "manifest": {
+    "version": 1,
+    "repository": "MightyMulligan-ops/strategy-game",
+    "enabled": true,
+    "queueId": "queue95_d4d4464d4de546c8a1f8ac67631007ac",
+    "authorizationId": "authorization95_1db9b8d34e5c4d4a928f156c034bcae6",
+    "baselineSha": "53180055dabde3d406935d76592505692d864cfc",
+    "baselinePolicy": "exact-main-independent-prs-v1",
+    "timezone": "America/New_York",
+    "localDate": "2026-11-16",
+    "startsAt": "2026-11-17T03:30:00.000Z",
+    "endsAt": "2026-11-17T04:30:00.000Z",
+    "dispatchGraceSeconds": 900,
+    "forbiddenPaths": [
+      ".github/",
+      ".git/",
+      "database/",
+      "scripts/",
+      "docs/",
+      "AGENTS.md",
+      "package.json",
+      "pnpm-lock.yaml",
+      "pnpm-workspace.yaml"
+    ],
+    "forbiddenOperations": [
+      "dependencies",
+      "workflows",
+      "permissions",
+      "secrets",
+      "databases",
+      "migrations",
+      "merge",
+      "deploy",
+      "recursive-dispatch"
+    ],
+    "tasks": [
+      {
+        "issue": 95,
+        "title": "Combat 1B preflight — classify exact two-formation encounter candidates (pure only)",
+        "issueDigest": "9fc672bd741e80b1346c321893c44f5ed6e68a42dbff202da9c687449f64ee67",
+        "scopeText": "## Purpose — small, offline/overnight-eligible Combat 1B prerequisite\n\nParent: #89. This is a **pure, server-side eligibility classification** of fully finalized movement encounter components, **not** an implementation of battle resolution or authorization to activate the overnight queue. It prepares one safe seam for later owner-approved role mapping. It must not modify live game state, wire combat into existing persistence, or change player-visible results.\n\n### Frozen decisions\n\n- Owner approved **provisional Infantry 7 HP / 4 ATK / 6 DEF** for the first playable Combat 1B cohort. Existing Prototype 1A tests already exercise these numeric values; `combat.ts` deliberately accepts caller-supplied stats, so **do not silently make them global defaults** in this issue.\n- Keep existing Prototype 1A combat roll/schedule, leader/no-infantry behavior, and deterministic audit semantics unchanged.\n- Only a **complete finalized hostile component containing exactly two distinct formations owned by two distinct players** may be marked a *candidate*. Candidate does **not** mean battle authorization or guarantee that roles/units are supported. Larger components, malformed ownership, inconsistent or out-of-component contacts and unsupported topology are ineligible; never select a convenient pair from a 3+ member component.\n- Existing initial-contact and swept-contact records both require consideration. No implicit initiative from movement queue order.\n- No actual combat, winner, casualties, role decision, seed allocation, storage mutation, or automatic Turn 2.\n\n### Exact autonomous coding scope (two files only)\n\n- `packages/game-engine/src/combat-encounter-eligibility.ts` **(new)** — bounded pure classifier for one finalized `MovementResolutionResult['encounters'][number]` or equivalent precisely typed input, with conservative discriminated results: candidate with the exact two member IDs/owners and encounter ID, or ineligible with a fixed non-sensitive reason code. The classifier is a structural *preflight*, not a trust boundary; require that actual callers first establish a validated authoritative resolution.\n- `packages/game-engine/tests/combat-encounter-eligibility.test.ts` **(new)** — deterministic focused tests using representative resolved-movement components and malformed/ambiguous fixture inputs. Test both order permutations, initial/swept contact, non-member contacts, duplicate IDs, same-owner, 3+ components, empty or insufficient components, and immutability.\n\nNo other files may be modified, including indexes, old tests, combat.ts, movement-resolution.ts, shared types, database, server, UI, scripts, dependencies, workflows or docs. Do not install new dependencies.\n\n### Expected behavior and acceptance\n\n1. Read current movement encounter result shape and existing Combat 1A contracts **before coding**. The encounter component shape is built in `packages/game-engine/src/movement-resolution.ts` and includes finalized `members`, `contacts`, `resolutionId`, `encounterId`, status and policy.\n2. Preserve semantic distinction between **structurally eligible candidate** and **approved executable combat**. Classifier may not infer `assault` vs `mutual_attack`, ATK/DEF roles, combat seed or battle outcomes.\n3. Check exact two-member distinct-owner membership, deterministic ID ordering (code-unit ordering, never locale), bounded contact consistency and expected finalized unresolved encounter identity/policy; reject malformed or ambiguous cases without throwing unchecked errors or echoing untrusted identifying details.\n4. Ensure all contact endpoint IDs are members of the candidate and at least one qualifying hostile contact exists; no fabricated relation or unexplained third-party contact. If existing schema includes richer mandatory fields, honor it without broadening source contracts.\n5. Keep results deterministic under equivalent member/contact permutations and never modify caller-supplied arrays or objects. No clocks, random sources, network or environment dependencies.\n6. Do not export this classifier from a browser-facing package barrel, and do not expose hidden roster, enemy identities or private contact details over any API.\n7. Preserve all existing combat and movement tests; focused Vitest + full database-free app suite, build, typecheck, lint, diff/whitespace; normal disposable PostgreSQL CI must run unchanged. **No existing database access.**\n8. Produce a **draft PR only**, from one exact main source SHA, with scope, passing evidence and a clear statement this does not make combat playable. No merge or deployment.\n\n### Overnight authority boundary\n\nThis issue is **planning/implementation-ready but NOT a signed owner approval** for paid execution. It may be considered for a later explicit one-night signature ONLY after the overnight ledger is correctly bootstrapped, all non-paid checks pass, the pending CI work (#94/#93) is resolved and the owner explicitly approves issue title/body, exact allowed paths, exact main baseline, time window, unique task approval and session cap. First live task should use one session with a proposed 300-second `codingSeconds` (below 900-second ceiling), subject to owner review and feasibility. Never treat an issue label/comment as authority.\n\n## Dependencies and exclusions\n\nIndependent of #94/PR #93 code paths. No deployment, configuration signing, paid API request, branch ruleset change, migrations, server combat integration, UI behavior change, or loss of existing pending encounter semantics. Subsequent Combat 1B role/seed/aftermath decisions remain in parent #89.\n",
+        "approvalId": "approval95_7477bc432f904f5c83f829a38d8e007c",
+        "allowedPaths": [
+          "packages/game-engine/src/combat-encounter-eligibility.ts",
+          "packages/game-engine/tests/combat-encounter-eligibility.test.ts"
+        ],
+        "codingSeconds": 300,
+        "maxSessions": 1,
+        "approvalDigest": "c9e9d687b1b31cc68c1f49e977dc39b0e102966c595ac2e45359fc480e6573d0"
+      }
+    ]
+  },
+  "signature": "WMTEclxb7MD72/OMpxGGxGWoSoQueywXsn+HrJxE9EdloHhfwFaucwaXB2l7lxSr3fEN8qVzLluv6AB/hC27AA==",
+  "version": 1,
+  "enrollment": {
+    "fingerprint": "3e4bdc79e08072ea931c96f4c5a920687dfb067c48c66b098c55349024d3e9dc",
+    "revoked": false,
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA9unYuxDxyB5RrYjp0b+Fl0BKCwmTP5g1Xj8/Sckof6k=\n-----END PUBLIC KEY-----\n"
+  },
+  "enabled": true
 }
