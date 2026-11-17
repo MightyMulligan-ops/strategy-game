@@ -1,0 +1,18 @@
+{
+    "manifest":  {
+                     "enabled":  false,
+                     "tasks":  [
+
+                               ],
+                     "version":  1,
+                     "repository":  "MightyMulligan-ops/strategy-game"
+                 },
+    "signature":  null,
+    "version":  1,
+    "enrollment":  {
+                       "fingerprint":  "3e4bdc79e08072ea931c96f4c5a920687dfb067c48c66b098c55349024d3e9dc",
+                       "revoked":  false,
+                       "publicKeyPem":  "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA9unYuxDxyB5RrYjp0b+Fl0BKCwmTP5g1Xj8/Sckof6k=\n-----END PUBLIC KEY-----\n"
+                   },
+    "enabled":  false
+}
