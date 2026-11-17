@@ -1,3 +1,5 @@
+import {CombatTurnRuntimeSchema,FIRST_COMBAT_SETUP} from "@strategy-game/shared-types/server";
+import {planCombatTurn} from "@strategy-game/game-engine/server";
 import { randomUUID } from "node:crypto";
 import {
   classifyLobbyTurnDuration, ListLobbiesRequestSchema, LobbyDetailSchema, LobbySettingsSchema,
@@ -94,7 +96,7 @@ function detail(row: LobbyRow, identityId: string, username: string): LobbyDetai
 export class LobbyRepository {
   constructor(private readonly client: PrismaClient, private readonly worldFactory: typeof makeInitialWorld = makeInitialWorld,
     private readonly clock: () => number = Date.now,
-    private readonly creationRuntime: unknown = INITIAL_WORLD_RUNTIME_PROFILE) {}
+    private readonly creationRuntime: unknown = INITIAL_WORLD_RUNTIME_PROFILE, private readonly combatSetup:unknown = FIRST_COMBAT_SETUP) {}
 
   private async withLobby<T>(id: string, identityId: string,
     work: (tx: Transaction, row: LobbyRow, username: string) => Promise<T>): Promise<T> {
@@ -120,7 +122,7 @@ export class LobbyRepository {
     const armyProfile = InitialArmiesRuntimeProfileSchema.safeParse(this.creationRuntime);
     const movementProfile = MovementDraftRuntimeProfileSchema.safeParse(this.creationRuntime);
     const closureProfile = TurnClosureRuntimeProfileSchema.safeParse(this.creationRuntime);
-    const runtime = oldProfile.success ? oldProfile.data : armyProfile.success ? armyProfile.data : movementProfile.success ? movementProfile.data : closureProfile.success ? closureProfile.data : MovementResolutionRuntimeSchema.parse(this.creationRuntime);
+    const runtime = oldProfile.success ? oldProfile.data : armyProfile.success ? armyProfile.data : movementProfile.success ? movementProfile.data : closureProfile.success ? closureProfile.data : CombatTurnRuntimeSchema.safeParse(this.creationRuntime).success ? CombatTurnRuntimeSchema.parse(this.creationRuntime) : MovementResolutionRuntimeSchema.parse(this.creationRuntime);
     return this.client.$transaction(async (tx) => {
       const username = await registeredUsername(tx, identityId);
       const id = randomUUID();
@@ -188,16 +190,16 @@ export class LobbyRepository {
       if (!row.configuration) throw new LobbyError("INVALID_STORAGE");
       const mode = configurationRuntime(row.configuration);
       if (mode === "empty") throw new LobbyError("INVALID_STORAGE");
-      if ((mode === "initial_world" || mode === "initial_armies" || mode === "movement_drafts" || mode === "turn_closure" || mode === "movement_resolution") && (row.currentStateVersion !== 0n ||
+      if ((mode === "initial_world" || mode === "initial_armies" || mode === "movement_drafts" || mode === "turn_closure" || mode === "movement_resolution" || mode === "combat_turn") && (row.currentStateVersion !== 0n ||
           await tx.gameSnapshotRecord.count({ where: { matchId: row.id } }) !== 0 ||
           await tx.turn.count({ where: { matchId: row.id } }) !== 0)) throw new LobbyError("INVALID_STORAGE");
       const players = row.participants.map((p) => p.playerId);
       const archive = await insertInitialWorld(tx, row.id, this.worldFactory(players), players);
-      if (mode === "initial_world" || mode === "initial_armies" || mode === "movement_drafts" || mode === "turn_closure" || mode === "movement_resolution") {
+      if (mode === "initial_world" || mode === "initial_armies" || mode === "movement_drafts" || mode === "turn_closure" || mode === "movement_resolution" || mode === "combat_turn") {
         // One trusted sample after lock/generation. Any failure rolls the entire transaction back.
         const roster = players.map((playerId) => ({ schemaVersion: 1 as const, gameId: row.id, playerId, active: true }));
         // Derive all armies before the only trusted clock sample; legacy v2 remains unchanged.
-        const armies = mode === "movement_resolution" ? planMovementResolution(row.configuration.config, roster, archive, row.configuration.pinnedRuleset) : mode === "turn_closure" ? planTurnClosure(row.configuration.config, roster, archive, row.configuration.pinnedRuleset) : mode === "movement_drafts" ? planMovementDrafts(row.configuration.config, roster, archive, row.configuration.pinnedRuleset)
+        const armies = mode === "combat_turn" ? planCombatTurn(row.configuration.config, roster, archive, row.configuration.pinnedRuleset, this.combatSetup) : mode === "movement_resolution" ? planMovementResolution(row.configuration.config, roster, archive, row.configuration.pinnedRuleset) : mode === "turn_closure" ? planTurnClosure(row.configuration.config, roster, archive, row.configuration.pinnedRuleset) : mode === "movement_drafts" ? planMovementDrafts(row.configuration.config, roster, archive, row.configuration.pinnedRuleset)
           : mode === "initial_armies" ? planInitialArmies(row.configuration.config, roster, archive, row.configuration.pinnedRuleset) : null;
         const plan = armies ? { ...armies, state: createTurn(armies.snapshot.config, armies.snapshot.players, this.clock()) }
           : initializeTurnOne(row.configuration.config, roster, archive, this.clock(), row.configuration.pinnedRuleset);

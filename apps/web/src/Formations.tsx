@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { Dispatch, ReactNode, SetStateAction } from 'react'
 import type { OwnFormation, PublicWorld, ReadFormationView } from '@strategy-game/shared-types'
 import { FormationReadError, readFormations } from './formation-api'
@@ -13,7 +13,7 @@ export type FormationInspection = {
 /** Mounted only alongside a matching READY world. Unmount clears all private data. */
 export default function Formations({ matchId, world, onSessionError, map, selectedFormationId, onSelectionChange }: {
   matchId: string; world: PublicWorld; onSessionError: () => Promise<void>; selectedFormationId: string | null; onSelectionChange: Dispatch<SetStateAction<string | null>>
-  map: (formation: OwnFormation | null, inspection: FormationInspection, policy?:{radius:10;pending:boolean}) => ReactNode
+  map: (formation: OwnFormation | null, inspection: FormationInspection, policy?:{radius:10;pending:boolean;combat?:boolean}) => ReactNode
 }) {
   const title = useId()
   const detailsId = `${title}-details`
@@ -41,7 +41,7 @@ export default function Formations({ matchId, world, onSessionError, map, select
       if(response.state==='READY'&&response.formations.some(f=>!world.players.some(p=>p.playerId===f.ownerPlayerId)||f.position.x>world.bounds.width||f.position.y>world.bounds.height))throw new FormationReadError('malformed')
       if (!controller.signal.aborted) {
         setResult(response)
-        onSelectionChange((selected) => response.state === 'READY' && response.formations[0]!.formationId === selected ? selected : null)
+        onSelectionChange((selected) => response.state === 'READY' && response.formations.some(f=>f.formationId === selected) ? selected : null)
       }
     } catch (failure) {
       if (controller.signal.aborted) return
@@ -57,7 +57,7 @@ export default function Formations({ matchId, world, onSessionError, map, select
     const online=()=>void refresh();window.addEventListener('online',online)
     return () => { cancelled = true; read.current?.abort();window.removeEventListener('online',online) }
   }, [refresh])
-  const own = result?.state === 'READY' ? result.formations[0]! : null
+  const own = result?.state === 'READY' ? (result.formations[0]??null) : null
   const expanded = !!own && selectedFormationId === own.formationId
   const infantryCount = own?.units.filter((unit) => unit.kind === 'INFANTRY').length ?? 0
   function inspect() {
@@ -65,24 +65,25 @@ export default function Formations({ matchId, world, onSessionError, map, select
     onSelectionChange(own.formationId)
     requestFocus((value) => value + 1)
   }
-  return <>{map(own, { markerId, detailsId, expanded, inspect },result?.schemaVersion===2?{radius:10,pending:result.pendingEncounter}:undefined)}<section ref={panel} tabIndex={-1} className="panel formation-panel" aria-labelledby={title} aria-busy={loading}
+  const mapFormation = useMemo(() => own ? {...own,units:[...own.units]} : null, [own])
+  return <>{map(mapFormation, { markerId, detailsId, expanded, inspect },result?.schemaVersion!==1&&result?.state==='READY'?{radius:10,pending:result.pendingEncounter,combat:result.schemaVersion===3}:undefined)}<section ref={panel} tabIndex={-1} className="panel formation-panel" aria-labelledby={title} aria-busy={loading}
     onKeyDown={(event) => { if (event.key === 'Escape' && expanded) { event.preventDefault(); event.stopPropagation(); closeDetails() } }}>
     <div className="section-heading"><h2 id={title}>Your formations</h2><button type="button" disabled={loading} onClick={() => void refresh()}>Refresh formations</button></div>
     {loading ? <p role="status">Loading formations…</p> : error ? <p role="alert">{error}</p>
       : own ? <ul className="formation-list"><li><button type="button" aria-expanded={expanded} aria-controls={detailsId}
-          onClick={() => expanded ? closeDetails() : inspect()}>◇ Lieutenant + {infantryCount} Infantry</button>
+          onClick={() => expanded ? closeDetails() : inspect()}>◇ {own.units.some(u=>u.kind==='LEADER')?'Lieutenant + ':''}{infantryCount} Infantry</button>
         <div id={detailsId} hidden={!expanded} className="formation-details">
         <h3 ref={heading} tabIndex={-1}>Formation details</h3>
-        <p>Lieutenant · Infantry specialization · {infantryCount} Infantry</p>
+        <p>{own.units.some(u=>u.kind==='LEADER')?'Lieutenant · Infantry specialization · ':''}{infantryCount} Infantry</p>
         <button type="button" onClick={closeDetails}>Return to map marker</button>
-        <dl><dt>Formation</dt><dd className="formation-id">{own.formationId}</dd><dt>Position</dt><dd>{own.position.x}, {own.position.y} {result?.schemaVersion===2?'(stored authoritative position)':'(authoritative starting capital position)'}</dd></dl>
+        <dl><dt>Formation</dt><dd className="formation-id">{own.formationId}</dd><dt>Position</dt><dd>{own.position.x}, {own.position.y} {result?.schemaVersion!==1&&result?.state==='READY'?'(stored authoritative position)':'(authoritative starting capital position)'}</dd></dl>
         {result?.schemaVersion === 2 && <p>Pending battle: {result.pendingEncounter ? 'Yes' : 'No'}.</p>}
         <ul>{own.units.map((u) => <li key={u.unitId}>
           {u.kind === 'LEADER' ? 'Lieutenant · Infantry specialization' : 'Infantry'}
-          <dl><dt>Unit</dt><dd className="formation-id">{u.unitId}</dd><dt>Original spawn node</dt><dd className="formation-id">{u.originalSpawnNodeId}</dd></dl>
+          <dl><dt>Unit</dt><dd className="formation-id">{u.unitId}</dd>{'hp' in u&&<><dt>HP</dt><dd>{String(u.hp)}/{'maxHp' in u?String(u.maxHp):'?'} HP</dd></>}<dt>Original spawn node</dt><dd className="formation-id">{u.originalSpawnNodeId}</dd></dl>
         </li>)}</ul>
       </div></li></ul>
-        : <p role="status">{result?.state === 'NOT_STARTED' ? 'This match has not started.' : 'Formations are unavailable for this older match. Refreshing will not initialize armies.'}</p>}
-    <p className="small muted">◇ marks your formation. {result?.schemaVersion===2?'Circle: radius 10 world units. Marker positions come from stored state. Refresh after server processing.':'Read-only starting armies; movement and turn controls are unavailable.'}</p>
+        : <p role="status">{result?.schemaVersion===3&&result.state==='READY'?'Your formations were destroyed. Own losses remain available in battle aftermath.':result?.state === 'NOT_STARTED' ? 'This match has not started.' : 'Formations are unavailable for this older match. Refreshing will not initialize armies.'}</p>}
+    <p className="small muted">◇ marks your formation. {result?.schemaVersion!==1&&result?.state==='READY'?'Circle: radius 10 world units. Marker positions come from stored state. Refresh after server processing.':'Read-only starting armies; movement and turn controls are unavailable.'}</p>
   </section></>
 }

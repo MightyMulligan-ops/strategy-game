@@ -1,3 +1,4 @@
+import {freezeCombatInput} from "@strategy-game/game-engine/server";
 import { ClosureMovementReadySchema, ResolutionMovementReadySchema, MovementDraftPathSchema, MovementDraftRequestSchema, SetTurnReadyRequestSchema, SetTurnReadyResponseSchema, UsernameSchema } from "@strategy-game/shared-types";
 import type { MovementDraftErrorCode } from "@strategy-game/shared-types";
 import { applyClosureCommand, freezeClosureInput, observeClosureDeadline, previewMovementDraft, freezeMovementInput } from "@strategy-game/game-engine";
@@ -9,7 +10,7 @@ import type { StoredTurn } from "./turn-storage.js";
 import { json, orderRows, turnFields, safeNumber } from "./mappings.js";
 import { restoreWorldArchive } from "./world-repository.js";
 import { MovementDraftError } from "./movement-draft-repository.js";
-type Aggregate = Extract<StoredTurn, { kind: "turn_closure" | "movement_resolution" }>;
+type Aggregate = Extract<StoredTurn, { kind: "turn_closure" | "movement_resolution" | "combat_turn" }>;
 type Transaction = Prisma.TransactionClient;
 function expiredSql(error: unknown, depth = 0): boolean {
   if (!error || typeof error !== "object" || depth > 5) return false;
@@ -19,7 +20,7 @@ function expiredSql(error: unknown, depth = 0): boolean {
 export function closureView(aggregate: Aggregate, actor: string, state: TurnState = aggregate.state) {
   const own = state.drafts.find((d) => d.playerId === actor);
   if (!own || !aggregate.row.match.world) throw new MovementDraftError("INTERNAL_ERROR");
-  return (aggregate.kind==="movement_resolution"?ResolutionMovementReadySchema:ClosureMovementReadySchema).parse({ ...(aggregate.kind==="movement_resolution"?{initialPosition:aggregate.snapshot.formations.find(f=>f.ownerPlayerId===actor)!.position}:{}),schemaVersion: aggregate.kind==="movement_resolution"?3:2, matchId: aggregate.row.matchId, state: "READY", turn: state.turn,
+  return ((aggregate.kind==="movement_resolution"||aggregate.kind==="combat_turn")?ResolutionMovementReadySchema:ClosureMovementReadySchema).parse({ ...((aggregate.kind==="movement_resolution"||aggregate.kind==="combat_turn")?{initialPosition:aggregate.snapshot.formations.find(f=>f.ownerPlayerId===actor)!.position}:{}),schemaVersion: (aggregate.kind==="movement_resolution"||aggregate.kind==="combat_turn")?3:2, matchId: aggregate.row.matchId, state: "READY", turn: state.turn,
     own: { schemaVersion: 1, gameId: state.config.gameId, turnNumber: 1, revision: own.revision, ready: own.ready, orders: own.orders },
     route: previewMovementDraft(aggregate.snapshot, restoreWorldArchive(aggregate.row.match.world), actor, own.orders) });
 }
@@ -36,7 +37,7 @@ async function persistLifecycle(tx: Transaction, aggregate: Aggregate, state: Tu
   await tx.turn.update({ where: { matchId_number: { matchId: state.config.gameId, number: 1n } }, data: turnFields(state) });
   if (state.turn.status === "closed") {
     const archive=restoreWorldArchive(aggregate.row.match.world!);
-    const frozen = aggregate.kind==="movement_resolution"?freezeMovementInput(state,aggregate.snapshot,archive):freezeClosureInput(state, aggregate.snapshot, archive);
+    const frozen = aggregate.kind==="combat_turn"?freezeCombatInput(state,aggregate.snapshot,archive):aggregate.kind==="movement_resolution"?freezeMovementInput(state,aggregate.snapshot,archive):freezeClosureInput(state, aggregate.snapshot, archive);
     await tx.frozenTurnInputRecord.create({ data: { matchId: state.config.gameId, turnNumber: 1n, payload: json(frozen), seed: "resolutionSeed" in frozen?BigInt(frozen.resolutionSeed):null } });
   }
 }
@@ -54,11 +55,11 @@ export class TurnClosureRepository {
         const actor = await member(tx, matchId, identityId);
         if (turnNumber !== 1) throw new MovementDraftError("WRONG_TURN");
         const c = await tx.matchConfiguration.findUnique({ where: { matchId } });
-        if (c?.simulationVersion !== "turn-closure-v1" && c?.simulationVersion !== "movement-resolution-v1") throw new MovementDraftError("UNSUPPORTED_RUNTIME");
+        if (c?.simulationVersion !== "turn-closure-v1" && c?.simulationVersion !== "movement-resolution-v1" && c?.simulationVersion !== "combat-turn-v1") throw new MovementDraftError("UNSUPPORTED_RUNTIME");
         const match = await tx.match.findUnique({ where: { id: matchId }, select: { status: true } });
         if (match?.status === "OPEN") throw new MovementDraftError("TURN_UNAVAILABLE");
         const a = await readStoredTurn(tx, matchId, 1);
-        if ((a.kind !== "turn_closure" && a.kind !== "movement_resolution") || !a.row.match.world) throw new MovementDraftError("INTERNAL_ERROR");
+        if ((a.kind !== "turn_closure" && a.kind !== "movement_resolution" && a.kind !== "combat_turn") || !a.row.match.world) throw new MovementDraftError("INTERNAL_ERROR");
         if (!a.state.drafts.some((d) => d.playerId === actor)) throw new MovementDraftError("NOT_FOUND");
         const request = readiness ? SetTurnReadyRequestSchema.parse(input) : MovementDraftRequestSchema.parse(input);
         const command = { ...request, ...(readiness ? { kind: "set_ready" as const } : {}), gameId: matchId, turnNumber: 1 };
@@ -110,9 +111,9 @@ export class TurnClosureRepository {
       await tx.$queryRaw(Prisma.sql`SELECT set_config('statement_timeout', ${String(timeoutMs)}, true)`);
       await tx.$queryRaw`SELECT "id" FROM "Match" WHERE "id" = ${matchId} FOR UPDATE`;
       const c = await tx.matchConfiguration.findUnique({ where: { matchId } });
-      if (c?.simulationVersion !== "turn-closure-v1" && c?.simulationVersion !== "movement-resolution-v1") return false;
+      if (c?.simulationVersion !== "turn-closure-v1" && c?.simulationVersion !== "movement-resolution-v1" && c?.simulationVersion !== "combat-turn-v1") return false;
       const a = await readStoredTurn(tx, matchId, 1);
-      if ((a.kind !== "turn_closure" && a.kind !== "movement_resolution") || a.state.turn.status !== "open") return false;
+      if ((a.kind !== "turn_closure" && a.kind !== "movement_resolution" && a.kind !== "combat_turn") || a.state.turn.status !== "open") return false;
       const now = sqlClock ? safeNumber((await tx.$queryRaw<{ now: bigint }[]>`SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint AS now`)[0]!.now) : this.clock();
       const state = observeClosureDeadline(a.state, now);
       if (state.turn.status === "open") return false;
@@ -126,7 +127,7 @@ export class TurnClosureRepository {
       await tx.$executeRaw`SET TRANSACTION READ ONLY`;
       await tx.$executeRaw`SET LOCAL statement_timeout = 5000`;
       return (await tx.turn.findMany({ where: { number: 1n, status: "OPEN", deadlineAtMs: { lte: BigInt(now) },
-      match: { status: "RUNNING", configuration: { simulationVersion: {in:["turn-closure-v1","movement-resolution-v1"]} } } },
+      match: { status: "RUNNING", configuration: { simulationVersion: {in:["turn-closure-v1","movement-resolution-v1","combat-turn-v1"]} } } },
       orderBy: [{ deadlineAtMs: "asc" }, { matchId: "asc" }], take: limit, select: { matchId: true } })).map((r) => r.matchId);
     }, { timeout: 6000, maxWait: 5000 });
   }

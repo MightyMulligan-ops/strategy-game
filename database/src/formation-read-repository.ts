@@ -1,3 +1,4 @@
+import {ownCombatFormationView} from "./combat-turn-view.js";
 import { GameConfigSchema, ReadFormationsRequestSchema, ReadFormationViewSchema, UsernameSchema } from "@strategy-game/shared-types";
 import type { ReadFormationView } from "@strategy-game/shared-types";
 import type { PrismaClient } from "./generated/prisma/client.js";
@@ -39,9 +40,10 @@ export class FormationReadRepository {
           if (match.turns.length) return invalid();
           return ReadFormationViewSchema.parse({ ...envelope, state: "UNINITIALIZED" });
         }
-        if (!match.world || (match.currentStateVersion !== 0n && runtime!=="movement_resolution") || match.turns.length !== 1 || match.turns[0]?.number !== 1n) return invalid();
+        if (!match.world || (match.currentStateVersion !== 0n && runtime!=="movement_resolution"&&runtime!=="combat_turn") || match.turns.length !== 1 || match.turns[0]?.number !== 1n) return invalid();
         const stored = await readStoredTurn(tx, matchId, 1);
         if (!stored.state.players.some((p) => p.playerId === member.playerId && p.active)) return invalid();
+        if(stored.kind==="combat_turn")return ownCombatFormationView(stored,member.playerId);
         if(stored.kind==="movement_resolution"){
           const f=stored.result?ownResolvedFormation(stored,member.playerId):null;
           if(f)return ReadFormationViewSchema.parse({...envelope,schemaVersion:2,state:"READY",collisionRadius:10,
