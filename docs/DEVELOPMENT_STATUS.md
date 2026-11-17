@@ -25,9 +25,10 @@ The original fixed-time production fixture mixed an injected clock with Date.now
 the provider now uses the injected clock consistently (production default unchanged).
 A readonly fixture assignment was corrected before the passing typecheck.
 
-Branch `fix/manual-single-use-coding` is prepared for review. Hosted disposable
-PostgreSQL CI/draft publication remains pending the separate repository-required
-owner approval. No merge, deployment, paid session, live configuration/secret/billing
+Branch `fix/manual-single-use-coding` is prepared for review. On November 17 the
+owner explicitly approved opening the draft PR and its normal hosted CI, including
+the unchanged disposable PostgreSQL tests. Draft publication and exact-head hosted
+results are pending; No merge, deployment, paid session, live configuration/secret/billing
 change, existing database access or workflow dispatch performed.
 
 
