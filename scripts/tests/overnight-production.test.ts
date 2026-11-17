@@ -1,4 +1,4 @@
-import {expect,test,vi} from 'vitest';
+import {afterEach,beforeEach,expect,test,vi} from 'vitest';
 import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
 import {join} from 'node:path';
 import {control} from '../overnight-control.ts';
@@ -13,6 +13,10 @@ import {productionFixture} from './overnight-production-fixture.ts';
 import {now,signRecovery} from './overnight-fixture.ts';
 import type {GitHubTransport} from '../codex-github-control.ts';
 const time=()=>now;
+// Controller admission already uses the fixture clock. Nested provider checks
+// also read Date directly; keep those on the same clock without faking timers.
+beforeEach(()=>{vi.useFakeTimers({toFake:['Date']});vi.setSystemTime(now)});
+afterEach(()=>{vi.useRealTimers()});
 async function reserve(f:ReturnType<typeof productionFixture>){await control('intake',f.env,f.api,time,f.repo);await control('prepare',f.env,f.api,time,f.repo);f.env.EXPECTED_ARCHIVE_SHA256=sha256(readFileSync(join(f.runner,'sovereign-pilot','source.tar.gz')))}
 async function agent(f:ReturnType<typeof productionFixture>){f.env.GITHUB_JOB='agent';f.env.OPENAI_API_KEY='synthetic-provider-key';await runQueueAgent(f.env,f.api,f.providerFetch,time);delete f.env.OPENAI_API_KEY}
 async function seal(f:ReturnType<typeof productionFixture>){

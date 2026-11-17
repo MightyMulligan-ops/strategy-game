@@ -1,5 +1,13 @@
 # Development status
 
+## Overnight production fixture clock — Issue #98 (2026-11-17, unmerged)
+
+The owner authorized the separate fixture repair, feature-branch publication, draft PR and unchanged hosted fresh disposable PostgreSQL CI after the Combat Stage A handoff. Branch `issue/98-overnight-fixture-clock` starts at main `53180055dabde3d406935d76592505692d864cfc`. Only `scripts/tests/overnight-production.test.ts` and this evidence entry change; the #97 combat implementation remains separate.
+
+On unchanged main, the 27-case suite produced 17 passes and 10 failures after its fixed deadline. A Date-only probe at the fixture's `2026-11-17T03:30:00Z` produced 27 passes. The repair aligns nested provider/orchestrator Date reads with the already injected controller clock using suite-local before/after hooks; real asynchronous timers and production expiry/security checks remain unchanged. No fixture dates were advanced, assertions disabled, dependencies added or runtime code changed.
+
+Verification actually run with `AUTH_ENABLED=false RUN_DATABASE_TESTS=0`: frozen install, Prisma generation, build, typecheck, lint and whitespace checks passed. Focused production suite: 27 passed. Full local database-free suite: 2081 passed / 263 skipped, zero failures (87 passed files / 15 skipped files); skipped cases are not database verification. Hosted CI remains pending publication and will supply the authoritative exact-head application/disposable-PostgreSQL evidence. Implementation correction passes: 0/5, not exercised. No existing database access, paid API session, merge or deployment occurred. This is prepared for draft review, not a merged milestone.
+
 ## Autonomous validator false-success repair — 2026-11-16 (candidate, unmerged)
 
 Owner-authorized subscription Codex repair on `codex/validator-fail-closed`, based on `a7290ceab2e3d55924e1d144c38370a3455c2011`. PR #88's merge was confirmed in GitHub; its older review entries below are historical. Scope: reliable offline pnpm, fail-closed individual check execution, a host-owned execution receipt authenticated through Actions job outputs, publisher refusal before API calls, offline regressions and real networkless-container CI smoke. No gameplay, dependencies, existing databases, paid sessions/dispatches, spending gate, overnight queue, merge or deployment changes are authorized here. Existing local lobby edits are preserved.
