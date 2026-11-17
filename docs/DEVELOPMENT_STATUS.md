@@ -1,5 +1,24 @@
 # Development status
 
+## PR #99 post-review repair — attempt 1 for COMBAT97-F1/F2 (2026-11-17, unmerged)
+
+The owner explicitly approved the two named findings, bounded repair, regression tests and unchanged hosted fresh disposable PostgreSQL CI in the project conversation: "Approved. Do whatever it takes." This is human-initiated post-review attempt **1/2 for each finding**, separate from the original Stage A 3/5 implementation history and the unrelated clock repair. Existing branch/draft PR `issue/97-multi-force-combat` / [#99](https://github.com/MightyMulligan-ops/strategy-game/pull/99) is reused. Verified starting head `2b6847594323de25b81e8487535198b165dcfbb7`, base `53180055dabde3d406935d76592505692d864cfc`, open draft, previous exact-head CI success and no competing repair claim. Unrelated Python cache files were preserved; no reset, stash, force push, new branch/worktree or agent was used.
+
+- COMBAT97-F1: retain seeded per-source target queues across rounds, with separate per-source/target-owner formation queues. Advance once per action and prune destroyed players/formations without restarting. Initiative queues also retain their rotation and remove eliminated entries before selecting the next start. Targeting no longer depends on the source's position in a globally rotated list.
+- COMBAT97-F2: compute the intermediate damage product/division with BigInt, then convert the bounded damage result to Number. Existing unit/stat bounds, RNG streams, roles, ownership rules and historical Prototype 1A remain unchanged. Update the contract's numeric-safety explanation and use an exact-integer test oracle rather than repeat the rounded Number formula.
+
+Regression evidence: the first eight added cases failed against the old engine (31 old cases passed), including raw3343680903/stat3526601 incorrectly yielding2745500 instead of2745499. After repair, all95 focused tests passed:41 new-engine cases including10 new regressions plus54 unchanged prototype/movement cases. Coverage includes four seeds, one-unit/odd-sized defenders, same-player formations, three hostile movers, eliminated players/formations, initiative skips, the precision counterexample and maximum leadership-adjusted stat4000002.
+
+Final task-side checks used `AUTH_ENABLED=false RUN_DATABASE_TESTS=0`: frozen install, Prisma generation, build, typecheck, lint and diff checks all passed. Full database-free suite:2122 passed /263 skipped /zero failures,88 passed files /15 skipped files. Skips are not database verification. The local pnpm command reported11.25.0; the repository-pinned12.18.0 hosted workflow remains the final toolchain authority. No dependency/lockfile/toolchain change was made. Only the new engine, its tests, MULTI_FORCE_COMBAT.md and this evidence entry change in this repair.
+
+Both findings are addressed by this attempt's implementation/tests, pending fresh independent review; the old review is superseded for changed source. Exact published head and final hosted CI evidence belong in the PR handoff to avoid a self-referential evidence commit. Keep outcome UNKNOWN and repairAuthorization NOT_GRANTED until a separately requested independent review. No existing database access, migrations/provisioning, paid API task, workflow/security change, ready transition, main merge or deployment is authorized or performed.
+
+## Combat Stage A CI unblock — PR #99 (2026-11-17, unmerged)
+
+The owner explicitly approved #97 publication/unchanged hosted fresh disposable PostgreSQL CI, then directed: 'Yes, do whatever it takes to fix this and move it forward.' This also covers the separately identified fixture repair needed to unblock the combat PR. [Draft PR #100](https://github.com/MightyMulligan-ops/strategy-game/pull/100) independently reviews the Date-only fix for Issue #98. Apply that same small test-only change here in a separate commit, without changing the five original Stage A files' engine behavior, historical prototype, workflows or runtime expiry checks. No force push, main merge or deployment.
+
+Previous final-head CI [44124338895](https://github.com/MightyMulligan-ops/strategy-game/actions/runs/44124338895) on a7c29d8e8ee566de8c1f4d1102083608c50328fe failed application tests while PostgreSQL passed. The unchanged main independently reproduces the ten clock failures; fixing only Date to the fixture clock restores all 27 cases. Coordinator reviewed the 376-line engine and tests and ran the combat branch plus this exact fixture fix in an isolated exported snapshot: full database-free suite 2112 passed / 263 skipped, zero failures (88 passed files / 15 skipped files). Initial exported-snapshot attempts failed to import workspace dependencies/generated Prisma output; restoring the existing dependency/build links resolved these environment errors without code changes, new dependencies or database access. Hosted exact-head CI remains required and is not inferred from local skips. Original Stage A implementation corrections remain 3/5; separate fixture implementation corrections 0/5. This is in review/unmerged, not live combat.
+
 ## Autonomous validator false-success repair — 2026-11-16 (candidate, unmerged)
 
 Owner-authorized subscription Codex repair on `codex/validator-fail-closed`, based on `a7290ceab2e3d55924e1d144c38370a3455c2011`. PR #88's merge was confirmed in GitHub; its older review entries below are historical. Scope: reliable offline pnpm, fail-closed individual check execution, a host-owned execution receipt authenticated through Actions job outputs, publisher refusal before API calls, offline regressions and real networkless-container CI smoke. No gameplay, dependencies, existing databases, paid sessions/dispatches, spending gate, overnight queue, merge or deployment changes are authorized here. Existing local lobby edits are preserved.
@@ -678,3 +697,192 @@ skips across102 files. Includes32 new bootstrap and3 new runner regressions.
 No skip is database verification. Real isolated validator smoke and262 PostgreSQL
 cases remain hosted-only; pending evidence UNKNOWN until final-source CI completes.
 Correction history2/5, no post-review repair; previous failures remain above.
+
+## Issue #97 — owner-started Combat 1B Stage A (2026-11-17)
+
+State: `issue/97-multi-force-combat`, local implementation / unmerged. Verified
+current main/base `53180055dabde3d406935d76592505692d864cfc`, clean original
+checkout, no competing #97 branch/claim/open PR; existing unrelated PRs preserved.
+[Claim](https://github.com/MightyMulligan-ops/strategy-game/issues/97#issuecomment-6952741232).
+The explicit owner launch in this task chat grants Stage A gameplay implementation,
+database-free checks and a feature-branch commit in the existing cloud checkout,
+using Codex subscription capacity only. No agents, new worktree or paid API task.
+Scope frozen to Issue 97 body revision 2026-11-17T15:31:34Z; UTF-8 body plus final
+newline SHA256 `5989e54aa6ae66d24f1fc21b92c8fbd173c13257c7eedaeb37d4a32030bdc13e`.
+Only the two new engine/test files, MULTI_FORCE_COMBAT.md, relevant GAME_DESIGN.md
+combat section and this status entry are authorized. Exact contract is recorded
+in MULTI_FORCE_COMBAT.md; no later parent/child issue edit expands this freeze.
+Approval expires at task completion/transfer/issue closure or explicit revocation;
+none was observed at launch. This is an evidence record, not a standing grant.
+
+The owner explicitly answered the two policy questions in this chat: retain the
+provisional LCG32 floor-scaled 1..stat damage under the new version; clamp modified
+ATK/DEF to at least 1; reject incomplete/asymmetric/non-transitive alliances; and
+return a recoverable technical failure without partial results on exhaustion,
+retrying the same frozen input with a larger budget. Missing specialization/unit
+balance remains caller-supplied rather than invented. Primary rank values retain
+the established table. No movement, persistence, UI, server wiring, capture writes,
+DB/schema/migration, dependencies, workflows/security/auth, billing/key/config,
+deployment or historical replay changes. Issue 95's signed scope is unchanged.
+
+D (unchanged hosted fresh disposable PostgreSQL CI) is **NOT_GRANTED for #97**:
+no pre-existing approval/comments were found, and the launch explicitly requires
+holding publication without that separate issue-specific grant. Prepare one draft
+PR handoff; retain the local commit and hold push/PR creation. E/F remain
+NOT_GRANTED. Hosted CI is NOT_RUN/UNKNOWN; no database verification is claimed.
+
+### Implementation corrections (append-only)
+
+Initial focused run: 79 passed, 1 failed across 3 files (26 new engine cases plus
+unchanged prototype/movement cases). Failure: same-player formation incoming
+rotation repeated an army across rounds. Diagnosis: rotating the army order and
+also advancing its initial selection cursor by round cancelled the intended
+rotation for two armies. Pass 1/5 begins: remove the duplicate round offset from
+target-player/formation cursors; retain the independently rotated encounter order.
+No assertion is weakened. Initial targeted TypeScript/generation results and
+pass verification follow below. No independent review or post-review repair.
+
+Initial targeted engine typecheck exited 1: relationship literal widened to string
+and a narrowed leader union was not retained inside a callback. Both are corrected
+in pass 1 with explicit literal typing and a captured specialization; no rule or
+validation relaxation. Frozen pnpm 12.18.0 install and Prisma 7.10.1 generation
+exited 0. All checks use AUTH_ENABLED=false / RUN_DATABASE_TESTS=0.
+
+Pass 1 focused verification passed 80/80 across 3 files; targeted engine TypeScript
+exited 0. Full workspace checks are running. Author contract inspection identified
+an additional casualty-order edge before completion: initially wounded ordinary
+units must precede intact ordinary units, and packet overflow should rotate armies
+after each killed unit rather than exhaust one entire army first. Pass 2/5 begins:
+correct those two allocation details in the new module and add explicit fixtures.
+Pass 1 history is retained; no independent review or history reset.
+
+Pass 2 focused verification passed 83/83 across 3 files (29 new cases,54 unchanged
+prototype/movement cases), including wounded-input priority, overflow rotation and
+the encounter-wide 2048-unit bound. Tightened the final leader-death strength test
+to require the death/survival result explicitly rather than conditionally assert.
+The earlier workspace build/typecheck/lint each exited 0, but overlapped pass 2 edits;
+final-source checks will be repeated sequentially for unambiguous provenance.
+
+Intermediate full verification: build/typecheck/lint exit0. Full `pnpm test`
+exited 1:2101 passed,10 failed,262 intentional DB skips (87 passed files,1 failed,
+15 skipped). This run overlapped pass 2 edits and is not final-source certification.
+All 10 failures are in unchanged scripts/tests/overnight-production.test.ts.
+Concrete cause: overnight-fixture.ts fixes now at 2026-11-17T03:30Z and the manifest
+end at 07:30Z; QueueSessionProvider.createSession uses real Date.now() against that
+deadline (less 120 seconds), already expired at this task's 15:48Z verification.
+It fails before mock session creation, so dependent publication/cleanup assertions
+also fail. No provider network request or paid task was launched by these synthetic
+transport fixtures. These files match main and are outside the five-path scope;
+no fixture clock, provider, timeout, assertion or test-selection change is made.
+Final checks retain this limitation rather than calling it a green full suite.
+
+Pass 2 also adds explicit mutual-destruction/no-transfer and 2048-unit/40-player
+boundary fixtures, and a 2049-unit rejection fixture. The encounter-wide ceiling
+was already present; a duplicate bound check introduced during inspection was
+removed before final verification. No numerical balance defaults are added.
+
+### Final task-side verification and draft handoff
+
+Final product/test source SHA256:
+- multi-force-combat.ts: `163c520b061b1902e371500c7d8e9d5abfb0f490a8988efab99f99d9b71bc9ce`.
+- multi-force-combat.test.ts: `009e7a953c96d71a96fceb5bf92ed33ff4fa9113a82ef642fd39a26462fa5185`.
+
+Node24.22.1, pinned pnpm12.18.0, Prisma7.10.1, Vitest4.1.12; all commands use
+AUTH_ENABLED=false / RUN_DATABASE_TESTS=0. Real final results:
+
+| Command | Exit / result |
+|---|---|
+| `pnpm install --frozen-lockfile --store-dir /workspace/.pnpm-store` | 0; 474-entry supply-chain check, unchanged lockfile |
+| `pnpm db:generate` | 0; client generation only, no DB connection |
+| `pnpm exec vitest run packages/game-engine/tests/multi-force-combat.test.ts packages/game-engine/tests/combat.test.ts packages/game-engine/tests/movement-resolution.test.ts` | 0;85 passed,0 failed,0 skipped,3 files (31 new +54 unchanged) |
+| `pnpm build` | 0 |
+| `pnpm typecheck` | 0 |
+| `pnpm lint` | 0 |
+| `pnpm test` | 1;2103 passed,10 failed,262 intentional DB skips;87 passed/1 failed/15 skipped files,103 total |
+| `git diff --check` and staged diff/scope review | 0; exactly the five approved paths |
+
+The final full failure is the same10 unchanged overnight-production fixture cases
+diagnosed above; no Stage A/prototype/movement case failed. Full-suite acceptance
+is therefore **NOT GREEN**. No existing database, PostgreSQL/Docker startup,
+provisioning, migrations, live provider/API coding request or CI retry was used.
+Database cases are unverified; skips do not establish database correctness.
+Workflow files are unchanged, so actionlint is not applicable. There is no UI
+change requiring browser verification. Numeric inputs and capacity ceilings are
+not a production load certification. Budget-ceiling exhaustion requires future
+execution-capacity recovery; this slice does not persist mid-battle checkpoints.
+
+Final implementation correction accounting: **2/5 used**, scoped failures corrected;
+no independent review or post-review repair. The unrelated suite failure remains
+outside scope, not silently skipped/fixed or a reset of the correction history.
+No remaining Stage A gameplay decision was silently chosen: the four actual policy
+choices have explicit owner answers; missing balance tables remain caller inputs.
+Leadership eligibility and specialization balance still require authoritative
+caller configuration before any later runtime integration.
+
+Publication state: **local commit only, unmerged; push and PR creation HELD**.
+Issue97 body is unchanged from the frozen snapshot; current main was rechecked as
+`53180055dabde3d406935d76592505692d864cfc`. PR88 was independently confirmed merged
+as `a7290ceab2e3d55924e1d144c38370a3455c2011`; its historical code remains intact.
+PR96 is still draft/unmerged and grants nothing for this issue. No competing97
+PR/remote branch or separate #97 disposable-CI approval was found on recheck.
+Current-head hosted workflow/run/attempt/job IDs, test counts, migration/cleanup
+and independent-review packets are all NOT_RUN/UNKNOWN. No PR URL exists.
+
+One prepared draft PR handoff (not published): title **Combat 1B Stage A: pure
+multi-force engine and deterministic tests**, branch `issue/97-multi-force-combat`
+targeting same-repository main. Its body will contain exactly one standalone
+`Closes #97` directive, the five-file inventory, frozen scope/owner and policy
+answers, final verification table, 2/5 history and the unrelated full-suite failure.
+Remaining owner actions: separately authorize unchanged hosted fresh disposable
+PostgreSQL CI for #97 before publication; handle the stale overnight fixture in a
+separately scoped repair; arrange independent review. No merge/deploy is granted.
+The exact retained commit SHA is in the task completion/issue handoff, avoiding a
+self-referential commit ID in this file. Historical status content is preserved.
+
+Pass3/5: the first staged diff check caught one extra blank line at the end of the
+new source file (untracked files had not been covered by the earlier unstaged diff
+check). Remove only that blank line, then rerun the complete staged whitespace and
+five-path inventory checks. This is whitespace-only; the85 focused cases and full
+functional checks above remain applicable, with no behavior/test/assertion change.
+Final correction accounting supersedes the earlier point-in-time2/5: **3/5 used**.
+
+Final source SHA256 after whitespace cleanup: `3e89566021e98b2131565880a3084ac848f759775b9474849c5c0c6f2dea96cc`.
+
+### Issue #97 publication continuation — November 17
+
+The owner's active continuation explicitly authorizes pushing exact implementation
+commit `a9a05ddbf18f60c09f1429d9e7553e29f95c018a`, opening its one draft PR and running
+unchanged hosted CI with fresh disposable PostgreSQL. Approval source: the owner's
+November17 project-chat answer to that exact publication/CI question, “Yes, do
+whatever it takes to fix this and move it forward,” explicitly confirmed by the
+current owner request. Necessary #97 status/evidence documentation updates within
+the original five paths are covered. This supersedes the earlier missing-D hold
+for this issue only, not the retained failure/correction history. No ready, merge,
+deploy, existing-DB, workflow/dependency, additional agent/task or paid API grant.
+[Publication authorization record](https://github.com/MightyMulligan-ops/strategy-game/issues/97#issuecomment-6953825707).
+
+Rechecked clean same workspace/branch/head, same current main/base
+`53180055dabde3d406935d76592505692d864cfc`, complete five-path diff, sole paused claim
+and no existing #97 PR/remote branch. Pushed the exact approved implementation
+commit unchanged, then opened [draft PR #99](https://github.com/MightyMulligan-ops/strategy-game/pull/99)
+from `issue/97-multi-force-combat` to same-repository main: **in review / unmerged**.
+This append-only evidence update is a separate status-only descendant commit;
+implementation/test files remain byte-identical to the owner's approved SHA.
+Correction history remains **3/5**; publication documentation is not another
+implementation correction or post-review repair. No amend, rebase or fixture fix.
+
+The coordinator independently reproduced all10 overnight-production failures on
+unchanged main and reports all27 tests pass with Date fixed to
+2026-11-17T03:30:00Z. This is owner/coordinator-supplied corroboration, not a new
+execution by this continuation. The separate fixture-only repair stays outside
+this branch. The actual local full result remains2103 passed/10 failed/262 skipped;
+no red result is concealed and no failed workflow will be automatically rerun.
+Prior frozen-install/generation/build/typecheck/lint and85 focused passes remain
+applicable to unchanged product/test bytes. This status-only delta receives diff
+and exact-scope checks; no redundant functional test run is claimed.
+
+At this publication snapshot, CI discovery has not yet returned an associated run;
+final-head hosted workflow/run/attempt/job evidence is PENDING/UNKNOWN, not a pass.
+The task completion/PR handoff will record the actual final head and observed runs
+without another status commit solely to embed its own SHA. Independent review,
+existing-database rollout and later movement/persistence/UI stages remain separate.
