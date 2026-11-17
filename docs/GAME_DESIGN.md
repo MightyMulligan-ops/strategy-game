@@ -64,6 +64,8 @@ Territories remain important for ownership, income, recruitment, borders, supply
 
 - Movement is based on geographic distance and each unit's permitted range.
 - The server validates every movement order.
+- For the upcoming Europe map, land divisions must remain on land and naval formations must remain on navigable water throughout every route segment, not just at the destination. Satellite imagery is visual context; a separate, version-pinned geographic mask defines legal surfaces. The first surface-validator foundation supports land and ocean routes, rejects exact coastline contact and leaves explicit inland-water navigation, bridges, embarkation and amphibious exceptions unsupported. Existing match runtimes are unchanged; see [EUROPE_MAP_PROTOTYPE.md](EUROPE_MAP_PROTOTYPE.md).
+- Units abstract larger divisions. Regional imagery and zoom support geographic adjustments and defense-line control points; building-level positioning is outside this prototype's scope. Use 10m regional imagery with a lightweight overview, without changing world positions when zooming.
 - A stack's movement capability must be calculated from its composition and applicable rules; the exact mixed-stack range calculation remains to be confirmed.
 - Players may move groups and split formations.
 - Combat may begin when a movement order encounters hostile forces, subject to diplomacy and combat rules. Explicit attack orders are distinct from movement orders. Attack targeting and the interaction between explicit attacks and movement-triggered encounters remain unspecified; the contracts do not execute either behavior.

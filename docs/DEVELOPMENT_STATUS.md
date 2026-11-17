@@ -80,6 +80,12 @@ This is a short, evidence-based handoff, not a replacement for the rules or road
 | Production turn command APIs, scheduler | Planned | Next Phase 0B work; account authentication alone does not grant match permissions |
 | Map, gameplay, leadership, Military Supplies | Planned | Rules remain in GAME_DESIGN.md; no claim of implemented gameplay |
 
+## Europe imagery and surface-navigation foundation — 2026-11-17
+
+Owner-started task: continue 10m division-scale imagery and land/naval route restrictions. Prepared on `feat/europe-surface-navigation` from verified main `cefad2e50b175a957cbc168a432e19815ce1a3dc`, separate from Combat Stage B #101. Pure engine validator and tests are implemented; actual [10m Figma regional sample](https://www.figma.com/design/f46G90QDpLvSNBMWSVQ89L?node-id=24-6679) is complete. No new match runtime, production route enforcement, naval unit contract, tile loader or interactive camera/defense-line editor is claimed. See [EUROPE_MAP_PROTOTYPE.md](EUROPE_MAP_PROTOTYPE.md) for provenance, data constraints and the integration sequence.
+
+Validation: shared-types build, complete game-engine build and engine test typecheck passed with pinned TypeScript 6.0.3. All **367 engine tests across 13 files passed**, including **40 new surface-navigation cases**, using pinned Vitest 4.1.12. Normal frozen dependency install was blocked by the managed shell's registry/loopback networking restrictions; targeted tooling used lockfile-pinned packages. Full workspace build/lint/database checks and hosted CI were **not run**. Existing databases, migrations, dependencies, CI and deployed applications remain untouched. Correction history **1/5** (test-array parameterization fixed after typecheck); no independent review or old-task repair history reset. Source is prepared for a feature branch; no PR, merge or deployment has been performed by this task.
+
 ## Update policy
 
 1. At task start, record the issue and branch as **in progress** after verifying the approved scope and existing claim. At draft PR creation, record the real PR link and **in review / unmerged**. Record **blocked** only with the exact unresolved decision/dependency and owner action needed.
