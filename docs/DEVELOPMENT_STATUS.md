@@ -1,5 +1,11 @@
 # Development status
 
+## Europe camera prototype — 2026-11-17 (feature branch, unmerged)
+
+Owner-started display-only Europe camera on main `905ee35dc67e271fb64b613f0be83257b7c169fb`; branch `feat/europe-camera-prototype`. Adds an explicit development-only fixture with continuous cursor-anchored pan/zoom, a responsive Spain-wide maximum, NASA satellite tiles with bounded caching and failure fallback, original national outlines and 138 proposed city objectives. Figma current board now pairs the theatre overview with a Spain-wide maximum; Lyon is archived as an imagery-quality reference. No live match/API/server/runtime/database changes. The full ESA 10m tile set and defense editor remain follow-up work.
+
+Standard web TypeScript build, Vite production build and full web lint passed; all 222 web tests passed, including 11 camera/cache cases. Installed Chrome checks covered 1920/1366/2560 desktop widths and 390px, fixed 44px markers, cursor anchor, city selection, keyboard escape and imagery failure/retry. Prototype assets are absent from production output. Implementation corrections 3/5; prior task histories unchanged. No PR/hosted CI, merge or deployment. See [EUROPE_CAMERA_PROTOTYPE.md](EUROPE_CAMERA_PROTOTYPE.md) for run instructions, provenance, evidence and remaining scope.
+
 ## PR #99 post-review repair — attempt 1 for COMBAT97-F1/F2 (2026-11-17, unmerged)
 
 The owner explicitly approved the two named findings, bounded repair, regression tests and unchanged hosted fresh disposable PostgreSQL CI in the project conversation: "Approved. Do whatever it takes." This is human-initiated post-review attempt **1/2 for each finding**, separate from the original Stage A 3/5 implementation history and the unrelated clock repair. Existing branch/draft PR `issue/97-multi-force-combat` / [#99](https://github.com/MightyMulligan-ops/strategy-game/pull/99) is reused. Verified starting head `2b6847594323de25b81e8487535198b165dcfbb7`, base `53180055dabde3d406935d76592505692d864cfc`, open draft, previous exact-head CI success and no competing repair claim. Unrelated Python cache files were preserved; no reset, stash, force push, new branch/worktree or agent was used.
