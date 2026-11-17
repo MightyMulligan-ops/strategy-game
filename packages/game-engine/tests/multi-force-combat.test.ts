@@ -38,7 +38,7 @@ function assertRoundInvariants(audit: MultiForceAudit) {
     expect(round.actions.map(a => a.sourceUnitId).sort()).toEqual(actors.sort());
     for (const a of round.actions) {
       expect(alive.has(a.sourceUnitId)).toBe(true);
-      expect(a.damage).toBe(Math.floor(a.raw * a.effectiveStat / 0x100000000) + 1);
+      expect(a.damage).toBe(Number(BigInt(a.raw) * BigInt(a.effectiveStat) / (1n << 32n)) + 1);
       expect(a.damage).toBeGreaterThan(0);
       expect(audit.input.relationships.find(r => r.from === a.sourcePlayerId && r.to === a.targetPlayerId)?.relation).toBe("hostile");
       const dealt = round.hits.filter(h => h.sourceUnitId === a.sourceUnitId).reduce((n, h) => n + h.damage, 0);
@@ -113,6 +113,100 @@ describe("pure multi-force combat 1B", () => {
     }
     expect(a.rounds[1]!.forceOrder).toEqual([...a.rounds[0]!.forceOrder.slice(1), a.rounds[0]!.forceOrder[0]]);
     assertRoundInvariants(a);
+  });
+  it.each([0, 1, 42, 0xffffffff])("alternates a lone defender's allied targets across rounds, seed %s", seed => {
+    const units = (p: string) => [troop(p, { hp: 100, maxHp: 100, attack: 1, defense: 1 })];
+    const value = input([formation("a", units("a")), formation("c", units("c")), formation("b", units("b"), "stationary")], [["a", "c"]]);
+    const audit = run({ ...value, seed });
+    const targets = audit.rounds.slice(0, 6).map(r => r.actions.find(a => a.sourcePlayerId === "b")!.targetPlayerId);
+    expect(targets).toHaveLength(6);
+    for (let i = 1; i < targets.length; i++) expect(targets[i]).not.toBe(targets[i - 1]);
+    expect(targets.filter(p => p === "a")).toHaveLength(3);
+    expect(targets.filter(p => p === "c")).toHaveLength(3);
+    assertRoundInvariants(audit);
+  });
+  it("alternates incoming damage across same-player formations over round boundaries", () => {
+    const units = (p: string) => [troop(p, { hp: 100, maxHp: 100, attack: 1, defense: 1 })];
+    const audit = run(input([formation("a", units("a1"), "moving", "a1"), formation("a", units("a2"), "moving", "a2"),
+      formation("b", units("b"), "stationary")]));
+    const targets = audit.rounds.slice(0, 6).map(r => r.actions.find(a => a.sourcePlayerId === "b")!.targetFormationId);
+    for (let i = 1; i < targets.length; i++) expect(targets[i]).not.toBe(targets[i - 1]);
+    expect(targets.filter(f => f === "a1")).toHaveLength(3);
+    expect(targets.filter(f => f === "a2")).toHaveLength(3);
+    assertRoundInvariants(audit);
+  });
+  it("distributes one-unit mover attacks fairly among mutually hostile forces", () => {
+    const audit = run(input(["a", "b", "c"].map(p => formation(p, [troop(p, { hp: 100, maxHp: 100, attack: 1, defense: 1 })]))));
+    for (const p of ["a", "b", "c"]) {
+      const targets = audit.rounds.slice(0, 6).map(r => r.actions.find(a => a.sourcePlayerId === p)!.targetPlayerId);
+      for (const enemy of ["a", "b", "c"].filter(q => q !== p)) expect(targets.filter(q => q === enemy)).toHaveLength(3);
+      for (let i = 1; i < targets.length; i++) expect(targets[i]).not.toBe(targets[i - 1]);
+    }
+    assertRoundInvariants(audit);
+  });
+  it("continues rotation without dead targets or dead initiative slots", () => {
+    const units = (p: string, hp = 100) => [troop(p, { hp, maxHp: hp, attack: 1, defense: 1 })];
+    const audit = run(input([formation("a", units("a", 1)), formation("c", units("c")), formation("d", units("d")),
+      formation("b", units("b"), "stationary")], [["a", "c", "d"]]));
+    const death = audit.rounds.findIndex(r => r.casualties.includes("a"));
+    expect(death).toBeGreaterThanOrEqual(0);
+    const remaining = audit.rounds.slice(death + 1, death + 7);
+    expect(remaining).toHaveLength(6);
+    const targets = remaining.map(r => r.actions.find(a => a.sourcePlayerId === "b")!.targetPlayerId);
+    expect(targets).not.toContain("a");
+    for (let i = 1; i < targets.length; i++) expect(targets[i]).not.toBe(targets[i - 1]);
+    for (let i = death + 1; i < audit.rounds.length; i++) {
+      const previous = audit.rounds[i - 1]!;
+      const deadPlayers = new Set(previous.casualties);
+      const expected = [...previous.forceOrder.slice(1), previous.forceOrder[0]!].filter(p => !deadPlayers.has(p));
+      expect(audit.rounds[i]!.forceOrder).toEqual(expected);
+    }
+    assertRoundInvariants(audit);
+  });
+  it("prunes a destroyed formation without restarting its owner's incoming rotation", () => {
+    const units = (p: string, hp = 100) => [troop(p, { hp, maxHp: hp, attack: 1, defense: 1 })];
+    const audit = run(input([formation("a", units("fragile", 1), "moving", "a1"), formation("a", units("a2"), "moving", "a2"),
+      formation("a", units("a3"), "moving", "a3"), formation("b", units("b"), "stationary")]));
+    const death = audit.rounds.findIndex(r => r.casualties.includes("fragile"));
+    expect(death).toBeGreaterThanOrEqual(0);
+    const targets = audit.rounds.slice(death + 1, death + 7).map(r => r.actions.find(a => a.sourcePlayerId === "b")!.targetFormationId);
+    expect(targets).toHaveLength(6); expect(targets).not.toContain("a1");
+    for (let i = 1; i < targets.length; i++) expect(targets[i]).not.toBe(targets[i - 1]);
+    expect(targets.filter(f => f === "a2")).toHaveLength(3);
+    expect(targets.filter(f => f === "a3")).toHaveLength(3);
+    assertRoundInvariants(audit);
+  });
+  it("continues allied target rotation when a defender has an odd number of actors", () => {
+    const unit = (p: string) => troop(p, { hp: 100, maxHp: 100, attack: 1, defense: 1 });
+    const audit = run(input([formation("a", [unit("a")]), formation("c", [unit("c")]),
+      formation("b", [unit("b1"), unit("b2"), unit("b3")], "stationary")], [["a", "c"]]));
+    const targets = audit.rounds.slice(0, 6).flatMap(r => r.actions.filter(a => a.sourcePlayerId === "b").map(a => a.targetPlayerId));
+    expect(targets).toHaveLength(18);
+    for (let i = 1; i < targets.length; i++) expect(targets[i]).not.toBe(targets[i - 1]);
+    expect(targets.filter(p => p === "a")).toHaveLength(9);
+    expect(targets.filter(p => p === "c")).toHaveLength(9);
+    assertRoundInvariants(audit);
+  });
+  it("scales large leadership-adjusted damage with an independent exact-integer oracle", () => {
+    const commanders = [leader("g", "GENERAL"), leader("c", "COLONEL"), leader("k", "CAPTAIN"), leader("l", "LIEUTENANT")]
+      .map(u => ({ ...u, leadershipEligible: false, attack: 1, defense: 1, hp: 100, maxHp: 100,
+        ...(u.kind === "LEADER" ? { specialization: u.rank } : {}) } as MultiForceUnit));
+    const value = input([formation("a", [troop("a", { hp: 1000000, maxHp: 1000000, attack: 1000000, defense: 1000000 }), ...commanders]),
+      formation("b", [0, 1, 2].map(i => troop(`b${i}`, { hp: 1000000, maxHp: 1000000, attack: 1, defense: 1 })), "stationary")]);
+    const bonuses = { GENERAL: 0, COLONEL: 1000000, CAPTAIN: 1000000, LIEUTENANT: 526599 };
+    const audit = run({ ...value, encounterId: "review:1138", rules: { ...value.rules,
+      leadership: Object.entries(bonuses).map(([specialization, bonus]) => ({ specialization, unitType: "INFANTRY", attack: bonus, defense: bonus })) } });
+    const first = audit.rounds[0]!.actions[0]!;
+    expect(first).toMatchObject({ sourceUnitId: "a", raw: 3343680903, effectiveStat: 3526601, damage: 2745499 });
+    for (const action of audit.rounds.flatMap(r => r.actions)) {
+      expect(action.damage).toBe(Number(BigInt(action.raw) * BigInt(action.effectiveStat) / (1n << 32n)) + 1);
+    }
+    assertRoundInvariants(audit);
+    const maximum = run({ ...audit.input, rules: { ...audit.input.rules, leadership: audit.input.rules.leadership.map(p => ({
+      ...p, attack: p.specialization === "GENERAL" ? 0 : 1000000, defense: p.specialization === "GENERAL" ? 0 : 1000000
+    })) } });
+    expect(maximum.rounds[0]!.actions.find(a => a.sourceUnitId === "a")!.effectiveStat).toBe(4000002);
+    assertRoundInvariants(maximum);
   });
   it("continues hostile mover alternation after a stationary defender is destroyed", () => {
     const a = run(input([formation("a", [troop("a", { hp: 100, maxHp: 100, attack: 10, defense: 10 })]),

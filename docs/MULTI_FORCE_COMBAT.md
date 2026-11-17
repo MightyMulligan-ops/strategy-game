@@ -70,17 +70,21 @@ The schedule version is `round-start-single-action-rotating-armies-v1`:
    code-unit IDs/keys before computing the battle identity. Reproducibly shuffle
    player force order, formation order, and ordinary/leader unit order separately.
    Ordinary units always precede leaders within each formation's casualty roster.
-2. Rotate the starting force and formation order each round, skipping eliminated
-   entries. Snapshot all living units and their leadership-modified stats.
+2. Keep encounter-local initiative queues. Remove eliminated entries, then rotate
+   the surviving force and formation queues once per round. Eliminated entries
+   consume no starting slots. Snapshot living units and leadership-modified stats.
 3. Interleave one actor per player, cycling until all living units have acted.
    Within a player, interleave its formations' units. Each unit has **one action
    per round**, including leaders, regardless of opponent count or army size.
    There is no per-opponent retaliation. Allied owners alternate contributions
    while both have actors; larger forces continue after smaller queues exhaust.
-4. For each source player, cycle its actions among hostile players in the current
-   rotated order, then among that target player's formations. A defender's actions
-   therefore alternate allied attackers; same-player formations retain separate
-   casualty rosters. Never select a friendly target.
+4. For each source player, maintain a target queue initialized from the seeded
+   force order, independent of initiative. Advance it after every action and
+   retain it across round boundaries, pruning eliminated players without restarting.
+   Maintain the same persistent rotation for each source/target player's formation
+   queue, initialized from seeded formation order and pruning destroyed formations.
+   Thus a one-unit or odd-sized defender still alternates allied targets across
+   rounds. Same-player formations retain separate casualty rosters. Never target allies.
 5. Choose that action's ATK/DEF relative to its designated target formation, roll
    once, and commit all actions before allocating any damage. A unit killed in
    this round still contributes its full action and leadership bonus.
@@ -127,10 +131,14 @@ states for force order, army order, each formation's ordinary/leader order, dama
 and ownership ties. Each alternating pair uses its own independent domain.
 LCG recurrence is `(imul(state,1664525)+1013904223) >>> 0`. Fisher–Yates index
 selection and damage use floor scaling; damage is `floor(raw*stat/2^32)+1`.
+Damage multiplication/division uses BigInt before converting the bounded result
+back to Number. Leadership can raise a stat above the base-stat ceiling, so its
+intermediate product must not be rounded using Number arithmetic.
 This has small scaling bias, retains the approved provisional behavior and does
 not claim to reproduce atWar. Modified stats are bounded by base plus at most
-three secondary modifiers and the established primary bonus; all products and
-strength sums remain exact safe integers under the input ceilings.
+three secondary modifiers and the established primary bonus. Modified stats,
+strength sums and bounded shuffle-index products remain safe Number integers;
+the potentially larger intermediate damage product is computed exactly as BigInt.
 
 Only active actions consume the local damage stream. Unrelated encounters,
 external call order, retries, input array permutations and execution budgets do

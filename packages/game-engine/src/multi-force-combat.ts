@@ -267,11 +267,19 @@ function fight(input: MultiForceInput, budget: MultiForceBudget): MultiForceAudi
   const rounds: MultiForceRound[] = [];
   let actionCount = 0;
   const damageDraw = rng(input, "damage");
+  let forceTurns = forceOrder, armyTurns = armyOrder;
+  // Target queues belong to the encounter, not an individual round. Keep them
+  // independent of initiative so short actor queues cannot bias incoming hits.
+  const targets = new Map(players.map(p => [p, forceOrder.filter(other => hostile(p, other))]));
+  const armyTargets = new Map<string, Army[]>();
   while (hasEnemies()) {
     if (rounds.length >= budget.maxRounds) fail("WORK_LIMIT");
     const number = rounds.length + 1;
-    const ordered = rotate(forceOrder, number - 1).filter(p => activePlayers().includes(p));
-    const orderedArmies = rotate(armyOrder, number - 1).filter(living);
+    const active = new Set(activePlayers());
+    const ordered = forceTurns.filter(p => active.has(p));
+    const orderedArmies = armyTurns.filter(living);
+    forceTurns = rotate(ordered, 1);
+    armyTurns = rotate(orderedArmies, 1);
     const stats = armies.flatMap(a => a.roster.filter(u => u.hp > 0).map(u => modified(a, u, input)));
     const statMap = new Map(stats.map(s => [s.unitId, s]));
     // Interleave owners, then formations within each owner; each unit once.
@@ -283,23 +291,20 @@ function fight(input: MultiForceInput, budget: MultiForceBudget): MultiForceAudi
       return [p, queue] as const;
     }));
     const actions: MultiForceAction[] = [];
-    const targets = new Map<string, number>();
-    const armyTargets = new Map<string, number>();
     for (let slot = 0; ordered.some(p => slot < queues.get(p)!.length); slot++) for (const p of ordered) {
       const actor = queues.get(p)![slot]; if (!actor) continue;
-      const enemies = ordered.filter(other => hostile(p, other));
+      const enemies = targets.get(p)!.filter(other => active.has(other));
       if (!enemies.length) continue;
       if (++actionCount > budget.maxActions) fail("WORK_LIMIT");
-      const cursor = targets.get(p) ?? 0;
-      const targetPlayerId = enemies[cursor % enemies.length]!; targets.set(p, cursor + 1);
-      const enemyArmies = orderedArmies.filter(a => a.formation.ownerPlayerId === targetPlayerId);
-      const k = pairKey(p, targetPlayerId), armyCursor = armyTargets.get(k) ?? 0;
-      const target = enemyArmies[armyCursor % enemyArmies.length]!; armyTargets.set(k, armyCursor + 1);
+      const targetPlayerId = enemies[0]!; targets.set(p, rotate(enemies, 1));
+      const k = pairKey(p, targetPlayerId);
+      const enemyArmies = (armyTargets.get(k) ?? armyOrder.filter(a => a.formation.ownerPlayerId === targetPlayerId)).filter(living);
+      const target = enemyArmies[0]!; armyTargets.set(k, rotate(enemyArmies, 1));
       const role = roleFor(actor.formation, target.formation, number), stat = statMap.get(actor.unit.unitId)!;
       const effectiveStat = role === "ATK" ? stat.attack : stat.defense, raw = damageDraw();
       actions.push({ sourcePlayerId: p, sourceFormationId: actor.formation.formationId, sourceUnitId: actor.unit.unitId,
         targetPlayerId, targetFormationId: target.formation.formationId, role, effectiveStat, raw,
-        damage: Math.floor(raw * effectiveStat / 0x100000000) + 1 });
+        damage: Number(BigInt(raw) * BigInt(effectiveStat) / 0x100000000n) + 1 });
     }
     // All actions/stats are now committed. Damage uses shadow HP until the
     // complete round has been allocated; no casualties cancel actions.
