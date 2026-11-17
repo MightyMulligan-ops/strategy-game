@@ -1043,3 +1043,10 @@ map is in COMBAT_TURN.md; #89 remains open until observed Stage C completion.
 Eight changed paths only; no transport, SQL, gameplay, dependency, security or
 workflow changes. Human browser/gameplay playtesting, Turn2, Europe map and
 existing-environment rollout/deployment remain separate. Feature remains unmerged.
+
+Publication observed: [draft PR104](https://github.com/MightyMulligan-ops/strategy-game/pull/104),
+base249b6e4aa0d5a14ec7fd54ba95c118fc692f8b73, implementation
+43e475aae3eaf99254d1ab5945dbaf5574d71120. In review/unmerged at this checkpoint.
+This status-only commit records the real URL; exact final-head CI/observed merge
+and parent89 acceptance disposition follow in the PR conversation/handoff, without
+self-referential SHA commits or retrying failed workflows. Stage C history0/5 intact.
