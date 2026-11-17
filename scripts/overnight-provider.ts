@@ -5,6 +5,7 @@ import {OpenAIHostedArtifacts} from './codex-openai-artifacts.ts';
 import {boundedBody,PROVIDER_ID,type PilotFetcher} from './codex-pilot-diagnostics.ts';
 import type {HostedProvider,HostedPacket} from './codex-hosted-orchestrator.ts';
 import type {HostedSessionRequest} from './codex-hosted-agents.ts';
+import {MANUAL_AGENT_WALL_SECONDS} from './overnight-policy.ts';
 import {requireControl} from './codex-run-control.ts';
 export type ProviderState={version:1;createAttempted:boolean;sessionId:string|null;coding:'not_started'|'creating'|'active'|'completed'|'failed'|'unknown';
   termination:'not_started'|'unknown'|'deleted_confirmed';usage:null};
@@ -16,10 +17,10 @@ export class QueueSessionProvider implements HostedProvider {
   private timer:ReturnType<typeof setTimeout>|undefined;
   private readonly abort=new AbortController();
   constructor(key:string,private readonly seconds:number,private readonly beforeCreate:()=>Promise<void>,
-    private readonly save:(state:ProviderState)=>void,fetcher:PilotFetcher=fetch,private readonly deadlineAt=Infinity){
-    requireControl(Number.isFinite(seconds)&&seconds>0&&seconds<=900,'queue-provider-budget');
+    private readonly save:(state:ProviderState)=>void,fetcher:PilotFetcher=fetch,private readonly deadlineAt=Infinity,manual=false,private readonly clock:()=>number=Date.now){
+    requireControl(Number.isFinite(seconds)&&seconds>0&&seconds<=(manual?MANUAL_AGENT_WALL_SECONDS:900),'queue-provider-budget');
     const bounded: PilotFetcher=(url,init)=>fetcher(url,{...init,signal:AbortSignal.any([this.abort.signal,...(init.signal?[init.signal]:[])])});
-    this.stream=new OpenAIHostedStreamingProvider(key,bounded);
+    this.stream=new OpenAIHostedStreamingProvider(key,bounded,undefined,manual?(seconds+60)*1000:13*60_000);
     // Cleanup gets its own bounded HTTP timeout, never an already aborted signal.
     this.cleanup=new OpenAIHostedArtifacts(key,fetcher);
   }
@@ -27,7 +28,7 @@ export class QueueSessionProvider implements HostedProvider {
   async *createSession(request:HostedSessionRequest):AsyncGenerator<HostedPacket>{
     requireControl(!this.state.createAttempted,'queue-provider-repeat');
     await this.beforeCreate();
-    const milliseconds=Math.min(this.seconds*1000,this.deadlineAt-Date.now());requireControl(milliseconds>0,'queue-provider-window-expired');
+    const milliseconds=Math.min(this.seconds*1000,this.deadlineAt-this.clock());requireControl(milliseconds>0,'queue-provider-window-expired');
     this.state.createAttempted=true;this.state.coding='creating';this.state.termination='unknown';this.write();
     this.timer=setTimeout(()=>this.abort.abort(),milliseconds);
     try{

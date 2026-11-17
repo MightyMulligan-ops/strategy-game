@@ -90,8 +90,9 @@ export async function* parseAgentSse(
 export class OpenAIHostedStreamingProvider implements HostedProvider {
   private readonly artifacts:OpenAIHostedArtifacts;
   constructor(private readonly key:string, private readonly fetcher:Fetcher=fetch,
-    private readonly report:PilotReporter=()=>{}) {
+    private readonly report:PilotReporter=()=>{},private readonly streamTimeoutMs=13*60_000) {
     requireControl(typeof key==='string'&&key.length>0,'hosted-credential-missing');
+    requireControl(Number.isFinite(streamTimeoutMs)&&streamTimeoutMs>0&&streamTimeoutMs<=6*60*60_000,'hosted-stream-timeout');
     this.artifacts=new OpenAIHostedArtifacts(key,fetcher,report);
   }
   async *createSession(request:HostedSessionRequest):AsyncGenerator<HostedPacket> {
@@ -108,7 +109,7 @@ export class OpenAIHostedStreamingProvider implements HostedProvider {
       if(d.code==='request_succeeded')http={httpStatus:d.httpStatus!,
         ...(d.requestId?{requestId:d.requestId}:{}),...(d.clientRequestId?{clientRequestId:d.clientRequestId}:{})};
       this.report(d);
-    },'hosted-create-failed',[200,201],13*60_000);
+    },'hosted-create-failed',[200,201],this.streamTimeoutMs);
     requireControl(response.body !== null,'hosted-create-failed');
     let knownSession:string|undefined;
     let rootDone=false;

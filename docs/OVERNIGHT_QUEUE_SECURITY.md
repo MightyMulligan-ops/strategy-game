@@ -1,3 +1,35 @@
+# Manual-start security change — November 17, 2026 candidate
+
+Owner-authorized scope supersedes the legacy fixed overnight window and 300-second
+pilot allowance: manually launch one Issue #95 session at any bedtime and rely on
+the dedicated Platform project's $50 soft operational spending ceiling. Source
+below is an implementation-author review, not independent certification or live
+paid-run evidence. The older assessment follows as historical context.
+
+- V2 is a distinct signature domain; v1 approvals retain original semantics.
+- V2 rejects cron, reruns, extra tasks, numeric coding allowances, unknown keys,
+  altered spending policy/limit and all existing forbidden path/operation changes.
+- A durable reservation fixes the run's origin and scope digest. Later jobs bind
+  to that digest and the same queue/run/source/approval; no sliding renewal.
+- No controller USD meter is claimed. Owner must verify project limit $50 with
+  enforcement enabled and correct existing project-key binding. Alerts alone do
+  not stop execution; monthly spend and propagation delays affect the result.
+- The six-hour Agent infrastructure ceiling has a two-minute cleanup margin.
+  Manual streams use a matching timeout rather than the old hidden 13-minute cap.
+  Existing HTTP size bounds, isolated validation, credentials and dependency pins
+  remain intact. Spending/timeout/failure never automatically creates a replacement.
+- Owner-local signing compares the old signed request with the live config/key
+  pin, checks old/new consumed IDs and current task/owner/main, and retains scope.
+  Only the existing private signing key is read locally. It is never passed as a
+  GitHub argument/body or printed. The prepared request contains only a signature
+  and public key. Start revalidates before writing and binds publication to SHA.
+- Local signing has no GitHub mutations/provider calls. Start records an exclusive
+  local attempt marker before mutations and never retries an ambiguous dispatch.
+  Durable history remains authoritative across devices; stable derived approval
+  IDs prevent repeated conversion of the same original approval into fresh starts.
+- No live billing setting, private key, activation switch or dispatch was accessed
+  or changed by implementation/testing. Owner merge and local signing/start remain.
+
 # Completion security assessment — author review, activation OFF
 
 This is the implementation author's security-focused review. The owner explicitly

@@ -4,7 +4,7 @@ import {readFileSync,writeFileSync,mkdirSync,existsSync} from 'node:fs';
 import {join} from 'node:path';
 import {GitHubHttpsTransport,type GitHubTransport} from './codex-github-control.ts';
 import {productionContext} from './overnight-production.ts';
-import {taskScope} from './overnight-policy.ts';
+import {taskScope,MANUAL_AGENT_WALL_SECONDS} from './overnight-policy.ts';
 import {canonicalScope,sha256} from './codex-automation-policy.ts';
 import {requireControl} from './codex-run-control.ts';
 import {uploadPinnedSource} from './codex-openai-source.ts';
@@ -24,12 +24,12 @@ export async function runQueueAgent(env:NodeJS.ProcessEnv,api:GitHubTransport,fe
     const archive=new Uint8Array(readFileSync(join(dir,'source.tar.gz')));
     requireControl(archive.length>0&&archive.length<=50*1024*1024&&sha256(archive)===env.EXPECTED_ARCHIVE_SHA256,'queue-archive-binding');
     const uploaded=await uploadPinnedSource(env.OPENAI_API_KEY,archive,env.EXPECTED_ARCHIVE_SHA256!,fetcher);
-    const seconds=Math.min(c.task.codingSeconds,(Date.parse(c.manifest.endsAt)-now().getTime())/1000)-120;
+    const seconds=Math.min(c.task.codingSeconds??MANUAL_AGENT_WALL_SECONDS,(Date.parse(c.deadlineAt)-now().getTime())/1000-120);
     requireControl(seconds>0,'queue-cleanup-window-insufficient');
-    const scope=taskScope(c.manifest,c.task),digest=sha256(canonicalScope(scope));
+    const scope=taskScope(c.manifest,c.task,c.startedAt),digest=sha256(canonicalScope(scope));
     const provider=new QueueSessionProvider(env.OPENAI_API_KEY,seconds,async()=>{
       const fresh=await productionContext(api,env,now());requireControl(fresh.record.phase==='agent_running'&&fresh.record.sessions===1&&fresh.task.approvalDigest===c.task.approvalDigest,'queue-before-create-claim');
-    },save,fetcher,Date.parse(c.manifest.endsAt)-120000);
+    },save,fetcher,Date.parse(c.deadlineAt)-120000,c.manifest.version===2,()=>now().getTime());
     const journal=new HostedSessionJournal(new OneProcessJournalStore(join(dir,'session-state.json')));
     const result=await new HostedAgentOrchestrator(journal,provider).run(`run_${c.runId}_${c.index}`,{
       scope,scopeDigest:digest,issueBody:c.task.scopeText,sourceArchiveFileId:uploaded.fileId,sourceArchiveSha256:uploaded.sha256,sourceArchiveBytes:uploaded.bytes,

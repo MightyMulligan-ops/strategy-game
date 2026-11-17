@@ -1,5 +1,36 @@
 # Development status
 
+## Manual coding launch — November 17, 2026 (candidate, unmerged)
+
+Owner requests replacing the narrow overnight admission window with one manual
+bedtime start and replaces the 300-second coding allowance with a $50 soft spending
+target. New signed v2 mode permits exactly one task/session, removes calendar/short
+coding timers and recurring triggers, and preserves owner/key/scope/main/issue
+checks, durable one-use claims, isolated validation, provider cleanup and draft-only
+publication. Actual spend control is the existing dedicated Platform project limit,
+which the owner must verify as $50 enforced; no live USD meter or strict bill cap
+is claimed. Six-hour Agent infrastructure watchdog and 24-hour scope lifetime from
+intake remain. Owner-local signing/start helper and Windows procedure are in
+[OVERNIGHT_QUEUE.md](OVERNIGHT_QUEUE.md); security changes are in
+[OVERNIGHT_QUEUE_SECURITY.md](OVERNIGHT_QUEUE_SECURITY.md).
+
+Implementation pass 1/5: focused manual/policy/production/transport tests passed
+(161 tests) plus 5 owner-local CLI tests. Frozen install, full build/typecheck/lint,
+all 2,103 database-free tests (263 deliberate database skips) and actionlint 1.7.7
+for both changed workflows passed. The CLI tests use a synthetic GitHub executable
+and synthetic Ed25519 key; production-interface tests use synthetic provider HTTP
+and real local Git replay. No live provider or budget behavior is inferred. Local
+pnpm fallback was 11.25.0; pinned pnpm 12.18.0 still needs normal hosted CI.
+The original fixed-time production fixture mixed an injected clock with Date.now;
+the provider now uses the injected clock consistently (production default unchanged).
+A readonly fixture assignment was corrected before the passing typecheck.
+
+Branch `fix/manual-single-use-coding` is prepared for review. Hosted disposable
+PostgreSQL CI/draft publication remains pending the separate repository-required
+owner approval. No merge, deployment, paid session, live configuration/secret/billing
+change, existing database access or workflow dispatch performed.
+
+
 ## Autonomous validator false-success repair — 2026-11-16 (candidate, unmerged)
 
 Owner-authorized subscription Codex repair on `codex/validator-fail-closed`, based on `a7290ceab2e3d55924e1d144c38370a3455c2011`. PR #88's merge was confirmed in GitHub; its older review entries below are historical. Scope: reliable offline pnpm, fail-closed individual check execution, a host-owned execution receipt authenticated through Actions job outputs, publisher refusal before API calls, offline regressions and real networkless-container CI smoke. No gameplay, dependencies, existing databases, paid sessions/dispatches, spending gate, overnight queue, merge or deployment changes are authorized here. Existing local lobby edits are preserved.

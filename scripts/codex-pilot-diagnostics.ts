@@ -39,6 +39,8 @@ const codes=new Set([
 ]);
 const providerCodes=new Set(['invalid_request_error','invalid_api_key','insufficient_permissions',
   'permission_denied','insufficient_quota','rate_limit_exceeded','files_api_rate_limit_exceeded',
+  'project_spend_limit_exceeded','organization_spend_limit_exceeded','organization_usage_limit_exceeded',
+  'session_budget_exceeded','usage_limit_exceeded','credit_balance_exhausted','billing_not_active',
   'model_not_found','server_error','internal_error','environment_setup_failed','setup_failed']);
 // IDs are opaque. Keep path components bounded without inventing sess_/turn_ prefixes.
 export const PROVIDER_ID=/^[A-Za-z0-9_-]{1,256}$/;

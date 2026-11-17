@@ -1,4 +1,124 @@
-# Overnight queue — production integration, paid activation OFF
+# Sovereign manual coding start
+
+## Manual mode — November 17, 2026 candidate
+
+The owner now requests one manual start at bedtime, no clock-based launch window
+and no 300-second coding allowance. The signed v2 manifest is single-use,
+manual-only, exactly one task/session, with `codingSeconds:null`, `softLimitUsd:50`
+and `spendPolicy:"platform-project-limit"`. Scope, source, approval IDs, signature,
+key pin, revocation, durable exclusion, isolated validation and draft-only publication
+remain enforced. No merge/deployment is authorized. This change needs owner merge
+before use on main; it does not start paid work by itself.
+
+**Spending:** the $50 target uses the dedicated OpenAI Platform project's existing
+spend control, not a new controller-side real-time USD meter. In Project settings
+→ Limits, verify **Monthly spend limit $50** and **Enforce a hard limit enabled**.
+An alert-only/unenforced soft budget does not stop work. Although enforcement is
+requested, treat $50 as a soft operational ceiling because provider accounting and
+enforcement can lag. It is the project's monthly total, not an additional $50 for
+each run. Existing monthly spend reduces remaining headroom. The existing project
+API key must belong to that project. Do not create a new/admin key for this flow.
+The CLI's `--platform-limit-50` flag records the owner's verification of these
+settings; it does not independently query or configure billing.
+
+Official sources checked November 17:
+[spend-limit behavior](https://developers.openai.com/api/docs/guides/spend-limits)
+and [best-effort session usage](https://developers.openai.com/api/docs/guides/agents-api/observability).
+Session/turn usage may be null or revised and omits some billing details. Reports
+continue to say billing UNKNOWN rather than invent an exact cost or $50 guarantee.
+
+**Runtime:** the short coding timer and hidden 13-minute HTTP stream timeout no
+longer apply to v2. Coding ends at root completion, provider failure/spend rejection,
+revocation detected at a protected boundary, or an infrastructure failure/watchdog.
+The Agent job uses GitHub's six-hour ceiling, with a controller watchdog two minutes
+earlier to allow cancellation/deletion. This is a platform ceiling, not a five-minute
+work budget. A 24-hour scope lifetime measured from durable intake covers queued
+prepare/seal/validate/publish jobs; it never extends at later boundaries. Validation
+retains its existing bounded checks. No infinite execution, automatic paid restart,
+new session, autonomous task discovery or guarantee of task completion is introduced.
+
+The queue workflow has no cron trigger. The scheduling variable has no effect on
+this version; the launch helper explicitly turns it off. Historical v1 signatures
+are still parsed and validated with their original windows/limits, never silently
+upgraded. V2 signatures use `SOVEREIGN-OVERNIGHT-V2\n` + canonical manifest. Scope
+expiry is derived from the authenticated ledger's admission timestamp and is included
+in the scope digest at reservation; every later protected boundary checks that same
+digest. A modified origin, main, issue, signature, scope or enrollment stops work.
+
+### Owner-local Windows launch for Issue #95
+
+After the reviewed PR is merged by the owner and required CI passes, use a clean
+checkout updated to the new `main`. Keep the original signed
+`$HOME\.sovereign\issue95-request.json`; it supplies the frozen task description,
+issue digest and two allowed files. Do not edit its base64 content by hand.
+The helper refuses another active/uncertain run or any consumed original/manual
+approval, preserves the task scope, and changes only the baseline, launch/spending
+policy and signed approval digest. Repeated preparations produce the same one-use
+IDs, so copying the old request to another device does not refill its approval.
+
+1. Review the settings above. Retain the existing enrolled Ed25519 private key
+   only on your PC. Node 24 with `--experimental-transform-types` is required.
+2. From the updated repository root, prepare the new signed request. The private
+   key path is entered locally and is never uploaded. The output file must not
+   already exist; preserve uncertain attempts for inspection rather than overwrite.
+
+```powershell
+$ErrorActionPreference = "Stop"
+$node24 = Join-Path $HOME ".sovereign\tools\node-v24.15.0-win-x64\node.exe"
+$env:SOVEREIGN_GH = "C:\Program Files\GitHub CLI\gh.exe"
+$original = Join-Path $HOME ".sovereign\issue95-request.json"
+$prepared = Join-Path $HOME ".sovereign\issue95-manual-request.json"
+$keyPath = Read-Host "Full path to your existing Sovereign Ed25519 private signing key"
+& $node24 --experimental-transform-types scripts/overnight-manual.ts `
+    prepare $original $keyPath $prepared --platform-limit-50
+if ($LASTEXITCODE -ne 0) { throw "Preparation failed; nothing launched." }
+```
+
+Preparation performs read-only GitHub checks, verifies the old signature and
+independent key pin, verifies the current owner/main/issue/ledger, signs locally and
+writes the new Contents API request. It does not publish, activate or call OpenAI.
+The frozen Issue #95 title/body must still match; changed task contents require a
+new explicit scope approval instead of blindly refreshing their digest.
+
+3. When leaving the PC, run this once. No particular time/date is required.
+
+```powershell
+& $node24 --experimental-transform-types scripts/overnight-manual.ts `
+    start $prepared --platform-limit-50
+if ($LASTEXITCODE -ne 0) {
+    throw "Launch failed or is uncertain. Inspect Actions/config/ledger; do not repeat."
+}
+```
+
+The start helper revalidates owner/signature/key/issue/main/ledger/config revision,
+records a local attempt marker **before mutations**, disables execution and recurring
+scheduling, publishes the exact signed bytes with the observed config SHA, reads
+them back, enables execution and sends one manual `mode=execute` dispatch on main.
+A lost response never causes an automatic retry. A dispatch acknowledgement is
+not proof of a paid session or successful completion. After it is accepted, the PC
+may be shut down; GitHub runs remotely. Queue delays before intake do not consume
+a calendar window or coding allowance. If a preflight or mutation fails, inspect
+the marker/config/Actions/ledger; do not delete the marker to retry blindly.
+
+4. Check the matching Actions run and durable ledger/report next morning:
+
+```powershell
+& $env:SOVEREIGN_GH run list --repo MightyMulligan-ops/strategy-game `
+    --workflow sovereign-overnight-queue.yml --event workflow_dispatch --limit 5 `
+    --json databaseId,url,createdAt,headSha,status,conclusion
+```
+
+Inspect coding, confirmed provider deletion, validation and draft publication
+separately. A budget or validation failure can stop without a draft. Uncertain
+termination retains the durable lock and requires the existing explicit recovery;
+no failed workflow rerun, re-signing or new approval IDs bypass that lock.
+
+## Historical v1 integration and provisioning record
+
+The following records describe the original calendar-based mode and setup at the
+time of implementation. Their calendar, scheduling and 900-second guidance applies
+only to v1. Use the manual procedure above for the current owner request. Previously
+observed activation/ledger/PR states below are historical, not live status.
 
 PR #91 is merged. Prepare, agent, termination sealing, real isolated validation,
 exact-tree draft publication, durable completion and reporting are connected

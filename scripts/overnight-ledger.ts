@@ -80,7 +80,7 @@ export class QueueJournal {
       l.runs.push({queueId:m.queueId,authorizationId:m.authorizationId,manifestDigest:manifestDigest(m),baselineSha:m.baselineSha,
         runId,attempt:1,status:'running',startedAt:now.toISOString(),endedAt:null,reason:null,
         tasks:m.tasks.map(t=>({issue:t.issue,title:t.title,approvalId:t.approvalId,approvalDigest:t.approvalDigest,issueDigest:t.issueDigest,
-          scopeDigest:sha256(canonicalScope(taskScope(m,t))),phase:'pending',sessions:0,sessionId:null,terminated:false,startedAt:null,endedAt:null,reason:null,receipt:null,pr:null}))});
+          scopeDigest:sha256(canonicalScope(taskScope(m,t,now.toISOString()))),phase:'pending',sessions:0,sessionId:null,terminated:false,startedAt:null,endedAt:null,reason:null,receipt:null,pr:null}))});
     });
   }
   async step(queueId:string,runId:string,index:number,expected:Phase,next:Phase,now:Date,

@@ -3,18 +3,18 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {REPOSITORY,sha256,canonicalScope} from '../codex-automation-policy.ts';
-import {canonical,taskScope} from '../overnight-policy.ts';
+import {canonical,taskScope,type QueueManifest} from '../overnight-policy.ts';
 import {emptyLedger,type QueueLedger} from '../overnight-ledger.ts';
 import {CONFIG_REF,QUEUE_WORKFLOW} from '../overnight-production.ts';
 import {makeValidationReceipt,REQUIRED_CHECKS,type ValidationBundle} from '../codex-pilot-receipt.ts';
 import {HOSTED_ARTIFACTS} from '../codex-hosted-agents.ts';
 import type {GitHubTransport,GitHubReply} from '../codex-github-control.ts';
-import {manifest,enrollment,signature,trigger,bytes} from './overnight-fixture.ts';
-export function productionFixture(count=1){
+import {manifest,enrollment,signature,trigger,bytes,now} from './overnight-fixture.ts';
+export function productionFixture(count=1,transform?:(m:ReturnType<typeof manifest>)=>QueueManifest){
   const root=mkdtempSync(join(tmpdir(),'queue-production-')),repo=join(root,'repo'),runner=join(root,'runner');mkdirSync(repo);mkdirSync(runner);
   const git=(...args:string[])=>execFileSync('git',['-c','core.hooksPath=/dev/null',...args],{cwd:repo,encoding:'utf8',stdio:'pipe'}).trim();
   git('init','-q');git('config','user.name','Fixture');git('config','user.email','fixture@example.invalid');
-  const m=manifest(count);mkdirSync(join(repo,'apps/server/src'),{recursive:true});mkdirSync(join(repo,'scripts'));
+  const source=manifest(count),m={...(transform?transform(source):source)};mkdirSync(join(repo,'apps/server/src'),{recursive:true});mkdirSync(join(repo,'scripts'));
   writeFileSync(join(repo,'scripts/codex-hosted-packager.py'),readFileSync(new URL('../codex-hosted-packager.py',import.meta.url)));
   for(const t of m.tasks)writeFileSync(join(repo,t.allowedPaths[0]!),'export const fixture = 1;\n');
   git('add','.');git('commit','-qm','Fixture source');m.baselineSha=git('rev-parse','HEAD');
@@ -24,7 +24,7 @@ export function productionFixture(count=1){
     const index=join(root,'index-'+i),env={...process.env,GIT_INDEX_FILE:index};
     execFileSync('git',['read-tree','HEAD'],{cwd:repo,env});execFileSync('git',['apply','--cached'],{cwd:repo,env,input:patch});
     const tree=execFileSync('git',['write-tree'],{cwd:repo,env,encoding:'utf8'}).trim();
-    const scope=taskScope(m,t),scopeDigest=sha256(canonicalScope(scope));
+    const scope=taskScope(m,t,now.toISOString()),scopeDigest=sha256(canonicalScope(scope));
     const bundle:ValidationBundle={scope:bytes({...scope,scopeDigest}),patch,summary:Buffer.from('Synthetic worker text\nCloses #999'),
       manifest:bytes({format:'sovereign-codex-proposal-v1',source_sha:m.baselineSha,scope_digest:scopeDigest,patch_sha256:sha256(patch),patch_bytes:patch.length,
         paths:[{path,sha256:sha256(content),bytes:Buffer.byteLength(content)}]}),

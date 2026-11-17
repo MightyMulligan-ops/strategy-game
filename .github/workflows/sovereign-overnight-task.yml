@@ -53,7 +53,8 @@ jobs:
     name: Agent
     needs: prepare
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # Infrastructure ceiling; v2 manual work has no short coding allowance.
+    timeout-minutes: 360
     environment: sovereign-controller
     permissions:
       contents: read

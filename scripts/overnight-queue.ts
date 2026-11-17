@@ -3,12 +3,12 @@
  * these adapters in distinct privilege domains, not one credentialed process. */
 import {sha256,canonicalScope,REPOSITORY,SHA} from './codex-automation-policy.ts';
 import {requireControl} from './codex-run-control.ts';
-import {taskScope,manifestDigest,type QueueAuthority,type QueueManifest,type QueueTask} from './overnight-policy.ts';
+import {taskScope,queueDeadline,MANUAL_AGENT_WALL_SECONDS,manifestDigest,type QueueAuthority,type QueueManifest,type QueueTask} from './overnight-policy.ts';
 import {QueueJournal,type QueueLedger} from './overnight-ledger.ts';
 import {verifyBundle,verifyValidationReceipt,type ValidationBundle} from './codex-pilot-receipt.ts';
 import {sanitizeDiagnostic} from './codex-pilot-diagnostics.ts';
 
-export type BoundaryContext=Readonly<{manifest:QueueManifest;task:QueueTask;index:number;runId:string;branch:string;signal:AbortSignal;
+export type BoundaryContext=Readonly<{manifest:QueueManifest;task:QueueTask;index:number;runId:string;branch:string;signal:AbortSignal;startedAt:string;
   recordSession:(authenticatedSessionId:string)=>Promise<void>}>;
 export type AgentOutput=Readonly<{sessionId:string;terminationConfirmed:true;bundle:ValidationBundle}>;
 export type ValidatedOutput=Readonly<{bytes:Uint8Array;trustedJob:{runId:string;attempt:1;sourceSha:string;conclusion:'success';receiptDigest:string}}>;
@@ -38,31 +38,32 @@ export async function runOfflineQueue(authority:Pick<QueueAuthority,'check'|'run
   requireControl(authority.runId===runId,'queue-run-binding');
   // Admission failure before reservation throws; it cannot clear someone else's
   // lock. A durable claim precedes ANY adapter or potentially billable call.
-  await journal.reserve(m,runId,now());
+  const startedAt=now().toISOString();
+  await journal.reserve(m,runId,new Date(startedAt));
   let index=0;
   const check=async()=>{
-    const fresh=await authority.check(now());
+    const fresh=await authority.check(now(),false,startedAt);
     requireControl(fresh.enabled&&manifestDigest(fresh)===manifestDigest(m),'queue-authorization-changed');
   };
   const remaining=(limit:number)=>{
-    const seconds=Math.min(limit,(Date.parse(m.endsAt)-now().getTime())/1000);
+    const seconds=Math.min(limit,(Date.parse(queueDeadline(m,startedAt))-now().getTime())/1000);
     requireControl(Number.isFinite(seconds)&&seconds>0,'queue-window-exhausted');return seconds;
   };
   try{
     for(index=0;index<m.tasks.length;index++){
       const task=m.tasks[index]!,taskIndex=index,controller=new AbortController();
-      const context:BoundaryContext={manifest:m,task,index,runId,branch:`queue/${m.queueId}/${task.issue}-${runId}`,signal:controller.signal,
+      const context:BoundaryContext={manifest:m,task,index,runId,startedAt,branch:`queue/${m.queueId}/${task.issue}-${runId}`,signal:controller.signal,
         async recordSession(id){await journal.observeSession(m.queueId,runId,taskIndex,id)}};
       await check();await journal.step(m.queueId,runId,index,'pending','preparing',now());
       await bounded(remaining(300),controller,()=>adapters.prepare(context));
       await check();await journal.step(m.queueId,runId,index,'preparing','agent_running',now());
-      const started=now().getTime(),codingSeconds=remaining(task.codingSeconds);
+      const started=now().getTime(),codingSeconds=remaining(task.codingSeconds??MANUAL_AGENT_WALL_SECONDS);
       const output=await bounded(codingSeconds,controller,()=>adapters.agent(context));
       const elapsed=now().getTime()-started;
       requireControl(elapsed>=0&&elapsed<codingSeconds*1000&&output.terminationConfirmed===true&&
         typeof output.sessionId==='string'&&/^sess_[A-Za-z0-9_-]{1,120}$/.test(output.sessionId),'queue-agent-incomplete');
       const {scope}=verifyBundle(output.bundle);
-      requireControl(canonicalScope(scope)===canonicalScope(taskScope(m,task)),'queue-proposal-scope');
+      requireControl(canonicalScope(scope)===canonicalScope(taskScope(m,task,startedAt)),'queue-proposal-scope');
       await check();await journal.step(m.queueId,runId,index,'agent_running','validating',now(),{sessionId:output.sessionId});
       const validation=await bounded(remaining(1200),controller,()=>adapters.validate(context,output));
       const job=validation.trustedJob;

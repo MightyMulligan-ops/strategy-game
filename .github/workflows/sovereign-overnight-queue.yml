@@ -4,14 +4,10 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'Inspect/report is non-paid; execute additionally requires signed one-night configuration'
+        description: 'Inspect/report is non-paid; execute requires a signed, single-use task authorization'
         type: choice
         options: [inspect, execute, report]
         default: inspect
-  # Wake-ups are NOT approval. Both activation variables are unset/false by
-  # default; exact signed Eastern date + 15-minute grace is independently checked.
-  schedule:
-    - cron: '30 2,3 * * *'
 
 permissions:
   contents: read
@@ -25,8 +21,7 @@ jobs:
     if: >-
       github.repository == 'MightyMulligan-ops/strategy-game' && github.ref == 'refs/heads/main' &&
       github.run_attempt == '1' && vars.SOVEREIGN_OVERNIGHT_ENABLED == 'true' &&
-      ((github.event_name == 'workflow_dispatch' && github.actor == 'MightyMulligan-ops' && github.actor_id == '353505747' && inputs.mode == 'execute') ||
-      (github.event_name == 'schedule' && vars.SOVEREIGN_OVERNIGHT_SCHEDULE_ENABLED == 'true'))
+      (github.event_name == 'workflow_dispatch' && github.actor == 'MightyMulligan-ops' && github.actor_id == '353505747' && inputs.mode == 'execute')
     environment: sovereign-queue-control
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -98,7 +93,7 @@ jobs:
     needs: [intake, task1, task2, task3]
     if: >-
       always() && github.repository == 'MightyMulligan-ops/strategy-game' && github.ref == 'refs/heads/main' &&
-      ((github.event_name == 'schedule' && vars.SOVEREIGN_OVERNIGHT_ENABLED == 'true' && vars.SOVEREIGN_OVERNIGHT_SCHEDULE_ENABLED == 'true') || (github.event_name == 'workflow_dispatch' && github.actor == 'MightyMulligan-ops' && github.actor_id == '353505747'))
+      (github.event_name == 'workflow_dispatch' && github.actor == 'MightyMulligan-ops' && github.actor_id == '353505747')
     environment: sovereign-queue-control
     runs-on: ubuntu-24.04
     timeout-minutes: 5
