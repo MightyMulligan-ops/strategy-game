@@ -1,3 +1,4 @@
+import {ownCombatAftermath} from "./combat-turn-view.js";
 import { GameConfigSchema, ReadTurnRequestSchema, ReadTurnResponseSchema, UsernameSchema } from "@strategy-game/shared-types";
 import type { ReadTurnResponse } from "@strategy-game/shared-types";
 import type { PrismaClient } from "./generated/prisma/client.js";
@@ -48,9 +49,9 @@ export class TurnReadRepository {
           if (match.turns.length) return invalid();
           return ReadTurnResponseSchema.parse({ ...envelope, state: "UNINITIALIZED" });
         }
-        if (!match.world || (match.currentStateVersion !== 0n && runtime!=="movement_resolution") || match.turns.length !== 1 || match.turns[0]?.number !== 1n) return invalid();
+        if (!match.world || (match.currentStateVersion !== 0n && runtime!=="movement_resolution"&&runtime!=="combat_turn") || match.turns.length !== 1 || match.turns[0]?.number !== 1n) return invalid();
         const aggregate = await readStoredTurn(tx, matchId, 1);
-        if (aggregate.kind !== "initial_world" && aggregate.kind !== "initial_armies" && aggregate.kind !== "movement_drafts" && aggregate.kind !== "turn_closure" && aggregate.kind !== "movement_resolution") return invalid();
+        if (aggregate.kind !== "initial_world" && aggregate.kind !== "initial_armies" && aggregate.kind !== "movement_drafts" && aggregate.kind !== "turn_closure" && aggregate.kind !== "movement_resolution" && aggregate.kind !== "combat_turn") return invalid();
         const own = aggregate.state.drafts.find((draft) => draft.playerId === member.playerId);
         if (!own || !aggregate.state.players.some((player) => player.playerId === member.playerId && player.active)) return invalid();
         const turn = aggregate.state.turn;
@@ -80,6 +81,22 @@ export class TurnReadRepository {
       if(match.status==="OPEN")return {schemaVersion:1 as const,matchId,state:"NOT_STARTED" as const};
       const a=await readStoredTurn(tx,matchId,1);if(a.kind!=="movement_resolution")return invalid();
       return ownResolutionView(a,member.playerId,eventOffset);
+    },{isolationLevel:"RepeatableRead"})}catch(e){if(e instanceof TurnReadError)throw e;if(e instanceof MovementEventCursorError)throw new TurnReadError("INVALID_REQUEST");return invalid()}
+  }
+  async getAftermath(matchId:string,identityId:string){
+    if(!ReadTurnRequestSchema.safeParse({schemaVersion:1,matchId}).success)throw new TurnReadError("INVALID_REQUEST");
+    try{return await this.client.$transaction(async(tx)=>{
+      await tx.$executeRaw`SET TRANSACTION READ ONLY`;
+      const profile=await tx.playerIdentity.findUnique({where:{id:identityId},select:{username:true}});
+      if(!profile)throw new TurnReadError("UNAUTHENTICATED");if(!UsernameSchema.safeParse(profile.username).success)throw new TurnReadError("USERNAME_REQUIRED");
+      const member=await tx.matchParticipant.findUnique({where:{matchId_identityId:{matchId,identityId}},select:{active:true,playerId:true}});
+      if(!member?.active)throw new TurnReadError("NOT_FOUND");
+      const match=await tx.match.findUnique({where:{id:matchId},include:{configuration:true}});if(!match?.configuration)throw new TurnReadError("NOT_FOUND");
+      const mode=configurationRuntime(match.configuration);
+      if(mode!=="combat_turn")return {schemaVersion:1 as const,matchId,state:"UNSUPPORTED" as const};
+      if(match.status==="OPEN")return {schemaVersion:1 as const,matchId,state:"NOT_STARTED" as const};
+      const a=await readStoredTurn(tx,matchId,1);if(a.kind!=="combat_turn")return invalid();
+      return ownCombatAftermath(a,member.playerId);
     },{isolationLevel:"RepeatableRead"})}catch(e){if(e instanceof TurnReadError)throw e;if(e instanceof MovementEventCursorError)throw new TurnReadError("INVALID_REQUEST");return invalid()}
   }
 

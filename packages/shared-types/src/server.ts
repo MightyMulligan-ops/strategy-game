@@ -346,3 +346,58 @@ export const MovementResolutionResultSchema=z.strictObject({schemaVersion:z.lite
  policy:MovementResolutionPolicySchema,nextState:ResolvedMovementSnapshotSchema,
  audits:z.array(MovementAuditSchema).readonly(),encounters:z.array(PendingEncounterSchema).max(20).readonly()}).readonly();
 export type MovementResolutionResult=z.infer<typeof MovementResolutionResultSchema>;
+
+// Stage B is a separate creation-pinned cohort; historical schemas above stay strict.
+export const COMBAT_TURN_RUNTIME_PROFILE = Object.freeze({ schemaVersion: 1 as const,
+ ruleset: Object.freeze({ rulesetId: "combat-turn" as const, version: "1" as const }),
+ simulationVersion: "combat-turn-v1" as const, movementTieBreakPolicy: "chronological-speed-v1" as const });
+export const CombatTurnRuntimeSchema = z.strictObject({ schemaVersion: version,
+ ruleset: z.strictObject({ rulesetId: z.literal("combat-turn"), version: z.literal("1") }).readonly(),
+ simulationVersion: z.literal("combat-turn-v1"), movementTieBreakPolicy: z.literal("chronological-speed-v1") }).readonly();
+const combatStat = positiveInteger.max(1000000);
+const combatStats = z.strictObject({maxHp:combatStat,attack:combatStat,defense:combatStat}).readonly();
+export const CombatRelationshipSchema = z.strictObject({from:identifier.max(128),to:identifier.max(128),relation:z.enum(["ally","hostile"])}).readonly();
+const combatLeadership = z.array(z.strictObject({specialization:identifier.max(128),unitType:identifier.max(128),
+ attack:z.number().int().min(-1000000).max(1000000),defense:z.number().int().min(-1000000).max(1000000)}).readonly()).max(128).readonly();
+export const CombatSetupSchema = z.strictObject({
+ relationshipPolicy:z.discriminatedUnion("mode",[
+  z.strictObject({mode:z.literal("free-for-all-v1")}).readonly(),
+  z.strictObject({mode:z.literal("explicit-v1"),relationships:z.array(CombatRelationshipSchema).max(1560).readonly()}).readonly()]),
+ infantry:combatStats,lieutenant:combatStats,leadership:combatLeadership
+}).readonly();
+export type CombatSetup=z.infer<typeof CombatSetupSchema>;
+export const FIRST_COMBAT_SETUP:CombatSetup=CombatSetupSchema.parse({relationshipPolicy:{mode:"free-for-all-v1"},
+ infantry:{maxHp:7,attack:4,defense:6},lieutenant:{maxHp:1,attack:1,defense:1},
+ leadership:[{specialization:"INFANTRY",unitType:"INFANTRY",attack:0,defense:0}]});
+export const CombatPolicySchema=z.strictObject({version:z.literal("chronological-speed-v1"),setup:CombatSetupSchema,
+ relationships:z.array(CombatRelationshipSchema).max(1560).readonly()}).readonly();
+const hpFields={hp:combatStat,maxHp:combatStat,attack:combatStat,defense:combatStat,leadershipEligible:z.boolean()};
+export const CombatTurnUnitSchema=z.discriminatedUnion("kind",[
+ ArmyUnitSchema.unwrap().options[0].extend(hpFields),ArmyUnitSchema.unwrap().options[1].extend(hpFields)
+]).refine(u=>u.hp<=u.maxHp,"HP exceeds maximum").readonly();
+export const CombatTurnFormationSchema=z.strictObject({...InitialFormationSchema.unwrap().shape,
+ unitIds:z.array(ArmyUnitIdSchema).min(1).max(240).readonly()}).readonly();
+const combatBase={ruleset:CombatTurnRuntimeSchema.unwrap().shape.ruleset,simulationVersion:z.literal("combat-turn-v1"),
+ config:GameConfigSchema,players:InitialWorldRosterSchema,worldRef:InitialWorldReferenceSchema,policy:InitialArmiesPolicySchema,
+ initialArmiesSnapshotId:z.string().regex(/^initial-armies:[a-f0-9]{64}$/),combatPolicy:CombatPolicySchema};
+export const CombatInitialSnapshotSchema=z.strictObject({...combatBase,schemaVersion:z.literal(8),kind:z.literal("combat_initial"),
+ snapshotId:z.string().regex(/^combat-initial:[a-f0-9]{64}$/),stateVersion:z.literal(0),completedTurnNumber:z.literal(0),
+ units:z.array(CombatTurnUnitSchema).min(2).max(240).readonly(),formations:z.array(CombatTurnFormationSchema).min(2).max(80).readonly()}).readonly();
+export type CombatInitialSnapshot=z.infer<typeof CombatInitialSnapshotSchema>;
+export const CombatFrozenInputSchema=z.strictObject({...ClosureFrozenInputSchema.unwrap().shape,schemaVersion:z.literal(4),kind:z.literal("combat_turn"),
+ runtimeProfile:CombatTurnRuntimeSchema,startingSnapshotId:z.string().regex(/^combat-initial:[a-f0-9]{64}$/),resolutionSeed:SeedSchema,
+ combatPolicy:CombatPolicySchema}).readonly();
+export type CombatFrozenInput=z.infer<typeof CombatFrozenInputSchema>;
+export const CombatResolvedSnapshotSchema=z.strictObject({...combatBase,schemaVersion:z.literal(9),kind:z.literal("combat_resolved"),
+ snapshotId:z.string().regex(/^combat-resolved:[a-f0-9]{64}$/),stateVersion:z.literal(1),completedTurnNumber:z.literal(1),
+ initialSnapshotId:identifier,resolutionId:identifier,units:z.array(CombatTurnUnitSchema).max(240).readonly(),
+ formations:z.array(z.strictObject({...CombatTurnFormationSchema.unwrap().shape,position:MilliPointSchema}).readonly()).max(80).readonly(),
+ cityOwners:z.array(z.strictObject({cityId:identifier,ownerPlayerId:identifier}).readonly()).max(40).readonly()}).readonly();
+export const CombatBattleSchema=z.strictObject({encounterId:identifier,position:MilliPointSchema,locationId:identifier.nullable(),
+ formations:z.array(z.strictObject({formationId:FormationIdSchema,stance:z.enum(["moving","stationary"])}).readonly()).min(2).max(80).readonly(),
+ outcome:z.enum(["victory","mutual_destruction"]),victoriousPlayerIds:z.array(identifier).max(40).readonly(),recipientPlayerId:identifier.nullable(),
+ auditJson:z.string().min(1).max(32*1024*1024)}).readonly();
+export const CombatTurnResultSchema=z.strictObject({schemaVersion:z.literal(3),kind:z.literal("combat_turn"),runtimeProfile:CombatTurnRuntimeSchema,
+ resolutionId:identifier,startingSnapshotId:identifier,seed:SeedSchema,nextState:CombatResolvedSnapshotSchema,
+ battles:z.array(CombatBattleSchema).max(40).readonly(),audits:z.array(MovementAuditSchema).readonly()}).readonly();
+export type CombatTurnResult=z.infer<typeof CombatTurnResultSchema>;

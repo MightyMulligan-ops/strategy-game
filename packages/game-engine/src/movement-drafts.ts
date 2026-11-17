@@ -41,8 +41,15 @@ export function previewMovementDraft(snapshot: Pick<MovementDraftSnapshot, "conf
   if (!parsed.success || !formation || parsed.data.some((o) => o.stackId !== formation.formationId)) throw new MovementDraftFailure("INVALID_DRAFT");
   const members = formation.unitIds.map((id) => snapshot.units.find((u) => u.unitId === id)!);
   if (members.length !== 6 || members.some((m) => !m || m.ownerPlayerId !== actor) || members.filter((m) => m.kind === "LEADER").length !== 1 || members.filter((m) => m.kind === "INFANTRY").length !== 5) throw new MovementDraftFailure("INVALID_DRAFT");
+  // Stage B is explicitly versioned; project its stat-bearing units into the
+  // unchanged legacy movement helper's strict input. Historical callers retain
+  // their original validation path and no extra fields are silently admitted.
+  const combat = "schemaVersion" in snapshot && snapshot.schemaVersion === 8 && "kind" in snapshot && snapshot.kind === "combat_initial";
+  const movementMembers = combat ? members.map(u => ({schemaVersion: u.schemaVersion, unitId: u.unitId,
+    ownerPlayerId: u.ownerPlayerId, originalSpawnNodeId: u.originalSpawnNodeId,
+    ...(u.kind === "LEADER" ? {kind: "LEADER" as const, rank: u.rank, specialization: u.specialization} : {kind: "INFANTRY" as const})})) : members;
   const destinations = parsed.data.map((o) => o.destination);
-  if (destinations.length && !evaluateStartingFootMovement({ ownerPlayerId: actor, from: formation.position, destinations, bounds: archive.payload.bounds, members }).eligible) throw new MovementDraftFailure("INVALID_DRAFT");
+  if (destinations.length && !evaluateStartingFootMovement({ ownerPlayerId: actor, from: formation.position, destinations, bounds: archive.payload.bounds, members: movementMembers }).eligible) throw new MovementDraftFailure("INVALID_DRAFT");
   let from = formation.position, distance = 0;
   const segments = parsed.data.map((order, index) => {
     const length = geographicDistance(from, order.destination); distance += length;

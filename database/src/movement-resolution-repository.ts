@@ -1,3 +1,4 @@
+import {resolveCombatTurn} from "@strategy-game/game-engine/server";
 import { resolveMovement } from "@strategy-game/game-engine";
 import { Prisma } from "./generated/prisma/client.js";
 import type { PrismaClient } from "./generated/prisma/client.js";
@@ -14,11 +15,11 @@ export class MovementResolutionRepository{
    await tx.$queryRaw(Prisma.sql`SELECT set_config('statement_timeout',${String(timeoutMs)},true)`);
    await tx.$queryRaw`SELECT "id" FROM "Match" WHERE "id"=${matchId} FOR UPDATE`;
    const config=await tx.matchConfiguration.findUnique({where:{matchId}});
-   if(config?.simulationVersion!=="movement-resolution-v1")return false;
+   if(config?.simulationVersion!=="movement-resolution-v1"&&config?.simulationVersion!=="combat-turn-v1")return false;
    const a=await readStoredTurn(tx,matchId,1);
-   if(a.kind!=="movement_resolution"||a.state.turn.status!=="closed"||!a.row.frozenInput||!a.row.match.world)return false;
+   if((a.kind!=="movement_resolution"&&a.kind!=="combat_turn")||a.state.turn.status!=="closed"||!a.row.frozenInput||!a.row.match.world)return false;
    await tx.turn.update({where:{matchId_number:{matchId,number:1n}},data:{status:"RESOLVING"}});
-   const result=resolveMovement(a.snapshot,a.row.frozenInput.payload,restoreWorldArchive(a.row.match.world));
+   const result=(a.kind==="combat_turn"?resolveCombatTurn:resolveMovement)(a.snapshot,a.row.frozenInput.payload,restoreWorldArchive(a.row.match.world));
    await tx.gameSnapshotRecord.create({data:{matchId,stateVersion:1n,completedTurnNumber:1n,snapshotId:result.nextState.snapshotId,payload:json(result.nextState)}});
    await tx.resolutionResult.create({data:{matchId,turnNumber:1n,resolutionId:result.resolutionId,nextStateVersion:1n,payload:json(result)}});
    await tx.turn.update({where:{matchId_number:{matchId,number:1n}},data:{status:"RESOLVED"}});
@@ -30,7 +31,7 @@ export class MovementResolutionRepository{
   if(!Number.isSafeInteger(limit)||limit<1||limit>100)throw Error("Invalid resolution batch");
   return this.client.$transaction(async(tx)=>{
    await tx.$executeRaw`SET TRANSACTION READ ONLY`;await tx.$executeRaw`SET LOCAL statement_timeout=5000`;
-   return(await tx.turn.findMany({where:{number:1n,status:"CLOSED",match:{status:"RUNNING",configuration:{simulationVersion:"movement-resolution-v1"}}},orderBy:[{deadlineAtMs:"asc"},{matchId:"asc"}],take:limit,select:{matchId:true}})).map(r=>r.matchId);
+   return(await tx.turn.findMany({where:{number:1n,status:"CLOSED",match:{status:"RUNNING",configuration:{simulationVersion:{in:["movement-resolution-v1","combat-turn-v1"]}}}},orderBy:[{deadlineAtMs:"asc"},{matchId:"asc"}],take:limit,select:{matchId:true}})).map(r=>r.matchId);
   },{timeout:6000,maxWait:5000});
  }
 }

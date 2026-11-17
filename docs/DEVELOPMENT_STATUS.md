@@ -886,3 +886,107 @@ final-head hosted workflow/run/attempt/job evidence is PENDING/UNKNOWN, not a pa
 The task completion/PR handoff will record the actual final head and observed runs
 without another status commit solely to embed its own SHA. Independent review,
 existing-database rollout and later movement/persistence/UI stages remain separate.
+
+## Issue #101 — Stage B integration (owner-started November17)
+
+In progress on issue/101-combat-turn-integration, base
+`cefad2e50b175a957cbc168a432e19815ce1a3dc`. Clean checkout/remote main and PR99 merge
+verified; old issue97 branch preserved, repaired Stage A source taken from main.
+No competing claim/PR. Frozen specification and contract: COMBAT_TURN.md; body-plus-
+newline digest `33368d0c5c0b7ac8d2bc048e677dd93ae67f748e99671167838785c1a570064a`.
+Active owner launch explicitly covers Stage B, offline additive SQL, DB-free checks,
+one PR/publication, unchanged hosted disposable PostgreSQL CI and self/coordinator
+review and merge after required checks. Independent review waived; never label
+self-review independent. No existing DB/provisioning/migration execution, deployment,
+paid API sessions, extra agents/tasks, dependencies/security/workflow changes.
+Provisional chronology, gathering/placement, explicit FFA versus explicit alliance
+configuration, roster stats and privacy boundary are frozen before source edits in
+COMBAT_TURN.md. New task corrections0/5; Stage A3/5 and post-review repair1/2 remain
+separate historical records. Authority ends on task completion/transfer/revocation;
+no broader subsequent-step permission is inferred. Actual checks/evidence follow.
+
+Stage B initial frozen install and Prisma generation exit0. Initial workspace
+build failed at Formations.tsx: the new own-survivor DTO has a readonly units array,
+while the existing map callback expects a mutable array type. Pass1/5 begins:
+adapt that private render boundary without weakening the new DTO, then verify
+source/test types and the new chronology/persistence fixtures. Initial SQL-authoring
+helper also had a Python quoting typo before emitting any migration; correct that
+scratch generator in this same bounded pass. No SQL has been executed locally.
+
+Pass1 verification: frontend/build boundary corrected, but database TypeScript
+found an unreachable repeated combat-kind comparison in frozen-input selection.
+New engine scenarios:12 passed/4 failed;3 failures compared canonical survivor
+ordering with initial per-owner ordering, and one exposed a real survivor-membership
+permutation leak. Pass2/5 begins: canonicalize initial/final membership, remove the
+unreachable comparison, and isolate the new aftermath transport at its own endpoint
+so historical resolution types/semantics remain unchanged. Continue the initial
+new storage/HTTP/SQL/UI fixtures in this bounded integration pass; no old tests are
+removed or weakened. Source/engine failures and results are retained above.
+
+Pass2 full build exit0. Focused engine/storage/static migration run:28 passed,
+9 failed. Eight contact/storage cases failed because the historical strict movement
+eligibility helper correctly rejects new HP/stat fields; diagnostic direct restore
+identified the boundary (not a DB error). One40-player scenario exceeded Vitest's
+5000ms default: relationship equivalence validation repeatedly scanned the complete
+matrix inside the cubic triple check. Pass3/5 begins: project only legacy member
+fields when the explicitly versioned new cohort reuses that helper, and index
+relationships for constant-time lookup without changing mechanics or raising
+existing timeouts. Canonical membership fixes from pass2 remain. The new SQL's
+explicit FFA matrix check receives an equivalent direct canonical comparison to
+avoid repeated JSON scans. No old helper/schema is widened. Add remaining initial
+integration/HTTP/UI fixtures; full verification follows. No local SQL execution.
+
+Pass3 build exit0; focused5 files48/48 passed, including durable replay, six-stage
+transaction rollback injection, strict migration admission preservation, authenticated
+own-only HTTP and reconnect/UI cleanup. Full TypeScript then found two unused test
+imports (one reported before pnpm stopped the dependent graph). Pass4/5 begins:
+remove these imports; author self-review also found that a losing participant's
+non-own capture recipient must be labelled opponent, not ally, and that PostgreSQL
+NULL comparisons need explicit missing-HP/coordinate/type rejection. Correct these
+within the approved mechanics, add hostile-recipient and forged-bundle regressions,
+make destroyed/leaderless own-unit inspection accurate, and exclude pending allied
+relocations from occupied placement candidates. This is author review, not independent
+review. The remaining pass allowance is retained for diagnosed verification failures.
+
+Pass4 build/lint exit0; full tests2167 passed/5 failed/283 skipped. Four
+historical WorldView assertions exposed an unstable formation prop (extra reads
+and lost map-pick state); the prototype entry-point guard caught an unintended
+combat export. Typecheck exit1 identified private fixture imports across package
+boundaries and a public repository result mistaken for an internal stored row.
+Pass5/5 begins: memoize the formation adapter, use a separate server-only engine
+entry point (package export only; no dependencies/lockfile changes), use public
+HTTP DTO fixtures and internal DB-row loading in their owning packages, and
+remove PL/pgSQL variable/SQL-alias ambiguity found during author review. Preserve
+all historical assertions and record final full verification. No local SQL runs.
+
+Pass5 results: frozen install and db:generate exit0 (initial task setup); final
+build/typecheck/lint each exit0. Focused7 files140/140 passed. Full database-free
+suite:93 files passed,17 deliberately skipped;2172 tests passed,283 deliberately
+skipped,0 failures (2455 total). AUTH_ENABLED=false and RUN_DATABASE_TESTS=0
+throughout local verification. Staged git diff --check exit0, including new files.
+35 files implement the new cohort; no historical combat/prototype source or tests,
+workflow/security instructions, dependencies or lockfile changed. The engine package
+adds only a separate server export. Author self-review covered complete staged
+scope, raw-audit transport exclusion, deterministic replay, placement failure and
+atomic rollback. This is not independent review. All5/5 implementation correction
+passes are used; Stage A's3/5 and1/2 histories remain separate. Any unresolved
+implementation failure after hosted CI requires escalation, not another hidden pass
+or automatic workflow retry.
+
+Publication checkpoint: verified origin/main remains cefad2e50b175a957cbc168a432e19815ce1a3dc;
+only this task's claim is present, no competing #101 PR. Active TASK_SCOPE owner
+authorization in this launch covers this exact task's eventual feature head, draft
+PR and unchanged hosted fresh disposable PostgreSQL CI, plus merge after required
+checks. Additive migration202611170001_combat_turn is offline-authored only: no
+local SQL/database access occurred. Hosted migration application, real transaction
+rollback/concurrency/restart and signed-session SQL HTTP tests remain PENDING.
+SQL structural guards complement strict application semantic replay; shaped hashes
+are not proof. No Stage C, Turn2, capacity certification or deployment is claimed.
+Current state: feature implementation committed for draft publication; unmerged.
+
+Publication observed: [draft PR102](https://github.com/MightyMulligan-ops/strategy-game/pull/102),
+base main cefad2e50b175a957cbc168a432e19815ce1a3dc, first published implementation
+4cda67eb415196e7170bd4cc2f082fca23ce301e. In review/unmerged; this appended
+status-only commit records the real handoff URL. Exact final-head hosted CI and
+any observed merge evidence will be retained in PR102's conversation. No failed
+workflow is rerun; final-source publication is not a reset of5/5 passes.

@@ -55,7 +55,7 @@ async function context(tx: Transaction, matchId: string) {
     return { match, runtime, state: "UNINITIALIZED" as const };
   }
   if (runtime === "empty") return { match, runtime, state: "UNSUPPORTED" as const };
-  if (!match.world || (match.currentStateVersion !== 0n && runtime!=="movement_resolution") || match.turns.length !== 1 || match.turns[0]?.number !== 1n) return invalid();
+  if (!match.world || (match.currentStateVersion !== 0n && runtime!=="movement_resolution"&&runtime!=="combat_turn") || match.turns.length !== 1 || match.turns[0]?.number !== 1n) return invalid();
   return { match, runtime, state: "READY" as const };
 }
 /** Dedicated production adapter. Does not use lifecycle commands, clocks or writes on GET. */
@@ -71,7 +71,7 @@ export class MovementDraftRepository {
         const metadata = await context(tx, matchId);
         if (metadata.state !== "READY") return { schemaVersion: 1, matchId, state: metadata.state };
         const aggregate = await readStoredTurn(tx, matchId, 1);
-        if ((aggregate.kind === "turn_closure" || aggregate.kind === "movement_resolution")) return closureView(aggregate, member.playerId);
+        if ((aggregate.kind === "turn_closure" || aggregate.kind === "movement_resolution" || aggregate.kind === "combat_turn")) return closureView(aggregate, member.playerId);
         if (aggregate.kind !== "movement_drafts") return { schemaVersion: 1, matchId, state: "UNSUPPORTED" };
         return view(aggregate, member.playerId);
       }, { isolationLevel: "RepeatableRead" });

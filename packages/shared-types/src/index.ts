@@ -194,3 +194,6 @@ export { ResolutionMovementReadySchema, ReadMovementPlanSchema } from "./movemen
 export type { ReadMovementPlan } from "./movement-drafts.js";
 export {ReadFormationViewSchema,ResolvedOwnFormationSchema,ResolutionViewSchema} from "./movement-resolution-view.js";
 export type {ReadFormationView,ResolutionView} from "./movement-resolution-view.js";
+
+export {CombatAftermathSchema,CombatAftermathViewSchema,CombatOwnFormationSchema,CombatFormationViewSchema} from "./combat-turn-view.js";
+export type {CombatAftermath} from "./combat-turn-view.js";
