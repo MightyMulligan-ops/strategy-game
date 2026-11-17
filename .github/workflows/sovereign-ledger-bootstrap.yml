@@ -1,0 +1,51 @@
+# Explicit one-time administrative operation. Never runs automatically or creates paid sessions.
+name: Sovereign queue ledger bootstrap (non-paid)
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Enter BOOTSTRAP_EMPTY_LEDGER to create the protected empty ledger once'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sovereign-ledger-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    if: >-
+      github.repository == 'MightyMulligan-ops/strategy-game' &&
+      github.ref == 'refs/heads/main' &&
+      github.actor == 'MightyMulligan-ops' &&
+      github.actor_id == '353505747' &&
+      github.run_attempt == '1' &&
+      inputs.confirmation == 'BOOTSTRAP_EMPTY_LEDGER'
+    environment: sovereign-queue-control
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout protected main without credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - name: Verify disabled owner configuration and bootstrap once with dedicated App
+        env:
+          BOOTSTRAP_CONFIRMATION: ${{ inputs.confirmation }}
+          SOVEREIGN_OVERNIGHT_ENABLED: ${{ vars.SOVEREIGN_OVERNIGHT_ENABLED }}
+          SOVEREIGN_OVERNIGHT_SCHEDULE_ENABLED: ${{ vars.SOVEREIGN_OVERNIGHT_SCHEDULE_ENABLED }}
+          GITHUB_TOKEN: ${{ github.token }}
+          SOVEREIGN_OWNER_KEY_SHA256: ${{ vars.SOVEREIGN_OWNER_KEY_SHA256 }}
+          SOVEREIGN_LEDGER_APP_ID: ${{ vars.SOVEREIGN_LEDGER_APP_ID }}
+          SOVEREIGN_LEDGER_INSTALLATION_ID: ${{ vars.SOVEREIGN_LEDGER_INSTALLATION_ID }}
+          SOVEREIGN_LEDGER_APP_PRIVATE_KEY: ${{ secrets.SOVEREIGN_LEDGER_APP_PRIVATE_KEY }}
+        run: node --experimental-transform-types scripts/overnight-bootstrap.ts

@@ -1,12 +1,14 @@
 # Overnight queue — production integration, paid activation OFF
 
-The owner-started completion task extends draft PR91 on its existing branch.
-Prepare, agent, termination sealing, real isolated validation, exact-tree draft
-publication, durable completion and reporting are now connected through separate
-GitHub Actions jobs. Both earlier paid entry points are retired. The configuration
-shipped in this branch has no tasks, enrolled key, approval, date or signature.
-No variable, environment, GitHub App, rule, ledger or live provider was configured
-by implementation. No paid run or queue/reconciliation workflow was dispatched.
+PR #91 is merged. Prepare, agent, termination sealing, real isolated validation,
+exact-tree draft publication, durable completion and reporting are connected
+through separate GitHub Actions jobs. Both earlier paid entry points are retired.
+The shipped example remains disabled and unenrolled. Owner-provisioned protected
+configuration now contains an unrevoked public key and disabled empty unsigned
+manifest; it is separate from that example. Existing draft PR #93 prepares a
+one-time non-paid bootstrap workflow and Issue #94 isolates shared-schema CI tests.
+The ledger is absent at inspection; no bootstrap or paid operation was dispatched.
+See the security assessment for current verified settings and precise access gaps.
 
 The owner **waived an external/separate independent security review** for this
 completion. Required sign-off is automated tests, exact-head CI, a security-focused
@@ -35,7 +37,8 @@ protected actions; there is no automatic rebase or branch substitution.
 
 All actions are SHA-pinned. The existing `ci.yml`, dependencies/lockfile,
 PR90 Dockerfile/check executor/receipt format, gameplay, UI, database schema and
-migrations remain unchanged. Validator entry identity is narrowly extended to the
+migrations remain unchanged. Issue #94 serializes only PostgreSQL integration
+files in the test runner, preserving all per-test connection races and timeouts. Validator entry identity is narrowly extended to the
 same trusted queue's scheduled main runs. Legacy publisher logic is reused with
 queue-specific scope/branch/authorization callbacks; the old publisher/agent CLI
 entrypoints deny execution. The old pilot's first prepare step exits1 before any
@@ -108,17 +111,54 @@ Owner must configure rulesets BEFORE activation:
 
 1. Main: normal owner review/merge protections; no controller bypass for merge.
 2. Config ref: only owner can update/enroll/revoke; no generic Actions/App bypass.
-3. Ledger ref: deny deletion/force pushes, permit updates only by owner and the
-   dedicated ledger App. Exclude generic GitHub Actions and ordinary contributors.
+3. Ledger ref: deny deletion/force pushes, permit updates only by the dedicated
+   ledger App. Exclude generic GitHub Actions, owner tokens and ordinary contributors.
 4. Scope the App installation to this repository; minimum contents write and
    metadata read only. Keep its key isolated in the main-only control environment.
 
-These settings are NOT assumed to exist and were NOT modified by this task.
-Without them activation is blocked. Owner bootstrap is explicit: with only the
-reviewed App credential in a trusted owner shell, call
-`new GitHubQueueStore(await ledgerAppTransport(process.env)).bootstrap()` using
-Node's transform-types loader. It refuses an existing/inaccessible ref. Never
-bootstrap on a missing-ledger error from a running queue or reset audit history.
+Settings require current evidence; implementation does not provision them. The
+reviewed cloud bootstrap path is the manual **Sovereign queue ledger bootstrap
+(non-paid)** workflow (`sovereign-ledger-bootstrap.yml`), backed by the existing
+`GitHubQueueStore.bootstrap()` and testable `scripts/overnight-bootstrap.ts`.
+There is no competing ledger mechanism or provider invocation.
+
+### One-time non-paid bootstrap — separate owner decision required
+
+1. Owner reviews and merges PR #93 only after required CI succeeds. This task does
+   not merge, dispatch bootstrap or authorize paid activation.
+2. Reverify active main/config/ledger rulesets, the dedicated App installation
+   restricted to repository1451525917, and both main-only environments. Confirm
+   the generic Actions token has no protected-ledger bypass. Settings evidence is
+   necessary; a mock rejection is not proof of live enforcement.
+3. Independently compare the owner's Ed25519 SPKI DER SHA256 against repository
+   variable `SOVEREIGN_OWNER_KEY_SHA256` and protected configuration enrollment.
+   The configuration's own fingerprint is not independent authority. Keep the
+   private signing key exclusively on the owner's device. Confirm App IDs/key in
+   `sovereign-queue-control`, provider key only in `sovereign-controller`.
+4. Keep both activation variables absent/false, configuration and manifest
+   `enabled:false`, exactly zero tasks, and `signature:null`. Confirm the ledger
+   ref is absent. An existing ref requires inspection, never overwrite/reset.
+5. Obtain **separate explicit owner authorization for this one non-paid bootstrap**.
+   From Actions select the merged workflow, branch **main**, and confirmation
+   **BOOTSTRAP_EMPTY_LEDGER**. Only exact owner353505747 can run it; reruns are
+   rejected. Do not use a PR/feature workflow or copy App credentials into a shell.
+6. Inspect its safe summary and the protected ref/file directly. Success requires
+   schema1, exact repository, `active:null`, `runs:[]`, no session/approval/provider
+   history and unchanged disabled configuration. The workflow reads this back and
+   verifies enrollment again. If any post-create check fails or output is lost,
+   inspect the remote ref; do not rerun or reset history to obtain a green result.
+7. After separately approved bootstrap, owner may perform an explicitly authorized
+   **inspect-only** acceptance run. Inspect must launch no provider, validator or
+   publisher work. Keep both activation flags OFF and config unsigned/disabled.
+   No cron trigger, green CI or bootstrap grants spending/scheduling authority.
+
+The generic Actions token is read-only; only the dedicated App creates the ledger
+ref/root commit. No provider key is referenced by this workflow. It checks current
+main SHA, current owner admin permission, exact identity/event/attempt/confirmation,
+independently pinned key, disabled empty manifest and null signature. It refuses
+existing/inaccessible state through the existing store, with no automatic retry.
+If GitHub metadata APIs cannot reveal variable/secret/installation settings, record
+that gap and obtain owner-side evidence before operational bootstrap.
 
 ## Time and scheduler
 

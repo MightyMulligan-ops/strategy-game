@@ -27,6 +27,41 @@ node --experimental-strip-types scripts/ci-reports.ts verify
 
 The workflow uses fixed, public, **CI-only** credentials solely for that disposable service. They are not production secrets and must never be reused outside CI. It masks the connection URL/password in Actions output. No `.env`, account provider credentials, session secret, deployment token, or repository secret is supplied to PR code.
 
+## Issue #94 — isolate shared-schema PostgreSQL fixtures
+
+PR #93's workflow-only source `b9fcb6d` failed run43995211222 attempts1/2:
+260 passed /2 failed each time. Movement-draft PlayerTurnState rollback exceeded
+Vitest5000ms both times; attempt1 HTTP lobby **cleanup** expired its Prisma
+transaction at5080ms, and attempt2 competing revision serialization exceeded5000ms.
+The normal runner had no file-parallelism control. Unique fixture IDs isolate rows,
+but do not isolate PostgreSQL table locks.
+
+The suite intentionally installs/drops CHECK constraints (ACCESS EXCLUSIVE table
+locks), replays migration DDL under an explicit ACCESS EXCLUSIVE lock, and runs
+three deferred-trigger cases with `pg_sleep(5.1)` while holding revision-table
+locks. Parallel files overlap those operations with unrelated reads/writes/cleanup.
+Logs show rollback cases taking4701/5298ms and unrelated lobby operations4723ms;
+the intentional deadline cases remain valid30-second tests. This explains both the
+repeatable rollback failure and the varying neighboring timeout. Historical logs
+lack wait-graph samples, so the exact blocked backend chain cannot be reconstructed;
+there is no evidence of connection exhaustion or a need to change production limits.
+
+`scripts/test-database.ts` now uses shared `integrationTestArguments()` to append
+`--no-file-parallelism` after forwarded arguments. Vitest resolves this to one file
+worker. All15 discovered files and262 assertions remain included; explicit
+multi-connection races/Promise.all within individual cases still run concurrently.
+Reporters, JSON output and the mandatory no-skip guard are unchanged. No timeout,
+Prisma transaction option, production code, migration, assertion or CI YAML changes
+are needed. The application suite retains its normal parallelism.
+
+Regression tests parse the actual Vitest CLI and resolve its real configuration,
+checking discovery, one worker, the unchanged5000ms default, no automatic retries,
+report forwarding and resistance to accidentally reenabled file parallelism.
+Validation is bounded: one final-source full hosted CI attempt; only after success,
+one explicit full repeat with a newly provisioned service to check reproducibility.
+A failure is investigated, not automatically retried. Two successful attempts are
+point-in-time evidence, not a guarantee against all future runner variability.
+
 ## Failure diagnostics and workflow validation
 
 005B.2 / Issue #22 adds a sixth discovered integration file for initial-world persistence, guards/rollback, retries/concurrency, legacy compatibility and authorization. The live total is 73 assertions; discovery remains dynamic and the report guard requires zero skips. SQL is reviewed offline and applies only to fresh disposable CI PostgreSQL. All local checks explicitly disable database suites; no existing development/test/sandbox DB is accessed. Existing workflow permissions and jobs remain unchanged.

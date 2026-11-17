@@ -8,3 +8,10 @@ export function integrationTestFiles(root: string): string[] {
       .map((name) => `${directory}/${name}`)
   ).sort();
 }
+
+/** Fixtures change shared table DDL and hold deliberate deadline locks. Isolate
+ * files, not the concurrent connections explicitly exercised within each test.
+ * Keep this last so forwarded CLI flags cannot accidentally restore parallelism. */
+export function integrationTestArguments(root: string, options: string[]): string[] {
+  return ["run", ...integrationTestFiles(root), ...options, "--no-file-parallelism"];
+}
