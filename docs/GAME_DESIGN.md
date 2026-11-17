@@ -278,7 +278,35 @@ The versioned `combat-prototype-1a-v1` input explicitly supplies hostility, firs
 
 `provisional-lcg32-scaled-v1` uses a separate per-battle stream with the existing 32-bit LCG recurrence, one draw per positive-stat attack and floor scaling to 1..stat. Stat zero produces zero damage without a draw. Scaling has a small bias and is not asserted to reproduce atWar. The illustrative 7 HP / 4 ATK / 6 DEF values exist only in caller-supplied test fixtures. Technical ceilings are 2,048 units/formation, 1,000 rounds, 10,000 exchanges and stats up to 1,000,000; lower round/exchange budgets are injected. These are execution safeguards, not match balance or capacity certification.
 
-Results and full frozen audits (including exact inputs, seed, roles, rolls, damage, casualties and surviving encounter/final HP) are server-only. Unsupported versions, mechanics, relationships and multi-army topology are rejected explicitly. This module is not exported through the package entry point or connected to movement, persistence, APIs or participant projections. Existing movement encounters remain pending; there is no live combat or Turn 2. [PR #88](https://github.com/MightyMulligan-ops/strategy-game/pull/88) is the implementation under review, not a merged gameplay milestone.
+Results and full frozen audits (including exact inputs, seed, roles, rolls, damage, casualties and surviving encounter/final HP) are server-only. Unsupported versions, mechanics, relationships and multi-army topology are rejected explicitly. This module is not exported through the package entry point or connected to movement, persistence, APIs or participant projections. Existing movement encounters remain pending; there is no live combat or Turn 2. [PR #88](https://github.com/MightyMulligan-ops/strategy-game/pull/88) merged as `a7290ceab2e3d55924e1d144c38370a3455c2011`; it remains an isolated foundation, with no live combat integration.
+
+### Combat 1B Stage A — Issue #97 (pure server-only engine)
+
+The owner-approved new version `multi-force-combat-1b-v1` preserves Prototype1A
+and historical replay meanings. [MULTI_FORCE_COMBAT.md](MULTI_FORCE_COMBAT.md)
+specifies validated caller-supplied unit/leadership policies, complete symmetric
+transitive alliances, same-player formation cooperation, pair-relative alternating
+roles, seeded rotating targets and one action per round-start unit. All round-start
+units act, including those killed that round; casualties commit for the whole round.
+Stationary defenders use DEF against movers; movers use ATK. Already-stationary
+hostiles alternate unless one is the city/POI owner-defender. Wounds persist,
+ordinary troops precede leaders, and positive-stat surviving leaders keep fighting.
+Leadership is formation-local and recalculated at round boundaries and final
+ownership strength; allied players do not share bonuses.
+
+For this new version the owner explicitly approved the provisional LCG 32 floor-scaled
+1..effective-stat roll, a post-modifier floor of 1 ATK/DEF, rejection of incomplete,
+asymmetric or non-transitive alliances, and recoverable execution-limit failure
+without a partial outcome. Missing base/specialization numbers remain explicit
+validated caller inputs; provisional Infantry 7HP/4ATK/6DEF is not a global preset.
+Allied survivors win together; greatest surviving modified ATK+DEF selects the
+optional pure ownership recipient, with seeded equal-highest ties. Mutual
+destruction has no recipient. Healing occurs only after complete resolution.
+
+This isolated Stage A module/audit is private, unmerged and not wired into movement,
+persistence, APIs or UI. Technical exhaustion never completes a gameplay draw or
+victory; retry/recovery must finish before later planning. No capture write,
+placement, chronological movement change or new live runtime is implemented.
 
 ## 7. Diplomacy, visibility, and intelligence
 
