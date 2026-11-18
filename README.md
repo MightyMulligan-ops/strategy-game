@@ -4,7 +4,7 @@ A browser-based, multiplayer 2D grand strategy game inspired by the broad gamepl
 
 ## Project status
 
-**First Turn 1 combat slice.** Authenticated lobbies, planning closure, chronological movement and complete multi-force battles are merged through PR #102. Newly created combat-turn/1 matches persist casualties, survivor positions and capture atomically, and expose own-only aftermath. Historical cohorts keep their original behavior. Stage C (#103) finishes participant presentation and acceptance; its publication/merge evidence is recorded in [DEVELOPMENT_STATUS.md](docs/DEVELOPMENT_STATUS.md). The initial ownership map remains archived. Turn 2, gameplay playtesting, Europe-map work and deployment remain separate. See [COMBAT_TURN.md](docs/COMBAT_TURN.md) for explicit policies, acceptance and limits.
+**Combat planning and aftermath.** Combat 1B is merged through PR #104, with historical cohorts preserved. Issue #105 implements a separate creation-pinned repeating runtime: survivor/position/capture carryover, fresh empty planning and Ready reset, complete combat and atomic next-turn opening. Its actual checks/publication/merge state is recorded in [DEVELOPMENT_STATUS.md](docs/DEVELOPMENT_STATUS.md); contracts and limits are in [REPEATING_COMBAT.md](docs/REPEATING_COMBAT.md). The initial map remains an archive; current own positions/ownership and bounded own history are separate views. Gameplay/balance playtesting, Europe-map work, economy/recruitment/supply, victory rules and deployment remain separate.
 
 ## Product direction
 
@@ -55,7 +55,7 @@ Use a **server-authoritative modular monolith** initially. Do not introduce micr
 - `AGENTS.md` — instructions for AI coding agents and contributors.
 - `packages/shared-types/` — strict, versioned runtime schemas and transport types.
 - `packages/shared-types/src/lobby.ts` — public lobby requests/responses, roster/viewer validation, and Quick/Casual classification (004B.2A).
-- `packages/game-engine/` — server-only lifecycle, movement planning and versioned Turn 1 movement/combat execution; historical prototype/replay contracts stay isolated.
+- `packages/game-engine/` — server-only lifecycle, movement planning and versioned movement/combat and repeating-turn execution; historical prototype/replay contracts stay isolated.
 - `@strategy-game/shared-types/server` — authoritative snapshot/resolution schemas; never send these directly to clients.
 - `database/` — server-only Prisma schema, initial migration, mappings, and transactional match repository. See `database/README.md` for storage details.
 
@@ -157,7 +157,7 @@ Preflight checks Node/pnpm compatibility, required generated files, backend envi
 
 React/Vite hot reload and backend `tsx watch` reload remain enabled. **After editing an internal package (`packages/*` or `database/*`), stop with Ctrl+C and rerun `pnpm dev`.** Preparation rebuilds dependencies before both apps start. There is no shared-package watcher. Restart after `.env` changes too. Ctrl+C stops the foreground development servers; Docker remains running until explicitly stopped.
 
-Open **http://127.0.0.1:5173** consistently rather than alternating with `localhost`. Fastify serves `http://127.0.0.1:3001/health` (optional `PORT` override). Vite proxies `/auth` to port 3001; update its target if overriding that port. Changing the frontend port also requires updating `AUTH_ORIGIN` and registered provider callbacks. If Vite selects another port because 5173 is occupied, stop the conflicting process before using sign-in. The server loads the root `.env`. Authenticated Turn 1 planning APIs and the existing bounded closure/resolution worker are implemented; Turn 2 and deployment are not included.
+Open **http://127.0.0.1:5173** consistently rather than alternating with `localhost`. Fastify serves `http://127.0.0.1:3001/health` (optional `PORT` override). Vite proxies `/auth` to port 3001; update its target if overriding that port. Changing the frontend port also requires updating `AUTH_ORIGIN` and registered provider callbacks. If Vite selects another port because 5173 is occupied, stop the conflicting process before using sign-in. The server loads the root `.env`. Authenticated planning APIs and the existing bounded closure/resolution worker support the new repeating cohort; historical cohorts retain their pinned stopping points. Deployment remains separate.
 
 ### Daily commands
 

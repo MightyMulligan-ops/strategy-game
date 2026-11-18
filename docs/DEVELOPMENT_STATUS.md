@@ -1050,3 +1050,97 @@ base249b6e4aa0d5a14ec7fd54ba95c118fc692f8b73, implementation
 This status-only commit records the real URL; exact final-head CI/observed merge
 and parent89 acceptance disposition follow in the PR conversation/handoff, without
 self-referential SHA commits or retrying failed workflows. Stage C history0/5 intact.
+
+## Issue105 — repeating combat loop (owner-started November17)
+
+Verified main905ee35dc67e271fb64b613f0be83257b7c169fb;103/89 completed. Clean
+existing workspace, no competing105 claim/PR; earlier97/101/103 branches preserved.
+New branch issue/105-repeating-turn-loop. Complete executable brief frozen outside
+repo and strict versions/path manifest/checkpoints in REPEATING_COMBAT.md before
+implementation. Active owner105 launch grants specified loop/gameplay/contracts,
+additive offline SQL, DB-free checks, draft publication, unchanged hosted fresh
+PostgreSQL CI and author review/merge after checks. Independent review waived;
+no additional agents, paid API, existing DB/startup/provisioning/migration execution,
+dependencies/security/workflows/instructions or deployment. Permission is task-
+bounded until completion/revocation/transfer. New history0/5; A3/5+repair1/2, B5/5,
+C0/5 remain separate. Singleton leaderless source radius stays unapproved/null;
+reject movement, no invented numeric policy.70 remains broader backlog. In progress,
+unmerged; checkpoint evidence and corrections follow.
+
+Checkpoint1 initial build exit1: TypeScript correctly narrows the new frozen turn
+to CLOSED, so a defensive OPEN ternary is unreachable. Pass1/5 begins: use the
+validated closed timestamp directly and check the new runtime integration type
+boundaries. Frozen install/generation passed. Initial persistence/API/UI/SQL/tests
+continue within the same issue checkpoints; no historical validator is widened.
+
+Frozen issue105 body-plus-newline SHA256:
+d39cbb8095433ce7639acf0a7af69d6421c3370c9aca8a602e56222751b7d08b.
+
+Pass1 verification: engine/shared types built; full build then found the new
+lobby branch had already excluded combat_loop before its legacy-only else-if,
+so that repeated comparison is unreachable. Pass2/5 begins: remove only that
+redundant comparison, verify complete vertical-slice type boundaries and initial
+engine/storage/UI acceptance. New UI and offline SQL authoring remain initial
+checkpoint work; no old tests/assertions are relaxed.
+
+Pass2 full build exit0. Initial engine+historical focused run:46 passed/5 failed.
+Three multi-turn cases and the second synthetic battle expose a real successor
+hash defect: spreading the prior state retained its snapshotId inside the new
+hash metadata. The budget-reset fixture also chose an out-of-map second endpoint.
+Pass3/5 begins: explicitly exclude predecessor snapshotId when sealing successor
+metadata, use an in-bounds return route to prove fresh budget, and complete the
+initial durable/API/UI acceptance fixtures before broad verification. Historical
+combat/prototype cases passed; no old assertion/validation is weakened.
+
+Pass3 full build exit0; focused10 files176 passed/11 failed. Nine rollback cases
+resumed successfully but their fake DB omitted Prisma's null/default fields for
+new INITIAL histories, so the subsequent duplicate-read check correctly rejected
+those fake rows. One corruption fixture edited a grandparent outside the documented
+adjacent read footprint rather than the immediate predecessor. The SQL text guard
+caught a diagnostic string accidentally renamed with a PL/pgSQL variable. Full
+TypeScript found readonly mutation in a new corruption test; independent database
+TypeScript found input-vs-stored JSON fixture types, while server typecheck passed.
+Lint found Date.now called directly during render and a ref-tainted render callback.
+Pass4/5 begins: fix fake DB defaults/stored JSON types and intended corruption
+location, retain the SQL commit-window assertion/message, and use lazy time state
+plus effect-based inspector focus. No production predicate or old assertion is
+weakened; initial hosted SQL remains unexecuted locally.
+
+Pass4 build/lint exit0. Typecheck and storage-suite loading failed because the
+fixture Map-type edit left trailing text from the old inline object type. Focused
+run:170 passed, one suite failed to load (9 passed files/1 failed). Full run:
+2234 passed/300 deliberate DB skips, one suite failed to load (98 passed/19 skipped
+files). This is an author editing error, retained rather than hidden. Pass5/5
+begins: replace the complete fixture declaration correctly, verify all remaining
+stored-JSON/default fixes, and complete the hosted synthetic repeated-combat path
+through later turns (fixture-only explicit common InfantryHP70, production remains7).
+No further correction allowance remains after this pass; unresolved local/hosted
+implementation failures will be escalated with the commit/draft retained, not retried.
+
+Pass5 results: build/typecheck/lint each exit0. Focused10 files187/187 passed,
+including nine durable-stage rollback/resume injections, adjacent corruption,
+Turn1→2→3→4, repeated synthetic combat/capture, signed HTTP and React stale-state
+acceptance. Full database-free suite2251 passed/300 deliberate DB skips/0 failed
+(99 passed files/19 skipped). Frozen install/generation exit0 earlier; all local
+checks used AUTH_ENABLED=false RUN_DATABASE_TESTS=0. Staged diff check exit0,
+including37 scoped files and the additive offline migration. No historical
+prototype/multi-force source/tests, old migrations, dependencies/lockfile, security
+settings, instructions or workflows changed. The old combat-turn wrapper reuses
+its identical kernel; new runtime validation supplies carried ownership explicitly.
+
+Author self-review covered strict contracts, immutable state identity, exact-turn
+commands, full fresh window, one-next-turn transaction, deferred SQL guards,
+allowlisted own projection and stale-state clearing. This is not independent
+review. Correction history5/5 used, preserved in full above; no sixth pass or failed
+workflow rerun is authorized. Any unresolved hosted implementation failure blocks
+merge and must be escalated with branch/commit/draft retained. Earlier histories
+A3/5+repair1/2, B5/5, C0/5 remain separate. SQL/runtime concurrency/capture acceptance
+is still pending unchanged hosted fresh disposable CI, not inferred from skips.
+The synthetic hosted repeated-campaign fixture uses explicit common InfantryHP70;
+production remains7HP/4ATK/6DEF. No new production balance or leadership number.
+
+Publication checkpoint: task-specific owner grant covers this105 TASK_SCOPE head,
+one draft/publication, unchanged hosted disposable PostgreSQL CI and merge only
+after required checks. Main905ee35dc67e271fb64b613f0be83257b7c169fb remains the
+compatible baseline; no competing105 claim/PR. In review/unmerged upon publication;
+actual PR/run/head evidence follows. No existing database or deployment occurred.

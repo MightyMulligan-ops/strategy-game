@@ -1,3 +1,6 @@
+import {planLoop} from '@strategy-game/game-engine/server';
+import {LoopRuntimeSchema} from '@strategy-game/shared-types/server';
+import {insertLoopTurn} from './loop-repository.js';
 import {CombatTurnRuntimeSchema,FIRST_COMBAT_SETUP} from "@strategy-game/shared-types/server";
 import {planCombatTurn} from "@strategy-game/game-engine/server";
 import { randomUUID } from "node:crypto";
@@ -122,7 +125,7 @@ export class LobbyRepository {
     const armyProfile = InitialArmiesRuntimeProfileSchema.safeParse(this.creationRuntime);
     const movementProfile = MovementDraftRuntimeProfileSchema.safeParse(this.creationRuntime);
     const closureProfile = TurnClosureRuntimeProfileSchema.safeParse(this.creationRuntime);
-    const runtime = oldProfile.success ? oldProfile.data : armyProfile.success ? armyProfile.data : movementProfile.success ? movementProfile.data : closureProfile.success ? closureProfile.data : CombatTurnRuntimeSchema.safeParse(this.creationRuntime).success ? CombatTurnRuntimeSchema.parse(this.creationRuntime) : MovementResolutionRuntimeSchema.parse(this.creationRuntime);
+    const runtime = oldProfile.success ? oldProfile.data : armyProfile.success ? armyProfile.data : movementProfile.success ? movementProfile.data : closureProfile.success ? closureProfile.data : CombatTurnRuntimeSchema.safeParse(this.creationRuntime).success ? CombatTurnRuntimeSchema.parse(this.creationRuntime) : LoopRuntimeSchema.safeParse(this.creationRuntime).success ? LoopRuntimeSchema.parse(this.creationRuntime) : MovementResolutionRuntimeSchema.parse(this.creationRuntime);
     return this.client.$transaction(async (tx) => {
       const username = await registeredUsername(tx, identityId);
       const id = randomUUID();
@@ -190,12 +193,17 @@ export class LobbyRepository {
       if (!row.configuration) throw new LobbyError("INVALID_STORAGE");
       const mode = configurationRuntime(row.configuration);
       if (mode === "empty") throw new LobbyError("INVALID_STORAGE");
-      if ((mode === "initial_world" || mode === "initial_armies" || mode === "movement_drafts" || mode === "turn_closure" || mode === "movement_resolution" || mode === "combat_turn") && (row.currentStateVersion !== 0n ||
+      if ((mode === "initial_world" || mode === "initial_armies" || mode === "movement_drafts" || mode === "turn_closure" || mode === "movement_resolution" || mode === "combat_turn" || mode === "combat_loop") && (row.currentStateVersion !== 0n ||
           await tx.gameSnapshotRecord.count({ where: { matchId: row.id } }) !== 0 ||
           await tx.turn.count({ where: { matchId: row.id } }) !== 0)) throw new LobbyError("INVALID_STORAGE");
       const players = row.participants.map((p) => p.playerId);
       const archive = await insertInitialWorld(tx, row.id, this.worldFactory(players), players);
-      if (mode === "initial_world" || mode === "initial_armies" || mode === "movement_drafts" || mode === "turn_closure" || mode === "movement_resolution" || mode === "combat_turn") {
+      if(mode==='combat_loop'){
+        const roster=players.map(playerId=>({schemaVersion:1 as const,gameId:row.id,playerId,active:true}));
+        const plan=planLoop(row.configuration.config,roster,archive,row.configuration.pinnedRuleset,this.combatSetup),state=createTurn(plan.snapshot.config,plan.snapshot.players,this.clock());
+        await tx.gameSnapshotRecord.create({data:{matchId:row.id,stateVersion:0n,completedTurnNumber:0n,snapshotId:plan.snapshot.snapshotId,payload:json(plan.snapshot)}});
+        await insertLoopTurn(tx,state,plan.snapshot);
+      }else if (mode === "initial_world" || mode === "initial_armies" || mode === "movement_drafts" || mode === "turn_closure" || mode === "movement_resolution" || mode === "combat_turn") {
         // One trusted sample after lock/generation. Any failure rolls the entire transaction back.
         const roster = players.map((playerId) => ({ schemaVersion: 1 as const, gameId: row.id, playerId, active: true }));
         // Derive all armies before the only trusted clock sample; legacy v2 remains unchanged.

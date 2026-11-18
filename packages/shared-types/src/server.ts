@@ -401,3 +401,24 @@ export const CombatTurnResultSchema=z.strictObject({schemaVersion:z.literal(3),k
  resolutionId:identifier,startingSnapshotId:identifier,seed:SeedSchema,nextState:CombatResolvedSnapshotSchema,
  battles:z.array(CombatBattleSchema).max(40).readonly(),audits:z.array(MovementAuditSchema).readonly()}).readonly();
 export type CombatTurnResult=z.infer<typeof CombatTurnResultSchema>;
+
+// Repeating cohort is separate; none of the historical literal-one schemas change.
+export const LOOP_RUNTIME=Object.freeze({schemaVersion:1 as const,ruleset:Object.freeze({rulesetId:'combat-loop' as const,version:'1' as const}),simulationVersion:'combat-loop-v1' as const,movementTieBreakPolicy:'chronological-speed-v1' as const});
+export const LoopRuntimeSchema=z.strictObject({schemaVersion:version,ruleset:z.strictObject({rulesetId:z.literal('combat-loop'),version:z.literal('1')}).readonly(),simulationVersion:z.literal('combat-loop-v1'),movementTieBreakPolicy:z.literal('chronological-speed-v1')}).readonly();
+const loopCounter=nonnegativeInteger.max(0xfffffffe);
+export const LoopStateSchema=z.strictObject({...combatBase,schemaVersion:z.literal(10),kind:z.literal('loop_state'),ruleset:LoopRuntimeSchema.unwrap().shape.ruleset,simulationVersion:z.literal('combat-loop-v1'),
+ snapshotId:z.string().regex(/^loop-state:[a-f0-9]{64}$/),stateVersion:loopCounter,completedTurnNumber:loopCounter,predecessorResolutionId:identifier.nullable(),
+ units:z.array(CombatTurnUnitSchema).max(240).readonly(),formations:z.array(z.strictObject({...CombatTurnFormationSchema.unwrap().shape,position:MilliPointSchema}).readonly()).max(80).readonly(),
+ cityOwners:z.array(z.strictObject({cityId:identifier,ownerPlayerId:identifier}).readonly()).max(40).readonly()
+}).refine(s=>s.stateVersion===s.completedTurnNumber).readonly();
+export type LoopState=z.infer<typeof LoopStateSchema>;
+export const LoopFrozenSchema=z.strictObject({schemaVersion:z.literal(5),kind:z.literal('loop_frozen'),runtimeProfile:LoopRuntimeSchema,
+ startingSnapshotId:identifier,startingStateVersion:loopCounter,worldRef:InitialWorldReferenceSchema,worldSeed:SeedSchema,resolutionSeed:SeedSchema,seedIdentity:identifier,
+ combatPolicy:CombatPolicySchema,turn:TurnRecordSchema.refine(t=>t.status==='closed'),players:ClosureFrozenInputSchema.unwrap().shape.players
+}).readonly();
+export type LoopFrozen=z.infer<typeof LoopFrozenSchema>;
+export const LoopResultSchema=z.strictObject({schemaVersion:z.literal(4),kind:z.literal('loop_result'),runtimeProfile:LoopRuntimeSchema,
+ resolutionId:identifier,startingSnapshotId:identifier,turnNumber:positiveInteger.max(0xfffffffe),seed:SeedSchema,seedIdentity:identifier,nextState:LoopStateSchema,
+ battles:CombatTurnResultSchema.unwrap().shape.battles,audits:CombatTurnResultSchema.unwrap().shape.audits}).readonly();
+export type LoopResult=z.infer<typeof LoopResultSchema>;
+export const LoopCommitSchema=z.strictObject({schemaVersion:z.literal(1),kind:z.literal('loop_commit'),result:LoopResultSchema,nextOpenedAtMs:nonnegativeInteger}).readonly();

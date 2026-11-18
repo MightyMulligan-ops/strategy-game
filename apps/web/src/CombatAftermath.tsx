@@ -2,7 +2,7 @@ import type {CombatAftermath as Aftermath} from '@strategy-game/shared-types'
 import type {KeyboardEvent} from 'react'
 
 /** Only authorized own fields enter this inspector. Loss membership is battle-wide. */
-export default function CombatAftermath({view}:{view:Aftermath}) {
+export default function CombatAftermath({view,turnNumber}:{view:Aftermath;turnNumber?:number}) {
  const outcomes={victory:'Victory',defeat:'Defeat',mutual_destruction:'Mutual destruction'}
  const ownership={own:'Your force receives ownership',ally:'An allied force receives ownership',opponent:'An opposing force receives ownership',unchanged:'Ownership unchanged'}
  function closeDisclosure(event:KeyboardEvent<HTMLDetailsElement>) {
@@ -11,7 +11,7 @@ export default function CombatAftermath({view}:{view:Aftermath}) {
   event.currentTarget.querySelector('summary')?.focus()
  }
  return <>
-  <p role="status">Turn 1 resolved. Movement and battles are complete. Turn 2 has not opened.</p>
+  <p role="status">{turnNumber?`Turn ${turnNumber} resolved. Movement and battles are complete. Fresh planning is shown in the current turn panel.`:'Turn 1 resolved. Movement and battles are complete. Turn 2 has not opened.'}</p>
   <p>These results concern only your formations. The map shows archived initial ownership; it is not a current ownership map.</p>
   {view.battles.length===0?<p>No battles involved your formations this turn.</p>:view.battles.map(b=><article key={b.ownFormationIds.join(',')}>
    <h3>{outcomes[b.outcome]}</h3>

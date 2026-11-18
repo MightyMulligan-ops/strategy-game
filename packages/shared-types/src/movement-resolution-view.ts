@@ -1,3 +1,4 @@
+import {LoopFormationGateSchema} from './loop.js';
 import {CombatFormationViewSchema} from "./combat-turn-view.js";
 import {z} from "zod";
 import {identifier,nonnegativeInteger,version} from "./primitives.js";
@@ -6,7 +7,7 @@ const coordinate=z.number().finite().min(0).max(4900).multipleOf(0.001);
 export const ResolvedPointSchema=z.strictObject({x:coordinate,y:coordinate}).readonly();
 export const ResolvedOwnFormationSchema=z.strictObject({...OwnFormationSchema.unwrap().shape,position:ResolvedPointSchema})
  .superRefine((f,ctx)=>{if(!OwnFormationSchema.safeParse({...f,position:{x:0,y:0}}).success)ctx.addIssue({code:"custom",message:"Invalid resolved formation"})}).readonly();
-export const ReadFormationViewSchema=z.union([CombatFormationViewSchema,ReadFormationsResponseSchema,z.strictObject({schemaVersion:z.literal(2),matchId:identifier.max(128),state:z.literal("READY"),
+export const ReadFormationViewSchema=z.union([LoopFormationGateSchema,CombatFormationViewSchema,ReadFormationsResponseSchema,z.strictObject({schemaVersion:z.literal(2),matchId:identifier.max(128),state:z.literal("READY"),
  collisionRadius:z.literal(10),pendingEncounter:z.boolean(),formations:z.array(ResolvedOwnFormationSchema).length(1)}).readonly()]);
 export type ReadFormationView=z.infer<typeof ReadFormationViewSchema>;
 const event=z.strictObject({eventId:identifier,sequence:nonnegativeInteger,orderId:identifier.nullable(),moveNumber:nonnegativeInteger,

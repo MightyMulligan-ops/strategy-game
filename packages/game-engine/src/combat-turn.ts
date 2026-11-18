@@ -57,6 +57,10 @@ export function resolveCombatTurn(snapshotInput:unknown,frozenInput:unknown,arch
  * complete initial identity and frozen-history validation, never this seam. */
 export function executeValidatedCombatTurn(snapshotInput:CombatInitialSnapshot,frozenInput:CombatFrozenInput,archive:InitialWorldArchive,budget?:MultiForceBudget):CombatTurnResult{
  const snapshot=CombatInitialSnapshotSchema.parse(snapshotInput),frozen=CombatFrozenInputSchema.parse(frozenInput);
+ return executeCombatForces(snapshot,frozen,archive,budget);
+}
+/** Internal kernel; only callers with their own strict runtime validation may enter. */
+export function executeCombatForces(snapshot:CombatInitialSnapshot,frozen:CombatFrozenInput,archive:InitialWorldArchive,budget?:MultiForceBudget,carriedOwners?:readonly {cityId:string;ownerPlayerId:string}[]):CombatTurnResult{
  const forms=[...snapshot.formations].sort((a,b)=>compareIds(a.formationId,b.formationId));
  const units=[...snapshot.units].sort((a,b)=>compareIds(a.unitId,b.unitId));
  if(new Set(forms.map(f=>f.formationId)).size!==forms.length||new Set(units.map(u=>u.unitId)).size!==units.length||
@@ -67,7 +71,7 @@ export function executeValidatedCombatTurn(snapshotInput:CombatInitialSnapshot,f
  const resolutionId=`combat-turn:${auditHash({snapshot:canonical,frozen:{...frozen,players:[...frozen.players].sort((a,b)=>compareIds(a.playerId,b.playerId))}})}`;
  const movement=gatherCombatEncounters(canonical,frozen);
  const hp=new Map(units.map(u=>[u.unitId,u.hp])),positions=new Map(forms.map(f=>[f.formationId,milli(movement.position(f.formationId,250))]));
- const cityOwners=archive.payload.startingState.cities.map(c=>({cityId:c.cityId,ownerPlayerId:c.ownerPlayerId})).sort((a,b)=>compareIds(a.cityId,b.cityId));
+ const cityOwners=(carriedOwners??archive.payload.startingState.cities).map(c=>({cityId:c.cityId,ownerPlayerId:c.ownerPlayerId})).sort((a,b)=>compareIds(a.cityId,b.cityId));
  const battles:CombatTurnResult["battles"][number][]=[];
  for(const e of movement.encounters){
   const participants=forms.filter(f=>e.members.has(f.formationId));

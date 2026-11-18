@@ -1,3 +1,5 @@
+import {readLoop} from './loop-storage.js';
+import {loopCurrent} from './loop-view.js';
 import {ownCombatAftermath} from "./combat-turn-view.js";
 import { GameConfigSchema, ReadTurnRequestSchema, ReadTurnResponseSchema, UsernameSchema } from "@strategy-game/shared-types";
 import type { ReadTurnResponse } from "@strategy-game/shared-types";
@@ -45,6 +47,7 @@ export class TurnReadRepository {
           return ReadTurnResponseSchema.parse({ ...envelope, state: "NOT_STARTED" });
         }
         if (match.status !== "RUNNING") return invalid();
+        if(runtime==='combat_loop'){const v=loopCurrent(await readLoop(tx,matchId),member.playerId);return ReadTurnResponseSchema.parse({schemaVersion:1,matchId,state:'READY',turn:v.turn,own:{schemaVersion:1,gameId:matchId,turnNumber:v.turn.turnNumber,...v.own}})}
         if (runtime === "legacy") {
           if (match.turns.length) return invalid();
           return ReadTurnResponseSchema.parse({ ...envelope, state: "UNINITIALIZED" });
