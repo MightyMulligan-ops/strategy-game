@@ -1144,3 +1144,10 @@ one draft/publication, unchanged hosted disposable PostgreSQL CI and merge only
 after required checks. Main905ee35dc67e271fb64b613f0be83257b7c169fb remains the
 compatible baseline; no competing105 claim/PR. In review/unmerged upon publication;
 actual PR/run/head evidence follows. No existing database or deployment occurred.
+
+Publication observed: [draft PR106](https://github.com/MightyMulligan-ops/strategy-game/pull/106),
+implementation928f1d27fcfd154970639e2bc5585e4c504628f1, base
+905ee35dc67e271fb64b613f0be83257b7c169fb. In review/unmerged at this checkpoint.
+This status-only commit records the actual URL. Final-head hosted CI/SQL evidence
+and observed merge or blocker will be recorded in the PR conversation/handoff;
+no self-referential SHA commits or failed-workflow rerun.105 history5/5 retained.
