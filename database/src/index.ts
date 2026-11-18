@@ -19,3 +19,5 @@ export type { LocalTestPlayer, LocalTestLoginPersistence } from "./local-test-id
 export { TurnClosureRepository } from "./turn-closure-repository.js";
 
 export { MovementResolutionRepository } from "./movement-resolution-repository.js";
+
+export {LoopRepository} from './loop-repository.js';

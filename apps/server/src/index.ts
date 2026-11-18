@@ -1,9 +1,9 @@
-import { COMBAT_TURN_RUNTIME_PROFILE } from "@strategy-game/shared-types/server";
+import { LOOP_RUNTIME } from "@strategy-game/shared-types/server";
 
 import { existsSync } from "node:fs";
 import { loadEnvFile } from "node:process";
 import { fileURLToPath } from "node:url";
-import { AuthRepository, createDatabaseClient, LobbyRepository, TurnReadRepository, MovementDraftRepository, TurnClosureRepository, MovementResolutionRepository, FormationReadRepository, WorldRepository } from "@strategy-game/database";
+import { LoopRepository, AuthRepository, createDatabaseClient, LobbyRepository, TurnReadRepository, MovementDraftRepository, TurnClosureRepository, MovementResolutionRepository, FormationReadRepository, WorldRepository } from "@strategy-game/database";
 import { buildApp } from "./app.js";
 import { readAuthConfig } from "./auth/config.js";
 
@@ -21,13 +21,13 @@ try {
     logger: true,
     trustProxy: process.env.AUTH_TRUST_PROXY ? process.env.AUTH_TRUST_PROXY.split(",") : false,
     ...(config && database ? { auth: { config, persistence: new AuthRepository(database),
-      ...(config.devLoginEnabled ? { localTestLogin: new AuthRepository(database) } : {}) }, lobbies: new LobbyRepository(database, undefined, undefined, COMBAT_TURN_RUNTIME_PROFILE),
-      worlds: new WorldRepository(database), turnReads: new TurnReadRepository(database), formationReads: new FormationReadRepository(database), movementDrafts: new MovementDraftRepository(database), turnReady: new TurnClosureRepository(database) } : {})
+      ...(config.devLoginEnabled ? { localTestLogin: new AuthRepository(database) } : {}) }, lobbies: new LobbyRepository(database, undefined, undefined, LOOP_RUNTIME),
+      worlds: new WorldRepository(database), turnReads: new TurnReadRepository(database), formationReads: new FormationReadRepository(database), movementDrafts: new MovementDraftRepository(database), loops:new LoopRepository(database), turnReady: new TurnClosureRepository(database) } : {})
   });
   const ownedDatabase = database;
   if (ownedDatabase && workerConfig) {
     const closures=new TurnClosureRepository(ownedDatabase),resolutions=new MovementResolutionRepository(ownedDatabase);
-    const store=movementLifecycleStore(closures,resolutions);
+    const store=movementLifecycleStore(closures,resolutions,new LoopRepository(ownedDatabase));
     const worker = deadlineWorker(store, workerConfig, () => app!.log.warn("Deadline batch incomplete; persisted overdue turns remain eligible"));
     app.addHook("onReady", async () => worker.start());
     app.addHook("onClose", async () => { await worker.stop(); await ownedDatabase.$disconnect(); });

@@ -197,3 +197,5 @@ export type {ReadFormationView,ResolutionView} from "./movement-resolution-view.
 
 export {CombatAftermathSchema,CombatAftermathViewSchema,CombatOwnFormationSchema,CombatFormationViewSchema} from "./combat-turn-view.js";
 export type {CombatAftermath} from "./combat-turn-view.js";
+export {LoopCommandSchema,LoopCurrentSchema,LoopHistorySchema,LoopFormationGateSchema,LoopTurnNumberSchema} from './loop.js';
+export type {LoopCommand,LoopCurrent} from './loop.js';

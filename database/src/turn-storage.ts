@@ -1,5 +1,5 @@
 import {restoreCombatTurn} from "./combat-turn-storage.js";
-import {CombatTurnRuntimeSchema} from "@strategy-game/shared-types/server";
+import {CombatTurnRuntimeSchema,LoopRuntimeSchema} from "@strategy-game/shared-types/server";
 import type {CombatInitialSnapshot} from "@strategy-game/shared-types/server";
 import { isDeepStrictEqual as same } from "node:util";
 import { GameConfigSchema } from "@strategy-game/shared-types";
@@ -24,7 +24,7 @@ export const storedTurnInclude = {
 export type StoredTurnRow = Prisma.TurnGetPayload<{ include: typeof storedTurnInclude }>;
 
 function invalid(): never { throw new PersistenceError("invalid_storage", "Stored turn initialization is inconsistent"); }
-export function configurationRuntime(row: MatchConfiguration): "legacy" | "initial_world" | "initial_armies" | "movement_drafts" | "turn_closure" | "movement_resolution" | "combat_turn" | "empty" {
+export function configurationRuntime(row: MatchConfiguration): "legacy" | "initial_world" | "initial_armies" | "movement_drafts" | "turn_closure" | "movement_resolution" | "combat_turn" | "combat_loop" | "empty" {
   const fields = [row.rulesetId, row.rulesetVersion, row.simulationVersion, row.pinnedRuleset];
   if (fields.every((value) => value === null)) return "legacy";
   if (fields.some((value) => value === null)) return invalid();
@@ -44,6 +44,7 @@ export function configurationRuntime(row: MatchConfiguration): "legacy" | "initi
   }
   if (pinned.simulationVersion === "movement-resolution-v1") { MovementResolutionRuntimeSchema.parse(pinned); return "movement_resolution"; }
   if (pinned.simulationVersion === "combat-turn-v1") { CombatTurnRuntimeSchema.parse(pinned); return "combat_turn"; }
+  if (pinned.simulationVersion === "combat-loop-v1") { LoopRuntimeSchema.parse(pinned); return "combat_loop"; }
   if (pinned.simulationVersion === "empty-turn-v1") return "empty";
   return invalid();
 }

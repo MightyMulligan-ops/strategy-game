@@ -1,3 +1,4 @@
+import LoopWorkspace from './LoopWorkspace'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
 import { ReadWorldResponseSchema } from '@strategy-game/shared-types'
@@ -9,7 +10,7 @@ import type { FormationInspection } from './Formations'
 import MovementQueue from './MovementQueue'
 import MovementResolution from './MovementResolution'
 
-function MapView({ world, formation, route, choose, inspection,policy }: { inspection: FormationInspection; world: PublicWorld; formation: OwnFormation | null; route: MovementRoute | null; choose: ((point: { x: number; y: number }) => void) | null;policy?:{radius:10;pending:boolean;combat?:boolean} }) {
+function MapView({ world, formation, route, choose, inspection,policy }: { inspection: FormationInspection; world: PublicWorld; formation: OwnFormation | null; route: MovementRoute | null; choose: ((point: { x: number; y: number }) => void) | null;policy?:{radius:10;pending:boolean;combat?:boolean;loop?:boolean} }) {
   const [selection, setSelection] = useState(0)
   const mapId = useId()
   const refs = useRef(new Map<string, SVGPolygonElement>())
@@ -101,7 +102,7 @@ function MapView({ world, formation, route, choose, inspection,policy }: { inspe
           <dt>City</dt><dd>{selected.city ? 'Capital' : 'None'}</dd><dt>Position</dt><dd>{selected.center.x}, {selected.center.y}</dd>
           <dt>Resources</dt><dd>{selected.resources.length ? 'Military Supplies: 0 (initial fixture)' : 'None'}</dd>
           <dt>Adjacent territories</dt><dd>{adjacent.join(', ')}</dd></dl>
-        <p className="small muted">{policy?.combat?'Immutable initial map; formation positions come from stored state. Consult your battle aftermath for authorized capture changes. Turn 2 has not opened.':policy?'Immutable initial map; formation markers show stored movement state. No combat or Turn 2.':'Read-only initial world. A saved Turn 1 may be open; movement, economy processing and turn controls are not available.'}</p>
+        <p className="small muted">{policy?.loop?'Archived initial map; current own positions and ownership are in the repeating planning panel.':policy?.combat?'Immutable initial map; formation positions come from stored state. Consult your battle aftermath for authorized capture changes. Turn 2 has not opened.':policy?'Immutable initial map; formation markers show stored movement state. No combat or Turn 2.':'Read-only initial world. A saved Turn 1 may be open; movement, economy processing and turn controls are not available.'}</p>
       </section>
     </div>
   </>
@@ -112,6 +113,8 @@ function MatchWorldView({ matchId, onClose, onSessionError }: { matchId: string;
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [sessionUnavailable, setSessionUnavailable] = useState(false)
+  const [isLoop,setIsLoop]=useState(false)
+  const markLoop=useCallback(()=>setIsLoop(true),[])
   const [selectedFormationId, setSelectedFormationId] = useState<string | null>(null)
   const read = useRef<AbortController | null>(null)
   const sessionError = useCallback(async () => {
@@ -146,7 +149,7 @@ function MatchWorldView({ matchId, onClose, onSessionError }: { matchId: string;
     <div className="section-heading"><h1 id="world-title">Initial world</h1><button onClick={onClose}>Back to lobbies</button><button disabled={loading} onClick={() => void refresh()}>Refresh world</button></div>
     {loading ? <p role="status">Loading world…</p> : error ? <p role="alert">{error}</p>
       : result?.state === 'READY' ? <Formations matchId={matchId} world={result.world} onSessionError={sessionError}
-        selectedFormationId={selectedFormationId} onSelectionChange={setSelectedFormationId}
+        onLoopReady={markLoop} renderLoop={()=><LoopWorkspace matchId={matchId} onSessionError={sessionError} map={(formation,route,inspection)=><MapView world={result.world} formation={formation} route={route} choose={null} inspection={inspection} policy={{radius:10,pending:false,combat:true,loop:true}}/>}/>} selectedFormationId={selectedFormationId} onSelectionChange={setSelectedFormationId}
         map={(formation,inspection,policy) => <><MovementQueue matchId={matchId} world={result.world} formation={formation} onSessionError={sessionError}
           map={(route, choose) => <MapView inspection={inspection} world={result.world} formation={formation} route={route} choose={choose} {...(policy?{policy}:{})} />} />{policy&&<MovementResolution matchId={matchId} onSessionError={sessionError} combat={policy.combat??false}/>}</>} />
         : result?.state === 'UNINITIALIZED' ? <section className="panel" role="status" aria-live="polite" aria-atomic="true" aria-labelledby="world-unavailable-title">
@@ -155,7 +158,7 @@ function MatchWorldView({ matchId, onClose, onSessionError }: { matchId: string;
           <p>Refreshing this view will not create a map. Return to lobbies to view a newer match.</p>
         </section>
           : result?.state === 'NOT_STARTED' ? <p role="status">This match has not started.</p> : null}
-    <TurnStatus matchId={matchId} onSessionError={sessionError} />
+    {!isLoop&&<TurnStatus matchId={matchId} onSessionError={sessionError} />}
   </section>
 }
 
