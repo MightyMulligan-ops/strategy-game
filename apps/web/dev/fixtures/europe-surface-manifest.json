@@ -1,0 +1,41 @@
+{
+  "maskId": "europe-ne50m-surface-v1",
+  "profileId": "europe-mercator-fixed-v1",
+  "bounds": {
+    "width": 236111,
+    "height": 221521
+  },
+  "sha256": "82e3763c12caa1dfc002daba35aa378a3acb207a239434a5d30cdc8b44dd7cd9",
+  "inputs": {
+    "land": "e874b27a51d146452be360cafb3cc50c86001074a67d534113e6534682f9826b",
+    "lakes": "d350b75978b26fe839b797c2c529b2fb8f47fb3983c03f4964e36d5df9378a52"
+  },
+  "processing": "Shapely 2.1.2; clip geographic theatre; normalized Web Mercator offset x1e6; dissolve physical polygons; topology-preserving simplify 10 map units; integer precision grid 1; dissolve and clip; remove duplicate closing and collinear vertices",
+  "vertices": 12236,
+  "omittedSlivers": {
+    "land": [
+      {
+        "area": 90.0,
+        "bounds": [
+          217051.0,
+          6667.0,
+          217071.0,
+          6680.0
+        ],
+        "reason": "sub-resolution quantized point contact"
+      }
+    ],
+    "lakes": []
+  },
+  "landPolygons": 194,
+  "lakePolygons": 79,
+  "sources": {
+    "land": "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/693f11422f4e08d2da4566b854dda53eb7c39fb3/geojson/ne_50m_land.geojson",
+    "lakes": "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/ace5fed0eaf3c6c03c951e75b439ba8fffbc218e/geojson/ne_50m_lakes.geojson"
+  },
+  "license": "Public domain",
+  "licenseUrl": "https://www.naturalearthdata.com/about/terms-of-use/",
+  "cartographicScale": "1:50,000,000",
+  "prototypeOnly": true,
+  "accuracyAcceptance": "Not accepted for production naval chokepoints or live order validation"
+}
