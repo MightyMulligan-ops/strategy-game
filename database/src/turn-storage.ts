@@ -1,5 +1,5 @@
 import {restoreCombatTurn} from "./combat-turn-storage.js";
-import {CombatTurnRuntimeSchema,LoopRuntimeSchema} from "@strategy-game/shared-types/server";
+import {CombatTurnRuntimeSchema,RepeatingRuntimeSchema} from "@strategy-game/shared-types/server";
 import type {CombatInitialSnapshot} from "@strategy-game/shared-types/server";
 import { isDeepStrictEqual as same } from "node:util";
 import { GameConfigSchema } from "@strategy-game/shared-types";
@@ -44,7 +44,7 @@ export function configurationRuntime(row: MatchConfiguration): "legacy" | "initi
   }
   if (pinned.simulationVersion === "movement-resolution-v1") { MovementResolutionRuntimeSchema.parse(pinned); return "movement_resolution"; }
   if (pinned.simulationVersion === "combat-turn-v1") { CombatTurnRuntimeSchema.parse(pinned); return "combat_turn"; }
-  if (pinned.simulationVersion === "combat-loop-v1") { LoopRuntimeSchema.parse(pinned); return "combat_loop"; }
+  if (pinned.simulationVersion === "combat-loop-v1" || pinned.simulationVersion === "europe-playtest-v1") { RepeatingRuntimeSchema.parse(pinned); return "combat_loop"; }
   if (pinned.simulationVersion === "empty-turn-v1") return "empty";
   return invalid();
 }

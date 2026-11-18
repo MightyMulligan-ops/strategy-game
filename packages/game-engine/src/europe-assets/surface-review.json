@@ -1,0 +1,142 @@
+{
+  "maskId": "europe-ne10m-surface-v2",
+  "method": "Expected sample surfaces checked against unsimplified ne_10m physical land/lakes before quantization. These are regression anchors, not a navigation survey.",
+  "referenceInputs": {
+    "land": "1ac90796408bc6ad6911d69448485d3c4dbf2190370080368a09976e1c9f7416",
+    "lakes": "2d036f53dedec578001c5c30c2959ee7d4eebc1306900fa4367c49929ec8f2d9"
+  },
+  "cities": {
+    "total": 138,
+    "expectedLand": 137,
+    "unresolved": [
+      {
+        "name": "Geneva",
+        "country": "Switzerland",
+        "lon": 6.140028,
+        "lat": 46.210008,
+        "expected": "INLAND_WATER",
+        "action": "Review source city anchor before enabling city-based land orders; city position has not been changed."
+      }
+    ],
+    "correctedCoastalCities": [
+      "Lisbon",
+      "Venice",
+      "Stockholm",
+      "Tromso",
+      "Reykjavik",
+      "Monaco"
+    ]
+  },
+  "points": [
+    {
+      "name": "Gibraltar",
+      "lon": -5.6,
+      "lat": 35.97,
+      "expected": "OCEAN"
+    },
+    {
+      "name": "Dover",
+      "lon": 1.5,
+      "lat": 51.05,
+      "expected": "OCEAN"
+    },
+    {
+      "name": "Bosporus central",
+      "lon": 29.065,
+      "lat": 41.1,
+      "expected": "OCEAN"
+    },
+    {
+      "name": "Bosporus south",
+      "lon": 29.012,
+      "lat": 41.008,
+      "expected": "OCEAN"
+    },
+    {
+      "name": "Dardanelles",
+      "lon": 26.403,
+      "lat": 40.157,
+      "expected": "OCEAN"
+    },
+    {
+      "name": "Messina",
+      "lon": 15.6,
+      "lat": 38.18,
+      "expected": "OCEAN"
+    },
+    {
+      "name": "Danish Great Belt",
+      "lon": 10.96,
+      "lat": 55.3,
+      "expected": "OCEAN"
+    },
+    {
+      "name": "Ven island",
+      "lon": 12.7,
+      "lat": 55.9,
+      "expected": "LAND"
+    },
+    {
+      "name": "Corinth isthmus",
+      "lon": 22.997,
+      "lat": 37.941,
+      "expected": "LAND"
+    },
+    {
+      "name": "Malta interior",
+      "lon": 14.425,
+      "lat": 35.91,
+      "expected": "LAND"
+    },
+    {
+      "name": "Sicily interior",
+      "lon": 14,
+      "lat": 37.5,
+      "expected": "LAND"
+    },
+    {
+      "name": "Cyprus interior",
+      "lon": 33.2,
+      "lat": 35.05,
+      "expected": "LAND"
+    },
+    {
+      "name": "Iceland interior",
+      "lon": -19,
+      "lat": 65,
+      "expected": "LAND"
+    }
+  ],
+  "routes": [
+    {
+      "name": "Gibraltar sample ocean passage",
+      "domain": "NAVAL",
+      "points": [
+        [
+          -5.8,
+          35.97
+        ],
+        [
+          -5.2,
+          35.97
+        ]
+      ],
+      "eligible": true
+    },
+    {
+      "name": "Ven island blocks sea-to-sea segment",
+      "domain": "NAVAL",
+      "points": [
+        [
+          12.6,
+          55.9
+        ],
+        [
+          12.78,
+          55.9
+        ]
+      ],
+      "eligible": false
+    }
+  ]
+}

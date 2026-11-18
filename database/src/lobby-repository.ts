@@ -1,5 +1,6 @@
+import {generateWorld} from '@strategy-game/game-engine';
 import {planLoop} from '@strategy-game/game-engine/server';
-import {LoopRuntimeSchema} from '@strategy-game/shared-types/server';
+import {RepeatingRuntimeSchema} from '@strategy-game/shared-types/server';
 import {insertLoopTurn} from './loop-repository.js';
 import {CombatTurnRuntimeSchema,FIRST_COMBAT_SETUP} from "@strategy-game/shared-types/server";
 import {planCombatTurn} from "@strategy-game/game-engine/server";
@@ -120,12 +121,13 @@ export class LobbyRepository {
     const parsed = LobbySettingsSchema.safeParse(settingsInput);
     if (!parsed.success) throw new LobbyError("INVALID_INPUT");
     const settings = parsed.data;
+    if((this.creationRuntime as {simulationVersion?:string})?.simulationVersion==='europe-playtest-v1'&&settings.playerCapacity!==2)throw new LobbyError('INVALID_INPUT');
     // Trusted creation-time selection only; request fields never select a runtime.
     const oldProfile = InitialWorldRuntimeProfileSchema.safeParse(this.creationRuntime);
     const armyProfile = InitialArmiesRuntimeProfileSchema.safeParse(this.creationRuntime);
     const movementProfile = MovementDraftRuntimeProfileSchema.safeParse(this.creationRuntime);
     const closureProfile = TurnClosureRuntimeProfileSchema.safeParse(this.creationRuntime);
-    const runtime = oldProfile.success ? oldProfile.data : armyProfile.success ? armyProfile.data : movementProfile.success ? movementProfile.data : closureProfile.success ? closureProfile.data : CombatTurnRuntimeSchema.safeParse(this.creationRuntime).success ? CombatTurnRuntimeSchema.parse(this.creationRuntime) : LoopRuntimeSchema.safeParse(this.creationRuntime).success ? LoopRuntimeSchema.parse(this.creationRuntime) : MovementResolutionRuntimeSchema.parse(this.creationRuntime);
+    const runtime = oldProfile.success ? oldProfile.data : armyProfile.success ? armyProfile.data : movementProfile.success ? movementProfile.data : closureProfile.success ? closureProfile.data : CombatTurnRuntimeSchema.safeParse(this.creationRuntime).success ? CombatTurnRuntimeSchema.parse(this.creationRuntime) : RepeatingRuntimeSchema.safeParse(this.creationRuntime).success ? RepeatingRuntimeSchema.parse(this.creationRuntime) : MovementResolutionRuntimeSchema.parse(this.creationRuntime);
     return this.client.$transaction(async (tx) => {
       const username = await registeredUsername(tx, identityId);
       const id = randomUUID();
@@ -197,7 +199,8 @@ export class LobbyRepository {
           await tx.gameSnapshotRecord.count({ where: { matchId: row.id } }) !== 0 ||
           await tx.turn.count({ where: { matchId: row.id } }) !== 0)) throw new LobbyError("INVALID_STORAGE");
       const players = row.participants.map((p) => p.playerId);
-      const archive = await insertInitialWorld(tx, row.id, this.worldFactory(players), players);
+      const europe=row.configuration.simulationVersion==='europe-playtest-v1';if(europe&&players.length!==2)throw new LobbyError('INVALID_INPUT');
+      const archive = await insertInitialWorld(tx, row.id, europe?europeScenarioWorld(players):this.worldFactory(players), players);
       if(mode==='combat_loop'){
         const roster=players.map(playerId=>({schemaVersion:1 as const,gameId:row.id,playerId,active:true}));
         const plan=planLoop(row.configuration.config,roster,archive,row.configuration.pinnedRuleset,this.combatSetup),state=createTurn(plan.snapshot.config,plan.snapshot.players,this.clock());
@@ -243,3 +246,5 @@ export class LobbyRepository {
     }, { isolationLevel: "RepeatableRead" });
   }
 }
+
+function europeScenarioWorld(players:readonly string[]){const r=generateWorld({schemaVersion:1,generatorVersion:'territory-grid-v1',seed:1,players,settings:{regionSide:5}});if(!r.ok)throw new LobbyError('INVALID_STORAGE');return r.world}

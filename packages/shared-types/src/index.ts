@@ -199,3 +199,7 @@ export {CombatAftermathSchema,CombatAftermathViewSchema,CombatOwnFormationSchema
 export type {CombatAftermath} from "./combat-turn-view.js";
 export {LoopCommandSchema,LoopCurrentSchema,LoopHistorySchema,LoopFormationGateSchema,LoopTurnNumberSchema} from './loop.js';
 export type {LoopCommand,LoopCurrent} from './loop.js';
+export {EuropeCommandSchema,EuropeCurrentSchema,EuropeHistorySchema,EuropeFormationGateSchema,EuropeProfileIdentitySchema,RepeatingCommandSchema,RepeatingCurrentSchema,RepeatingHistorySchema} from './loop.js';
+export type {RepeatingCommand,RepeatingCurrent} from './loop.js';
+export {EUROPE_SCENARIO_VIEW,europeGameToDisplay,europeDisplayToGame} from './europe-map.js';
+export {europeLonLatToMask,europeLonLatToDisplay,europeDisplayToMask,europeMaskToDisplay,europeDisplayToLonLat} from './europe-map.js';

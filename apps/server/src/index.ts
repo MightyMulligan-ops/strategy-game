@@ -1,4 +1,4 @@
-import { LOOP_RUNTIME } from "@strategy-game/shared-types/server";
+import { EUROPE_RUNTIME } from "@strategy-game/shared-types/server";
 
 import { existsSync } from "node:fs";
 import { loadEnvFile } from "node:process";
@@ -21,7 +21,7 @@ try {
     logger: true,
     trustProxy: process.env.AUTH_TRUST_PROXY ? process.env.AUTH_TRUST_PROXY.split(",") : false,
     ...(config && database ? { auth: { config, persistence: new AuthRepository(database),
-      ...(config.devLoginEnabled ? { localTestLogin: new AuthRepository(database) } : {}) }, lobbies: new LobbyRepository(database, undefined, undefined, LOOP_RUNTIME),
+      ...(config.devLoginEnabled ? { localTestLogin: new AuthRepository(database) } : {}) }, lobbies: new LobbyRepository(database, undefined, undefined, EUROPE_RUNTIME),
       worlds: new WorldRepository(database), turnReads: new TurnReadRepository(database), formationReads: new FormationReadRepository(database), movementDrafts: new MovementDraftRepository(database), loops:new LoopRepository(database), turnReady: new TurnClosureRepository(database) } : {})
   });
   const ownedDatabase = database;
