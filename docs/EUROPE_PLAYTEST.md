@@ -286,3 +286,33 @@ ignored temporary Vite fixture with explicitly mocked transport, not real auth o
 DB. Its initial pointer click did not populate a destination; deterministic React
 pointer tests passed after explicit jsdom pointer-capture setup. No fresh touch,
 screen-reader speech, human signed-in match or capacity certification is claimed.
+
+## Bounded admission repair1/2 — in progress, unmerged
+
+The owner explicitly started repair attempt1 for EUROPE107-APP-ADMISSION-001 and
+EUROPE107-SQL-ADMISSION-002 on existing PR108/head
+7b020235bacfd694bda13300a981d6f6c61dab57/base2890ca9dd8b60841812a47e15a33a70dfd72ec75.
+Prior CI44320931586 attempt1 failed300pass/8fail before Europe gameplay; application
+2365pass/308DBskips and successful migration application did not establish admission.
+Repair selects exact EuropeRuntimeSchema before the historical application parser
+and adds202611180002_europe_configuration_admission with one exact Europe OPEN
+branch in the SQL guard. The previous guard body and published migrations remain
+unchanged; the new offline regression compares that body byte-for-byte. New tests
+cover spoofed/partial metadata and configuration, preserving all eight existing
+Europe integration assertions. Results follow in status/PR evidence. Implementation
+5/5 remains separate; repair1/2 does not authorize another attempt. Keep draft,
+#107 open, unmerged and unready for coordinator assessment. No gameplay, UI, distance,
+coast scheduling, defense effects, existing database or deployment change.
+
+Repair1 local evidence: focused131/131; final full2389 passed/326 deliberate DB
+skips, zero failures; build/typecheck/lint/frozen install/generation/diff passed.
+The first full run had an unchanged40-player reader timeout while typecheck
+recheck overlapped; isolated31/31 and one non-overlapping full run passed, without
+assertion/timeout changes. A new fixture literal-type error was fixed using the
+existing MatchConfiguration type. Full history is append-only in status. New18
+hosted configuration cases and the unchanged eight Europe gameplay cases require
+exact-head hosted CI; do not infer SQL acceptance or human readiness from skips.
+PR108 remains draft/unmerged and107 open for coordinator assessment after this
+single bounded repair. Current-head run/results will be in PR conversation and
+handoff, with both stable finding IDs and repair1/2 retained; no automatic second
+attempt or failed workflow rerun, no human playtest or deployment.

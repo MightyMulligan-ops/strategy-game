@@ -1271,3 +1271,77 @@ implementationf6d895c827ed295e0c07deef034ce38305017246, base
 This status-only commit records the actual URL; final-head hosted results and
 observed merge or blocker are recorded in the PR conversation/handoff. Normal
 new-head CI supersession is not a failed-workflow rerun. History5/5 retained.
+
+## Issue107 bounded owner-started repair attempt1/2
+
+Repair begins for EUROPE107-APP-ADMISSION-001 and EUROPE107-SQL-ADMISSION-002.
+Owner's active November18 launch explicitly confirms the project-chat “Approved”
+response to these two findings, strict Europe admission/additive offline SQL,
+local database-free checks and same-branch commit/push/draft update with unchanged
+fresh disposable hosted CI. This is repair1/2 for both stable IDs; no earlier
+repair exists for them. Implementation5/5 and all older histories remain intact.
+No second attempt, broad correction loop, ready, merge, issue closure, deployment,
+existing DB, additional agent/API, workflow/dependency/security/instruction change.
+
+Preflight: clean issue/107-europe-playtest at expected head
+7b020235bacfd694bda13300a981d6f6c61dab57; fetched remote matches; expected/current
+main/base2890ca9dd8b60841812a47e15a33a70dfd72ec75. PR108 open/draft, exact pair
+API-verified. Only existing107 claim/PR observed; one worktree. Full issue and
+findings comments6981030557/6981121356/6981159831 read. CI44320931586 attempt1
+remains failure: application2365pass/308deliberateDBskips, DB300pass/8fail before
+Europe gameplay; migration/cleanup succeeded. No failed workflow rerun.
+
+Exact repair manifest frozen before source edits:
+- database/src/turn-storage.ts
+- database/prisma/migrations/202611180002_europe_configuration_admission/migration.sql
+- database/tests/europe-admission.test.ts
+- database/tests/europe-admission-migration.test.ts
+- database/tests/europe-admission.integration.test.ts
+- docs/DEVELOPMENT_STATUS.md
+- docs/EUROPE_PLAYTEST.md
+
+Select strict EuropeRuntimeSchema before the historical parser, retaining the
+same metadata comparison. Add an exact Europe-only OPEN configuration branch to
+the existing SQL guard via one new migration; preserve the old body and published
+migrations. New pure tests cover valid, malformed, partial and spoofed pins and
+all old profile modes; offline SQL test compares the preserved body byte-for-byte;
+new hosted cases test valid/invalid Europe configuration metadata. Existing eight
+Europe cases and all historical assertions stay unchanged and must actually pass
+in hosted CI before either finding is reported verified. Stop after this bounded
+attempt; repairAuthorization=NOT_GRANTED for any further attempt.
+
+Repair1 local verification: frozen install/generation/preparation exit0; focused
+131/131 passed. Build exit0. Initial full typecheck caught only the new admission
+fixture's inferred literal Europe metadata types, which prevented assigning the
+intended invalid metadata cases. Within this same bounded repair, explicitly type
+the fixture as the existing MatchConfiguration row; no runtime logic, assertions
+or scope changes. Recheck full typecheck. This is not a second repair invocation
+or a reset of implementation5/5. Lint/full test results follow.
+
+Repair1 full typecheck recheck exit0; build/lint exit0. First full suite:
+2388 passed/1 failed/326 deliberate DB skips(110 passed/1 failed/22 skipped files).
+The unchanged40-player turn-read repository case exceeded its5000ms timeout at
+5833ms while the explicit typecheck recheck overlapped this run. No assertion,
+timeout or source behavior will be changed for that result. With both processes
+finished, perform one isolated reader check and one non-overlapping full run to
+diagnose the contention hypothesis; retain both results. This is verification of
+the same bounded repair, not another source repair or a hosted workflow retry.
+
+Repair1 final local verification: isolated unchanged reader31/31 passed; one
+non-overlapping full run2389 passed/326 deliberate DB skips/0failed(111 passed/
+22 skipped files), exit0. The earlier2388pass/1timeout and fixture typecheck failure
+remain recorded above. Final typecheck/build/lint/frozen install/generation and
+diff checks passed. All checks used AUTH_ENABLED=false RUN_DATABASE_TESTS=0.
+No assertion/timeout or existing eight Europe integration tests changed. New18
+hosted configuration cases remain locally skipped; SQL and real Europe gameplay
+acceptance are pending unchanged hosted CI, never inferred from local success.
+
+Author diff review confirms exactly the seven frozen paths, one new corrective
+migration, unchanged published migration/guard body outside the exact Europe
+branch, no UI/gameplay/distance/coast/defense/dependency/security/workflow/instruction
+change. Same PR108 stays draft/unmerged,107 open. Current-head CI and final finding
+outcomes will be recorded in its conversation/handoff. Implementation5/5 remains
+separate from this owner-started repair1/2; repairAuthorization=NOT_GRANTED for any
+further attempt. No ready/merge or independent-review claim. Publication/unchanged
+fresh disposable CI for this attempt is explicitly covered by the active owner
+launch; no existing DB, SQL execution locally, provisioning or deployment.
