@@ -1,5 +1,23 @@
 # Development status
 
+## Europe boundary-contact repair and approved defense direction
+
+Owner-approved repair attempt 1/2 after the original prototype 5/5 history.
+Reproduced forward/reverse disagreement at an island vertex. Route validation now
+rejects detected boundary contacts directly after endpoint eligibility checks.
+Added schema 1/2 direction regressions, a nearby passable route, and a lake tangent
+with multi-segment failure reporting. Approved defense-line direction and live
+runtime dependencies are recorded in EUROPE_DEFENSE_PROTOTYPE.md.
+Validation passed with AUTH_ENABLED=false and RUN_DATABASE_TESTS=0. The full
+engine suite passed 404 tests in 15 files. The Europe preview/shared-contract/
+surface selection passed 313 tests in 14 files, and the final focused surface
+rerun passed 52 tests. These selections overlap. Shared-types and engine builds,
+engine test typecheck, web typecheck/lint/production build and git diff --check
+passed. Frozen dependency installation succeeded with lifecycle scripts disabled
+after the offline cache attempt lacked metadata. Native-browser and live-runtime
+acceptance remain pending. This branch candidate is unmerged.
+
+
 ## Europe defense drafts and server surface previews (candidate, unmerged)
 
 Owner-started new mechanic on main `2890ca9dd8b60841812a47e15a33a70dfd72ec75`, branch `feat/europe-defense-drafts`, carrying the verified unmerged camera/imagery and surface foundations. Adds fixed-point geographic defense drafting, 44px controls, add/drag/nudge/delete/undo/centering, stale-response rejection, and Vite-only server surface previews with server-owned sample origins/domains. A separate physical land/lake mask checks complete routes; country borders remain independent. No production match, authoritative runtime, gameplay rule, movement order, database, migration, dependency or workflow changes.

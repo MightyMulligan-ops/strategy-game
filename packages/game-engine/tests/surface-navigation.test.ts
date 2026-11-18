@@ -12,6 +12,25 @@ function fixture(): SurfaceMap {
 const route = (...points: [number, number][]) => points.map(([x, y]) => p(x, y));
 
 describe("surface navigation", () => {
+  it.each([1, 2] as const)("blocks rounded vertex contacts in both route directions for schema %s", (schemaVersion) => {
+    const island = { outer: [p(56940, 600000), p(56700, 600111), p(57260, 600251)] };
+    const map = prepareSurfaceNavigation({ schemaVersion, maskId: "rounded-contact", bounds: { width: 944444, height: 886082 }, land: [island], inlandWater: [] });
+    const path = route([3, 600000], [908253, 600000]);
+    for (const points of [path, [...path].reverse()]) {
+      expect(map.validateRoute("NAVAL", points)).toMatchObject({ eligible: false, reason: "BOUNDARY_CONTACT", segmentIndex: 0 });
+    }
+    // A nearby integer route clears the island and must remain navigable.
+    expect(map.validateRoute("NAVAL", route([3, 599999], [908253, 599999])).eligible).toBe(true);
+  });
+  it("blocks rounded lake vertex contacts for land routes and reports the affected segment", () => {
+    const map = prepareSurfaceNavigation({ schemaVersion: 2, maskId: "lake-contact", bounds: { width: 944444, height: 886082 },
+      land: [rect(1, 1, 944442, 886080)],
+      inlandWater: [{ outer: [p(56940, 600000), p(56700, 600111), p(57260, 600251)] }] });
+    const path = route([3, 599999], [3, 600000], [908253, 600000]);
+    expect(map.validateRoute("LAND", path)).toMatchObject({ eligible: false, reason: "BOUNDARY_CONTACT", segmentIndex: 1 });
+    expect(map.validateRoute("LAND", [...path].reverse())).toMatchObject({ eligible: false, reason: "BOUNDARY_CONTACT", segmentIndex: 0 });
+    expect(map.validateRoute("LAND", route([3, 599999], [908253, 599999])).eligible).toBe(true);
+  });
   it("classifies land, ocean, inland water, shore and out-of-bounds separately", () => {
     const map = prepareSurfaceNavigation(fixture());
     expect([p(150, 150), p(450, 150), p(210, 360), p(100, 150), p(-1, 2)].map(map.classifyPoint))

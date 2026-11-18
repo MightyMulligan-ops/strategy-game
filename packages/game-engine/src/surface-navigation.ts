@@ -224,18 +224,11 @@ export function prepareSurfaceNavigation(input: unknown) {
       const result = (reason: SurfaceRouteResult["reason"], segmentIndex: number | null): SurfaceRouteResult => Object.freeze({ eligible: reason === "ELIGIBLE", reason, segmentIndex, maskId });
       for (let i = 0; i < route.length - 1; i++) {
         const a = route[i]!, b = route[i + 1]!;
-        // Check endpoints first, then every boundary contact and every open interval.
+        // Eligible endpoints can change surface only by contacting a boundary.
+        // Use the detected contact directly. Reconstructing its floating-point
+        // position can round a tangent vertex outside the polygon's bounds.
         for (const p of [a, b]) { const reason = reasonFor(classify(p), domain); if (reason !== "ELIGIBLE") return result(reason, i); }
-        const breaks = [...new Set([0, 1, ...allEdges.flatMap((e) => contactParameters(a, b, e.a, e.b))])].sort((x, y) => x - y);
-        const at = (t: number): SurfacePoint => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
-        for (let j = 0; j < breaks.length; j++) {
-          const reason = reasonFor(classify(at(breaks[j]!)), domain);
-          if (reason !== "ELIGIBLE") return result(reason, i);
-          if (j + 1 < breaks.length) {
-            const middle = reasonFor(classify(at((breaks[j]! + breaks[j + 1]!) / 2)), domain);
-            if (middle !== "ELIGIBLE") return result(middle, i);
-          }
-        }
+        if (allEdges.some((edge) => contactParameters(a, b, edge.a, edge.b).length > 0)) return result("BOUNDARY_CONTACT", i);
       }
       return result("ELIGIBLE", null);
     }

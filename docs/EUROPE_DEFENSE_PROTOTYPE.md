@@ -239,3 +239,37 @@ diplomatic passage and attack/interception/combat rules. These documented open
 questions are not silently decided by a drawing or a surface preview. Old cohorts
 must keep their original semantics. No PR/hosted CI, merge, database, migration,
 server deployment, manifest/dependency or security-setting change was performed.
+
+
+## Approved follow-up and boundary repair
+
+The owner approved the boundary repair and proposed defense-line behavior with
+“Let's try yhat”, followed by “Resume”. Boundary-contact repair attempt 1/2 follows
+the original five-pass prototype history. The regression reproduces a naval route
+from (3,600000) to (908253,600000) tangent to an island vertex at (56940,600000).
+Previously forward travel passed while reverse travel failed. Detected boundary
+contacts now reject directly after endpoint checks. Reconstructing a floating-point
+contact for classification is unnecessary when every boundary is impassable.
+Crossings with eligible endpoints now consistently report BOUNDARY_CONTACT.
+Endpoint-specific surface reasons and the first failing segment remain available.
+
+The approved gameplay direction for a future Europe runtime is as follows.
+
+- A player places a line entirely on controlled land. Losing control of any part
+  disables its effect.
+- Eligible land formations hold assigned segments. Only occupied segments
+  intercept. Division-scale spacing leaves meaningful gaps.
+- The server freezes assignments at planning closure. Forces already in position
+  defend that turn. Arriving forces begin defending the following turn.
+- The first hostile crossing of a manned segment starts a combat encounter.
+  Friendly forces and forces with passage rights may cross.
+- Enemy geometry follows fog-of-war visibility.
+
+Review of combat-loop/1 confirms that its current state carries city ownership,
+formation positions and relationships, but has no Europe territory-control field,
+defense assignments or surface-aware order contract. Implementing the approved
+behavior therefore needs a separately versioned Europe state/order/freeze/result
+contract. Implementation must define physical distance, occupied segment extent,
+assignment eligibility, simultaneous crossings and combat location/carryover before
+live integration. Segment occupancy cannot imply an unlimited defensive frontage.
+These details remain open. The existing preview continues to validate geometry.
