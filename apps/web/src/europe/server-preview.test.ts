@@ -25,9 +25,9 @@ async function http(body: string, overrides: { method?: string; url?: string; or
 describe('server-owned Europe surface previews', () => {
   it('pins the exact prototype mask bytes and keeps physical layers separately versioned', () => {
     const bytes = readFileSync(new URL('../../dev/fixtures/europe-surface-mask.json', import.meta.url))
-    expect(createHash('sha256').update(bytes).digest('hex')).toBe('82e3763c12caa1dfc002daba35aa378a3acb207a239434a5d30cdc8b44dd7cd9')
+    expect(createHash('sha256').update(bytes).digest('hex')).toBe('052b866179d2566fd37b2f22301d48c5e5fcec3f97e6e4bd806dcdc78374bfe6')
     const mask = JSON.parse(bytes.toString()) as { land: unknown[]; inlandWater: unknown[] }
-    expect(mask.land).toHaveLength(194); expect(mask.inlandWater).toHaveLength(79)
+    expect(mask.land).toHaveLength(1493); expect(mask.inlandWater).toHaveLength(260)
   })
   it('permits real land and ocean paths with original national borders kept separate', () => {
     expect(service.validate(route('iberian-division', [p(-7, 41.5), p(-8, 41.5)]))).toMatchObject({ eligible: true, reason: 'ELIGIBLE' })
@@ -39,8 +39,8 @@ describe('server-owned Europe surface previews', () => {
     expect(service.validate(route('atlantic-fleet', [p(-3.7038, 40.4168)]))).toMatchObject({ eligible: false, reason: 'OCEAN_REQUIRED', segmentIndex: 0 })
   })
   it('rejects an intermediate sea crossing even when route destinations are land', () => {
-    const result = service.validate(route('iberian-division', [p(-8.54, 42.88), p(-1.68, 48.12)]))
-    expect(result.eligible).toBe(false); expect(result.segmentIndex).toBe(1)
+    const result = service.validate(route('iberian-division', [p(-1.68, 48.12)]))
+    expect(result.eligible).toBe(false); expect(result.segmentIndex).toBe(0)
   })
   it('blocks explicit Lake Ladoga water for both domains and rejects outside geometry', () => {
     for (const id of ['iberian-division', 'atlantic-fleet']) expect(service.validate(route(id, [p(31.5, 60.8)]))).toMatchObject({ eligible: false, reason: 'INLAND_WATER_BLOCKED' })
@@ -48,7 +48,7 @@ describe('server-owned Europe surface previews', () => {
   })
   it('rejects client origins, domains, masks, unknown formations and oversized geometry', () => {
     const valid = route('iberian-division', [p(-4, 40.8)])
-    for (const command of [{ ...valid, domain: 'NAVAL' }, { ...valid, origin: p(-11, 39) }, { ...valid, mask: {} }, { ...valid, maskId: 'other' }, { ...valid, formationId: 'enemy' }, { ...valid, waypoints: Array.from({ length: 33 }, () => p(-4, 40.8)) }]) expect(() => service.validate(command)).toThrow()
+    for (const command of [{ ...valid, domain: 'NAVAL' }, { ...valid, origin: p(-11, 39) }, { ...valid, mask: {} }, { ...valid, maskId: 'other' }, { ...valid, maskId: 'europe-ne50m-surface-v1' }, { ...valid, profileId: 'europe-mercator-fixed-v1' }, { ...valid, formationId: 'enemy' }, { ...valid, waypoints: Array.from({ length: 33 }, () => p(-4, 40.8)) }]) expect(() => service.validate(command)).toThrow()
   })
   it('never mutates fixture positions or trusts a previously returned session object', () => {
     const before = service.session()

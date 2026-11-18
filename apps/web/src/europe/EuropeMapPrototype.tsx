@@ -8,6 +8,7 @@ import geography from './geography.json'
 import overviewUrl from './overview.jpg'
 import './europe.css'
 import PlanningTools from './PlanningTools'
+import { EUROPE_PROFILE_ID } from '../../../../packages/shared-types/src/europe-preview.js'
 import type { PlanningHandle, PlanningMode } from './PlanningTools'
 
 const cities = geography.cities
@@ -218,7 +219,7 @@ export default function EuropeMapPrototype() {
         <div className="ep-rule" /><p className="ep-muted">National borders preserved. Cities are proposed conquest objectives; ownership and forces are not simulated here.</p>
         <div className="ep-layer-buttons"><button aria-pressed={borders} onClick={() => setBorders(!borders)}>Borders</button><button aria-pressed={labels} onClick={() => setLabels(!labels)}>Labels</button></div>
       </aside>
-      <PlanningTools ref={planningRef} camera={camera} view={view} mode={planningMode} onModeChange={setPlanningMode} onCenter={point => { target.current = clampCamera({ ...target.current, center: point }, view) }} />
+      <PlanningTools key={EUROPE_PROFILE_ID} ref={planningRef} camera={camera} view={view} mode={planningMode} onModeChange={setPlanningMode} onCenter={point => { target.current = clampCamera({ ...target.current, center: point }, view) }} />
       <div className="ep-camera-tools" aria-label="Map camera controls">
         <button onClick={() => { target.current = fitTheatre(view) }}>Europe overview</button>
         <button onClick={() => { target.current = fitSpain(view) }}>Spain · maximum zoom</button>

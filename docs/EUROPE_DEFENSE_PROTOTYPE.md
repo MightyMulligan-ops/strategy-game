@@ -64,10 +64,10 @@ formations and geometry are public fixtures, with no player/account information.
 ## Versioned coordinates and response acceptance
 
 The fixture/profile/mask IDs are `europe-defense-preview-v1`,
-`europe-mercator-fixed-v1`, and `europe-ne50m-surface-v1`. Geometry stores integer
-map points, with one million units per normalized Mercator world width, offset
-from the theatre's northwest corner (25W,72N). Bounds are 236111 by 221521.
-Quantization is about 40m at the equator and varies with latitude; it does not
+`europe-mercator-fixed-v2`, and `europe-ne10m-surface-v2`. Geometry stores integer
+map points, with four million units per normalized Mercator world width, offset
+from the theatre's northwest corner (25W,72N). Bounds are 944444 by 886082.
+Quantization is about 10m at the equator and varies with latitude; it does not
 improve coastline accuracy or define an authoritative distance/range unit.
 Theatre extent remains 25W–60E / 25N–72N.
 
@@ -103,7 +103,7 @@ address and a localhost/127.0.0.1 Host. POST additionally requires an exact matc
 HTTP Origin and JSON content type. Body size is bounded at 16KiB. Responses are
 no-store JSON; there are no CORS credentials, session cookies or database reads.
 Foreign Origin/Host/address, malformed bodies and unsupported methods fail closed.
-The trusted mask is prepared lazily once per Vite process, taking about two seconds
+The trusted mask is prepared lazily once per Vite process, taking about three seconds
 on this host; this is not a 40-player capacity or latency guarantee.
 
 The validator is exported only from the engine's server entry. It validates all
@@ -117,35 +117,66 @@ leadership, range, turn closure and combat remain independent checks.
 ## Physical mask and accuracy
 
 The trusted asset is separate from satellite pixels, imagery clipping and national
-outlines. It uses Natural Earth's public-domain **1:50,000,000 physical land and
-lake datasets**. National borders are never treated as navigation seams.
+outlines. It uses Natural Earth's public-domain **1:10,000,000 physical land and
+lake datasets**. National borders are never treated as navigation seams. The
+previous 1:50,000,000 prototype remains in Git history.
 
-Pinned sources, input SHA-256 hashes, output hash and preprocessing metadata are in
+Pinned URLs, input SHA-256 hashes, output hash and processing metadata are in
 `apps/web/dev/fixtures/europe-surface-manifest.json`. The mask's SHA-256 is
-`82e3763c12caa1dfc002daba35aa378a3acb207a239434a5d30cdc8b44dd7cd9`, pinned by a
-regression test. Sources and rights:
+`052b866179d2566fd37b2f22301d48c5e5fcec3f97e6e4bd806dcdc78374bfe6`, pinned by a
+regression test. Both inputs are pinned to Natural Earth commit
+`ace5fed0eaf3c6c03c951e75b439ba8fffbc218e`:
 
-- [Physical land](https://raw.githubusercontent.com/nvkelso/natural-earth-vector/693f11422f4e08d2da4566b854dda53eb7c39fb3/geojson/ne_50m_land.geojson)
-- [Physical lakes](https://raw.githubusercontent.com/nvkelso/natural-earth-vector/ace5fed0eaf3c6c03c951e75b439ba8fffbc218e/geojson/ne_50m_lakes.geojson)
+- [Physical land](https://raw.githubusercontent.com/nvkelso/natural-earth-vector/ace5fed0eaf3c6c03c951e75b439ba8fffbc218e/geojson/ne_10m_land.geojson)
+- [Physical lakes](https://raw.githubusercontent.com/nvkelso/natural-earth-vector/ace5fed0eaf3c6c03c951e75b439ba8fffbc218e/geojson/ne_10m_lakes.geojson)
 - [Natural Earth terms](https://www.naturalearthdata.com/about/terms-of-use/)
 
-Offline asset preparation used temporary Shapely 2.1.2 tooling, with no application
-Python dependency: clip source geometry to the theatre; project to the offset
-Mercator profile; dissolve physical components; topology-preserving simplify by
-10 map units; quantize to integer grid 1; dissolve/clip again; remove closing and
-collinear duplicates. The asset has 194 land components, 79 inland-water
-components and 12,236 vertices. Both Shapely topology validation and the independent
-engine input checks passed.
+Offline preparation requires temporary Shapely 2.1.2, with no application Python
+dependency. Download the two pinned inputs as `land.geojson` and `lakes.geojson`,
+then run `python scripts/prepare-europe-surface.py --source-dir INPUT --output-dir OUTPUT`.
+The script verifies source hashes and the exact output hash. Processing clips the
+source theatre, projects to the offset Mercator profile, dissolves physical
+components, simplifies by 1 map unit preserving topology, quantizes to grid 1,
+dissolves/clips again and removes closing/collinear duplicates. The result has
+1,493 land components, 260 inland-water components and 110,920 vertices. No
+components are deliberately omitted. Exact regeneration and both Shapely/engine
+topology validation passed.
 
-One 90-map-unit-squared sliver at fixed bounds [217051,6667,217071,6680] touched a
-larger component at one point after quantization. It was explicitly omitted from
-this coarse prototype and recorded in the manifest. It lies near the far northeast
-of the theatre, outside the sample formation scenarios. Tiny islands, shorelines,
-lakes, river mouths and narrow straits require geographic accuracy review before
-this mask can govern real orders. Some physical water areas/rivers are absent
-from this cartographic source. Satellite source resolution and coordinate
-precision do not establish navigability accuracy. This asset is not accepted for
-production naval chokepoints or live order validation.
+Surface-map schema 2 explicitly admits isolated point contacts between otherwise
+disjoint valid components. This preserves physical source features near Dubai and
+several lakes without inventing bridges. Shared edges, overlapping interiors,
+self-contact and invalid holes still fail closed. Contact checks partition every
+boundary edge at exact intersections and test all intervening intervals in both
+directions; they are not periodic samples. Schema 1 retains its original strict
+no-component-contact behavior. In both versions, route contact with these points
+remains impassable coastline for LAND and NAVAL. Cached ring bounds and edge AABB
+trees reduce input validation work; 350 legacy-mask point/route comparisons found
+no behavior difference from the previous implementation.
+
+The upgraded coordinate profile uses four million units per world rather than
+one million, reducing quantization collapse. IDs change with the geometry and
+precision. Old profile/mask requests fail closed, and the editor is keyed by the
+profile so ephemeral draft state resets on a profile change. Camera coordinates,
+the Spain-wide maximum zoom, satellite imagery, country outlines and all 138 city
+positions are unchanged. The request protocol remains version 1; the trusted
+surface asset's schema is independently versioned.
+
+`apps/web/dev/fixtures/europe-surface-review.json` records reference inputs and
+review anchors. The coarse mask placed Lisbon, Venice, Stockholm, Tromso,
+Reykjavik and Monaco in ocean; the finer reference and prepared mask place all six
+on land. **137 of 138 existing city anchors are land**. Geneva's unchanged source
+anchor (6.140028E,46.210008N) is inland water in both references and remains an
+explicit location-review item before city-based land orders can be enabled.
+
+Reviewed point anchors cover Gibraltar, Dover, two Bosporus positions,
+Dardanelles, Messina, Great Belt, Ven island, Corinth isthmus, Malta, Sicily,
+Cyprus and Iceland. Ven is land within the Oresund strait, not an ocean sample.
+A Gibraltar sample segment passes for NAVAL; a sea-to-sea segment across Ven is
+blocked despite ocean endpoints. These establish sample regression agreement,
+not certification of complete navigable corridors. Some rivers and small water
+areas are absent from this cartographic source. Satellite resolution and
+coordinate precision do not establish navigation accuracy. Live-order and
+production chokepoint acceptance remain pending.
 
 ## Verification
 
@@ -153,7 +184,7 @@ production naval chokepoints or live order validation.
 - Full web typecheck, lint and the standard production build passed. The resulting
   app bundle has none of the prototype fixture/mask IDs, preview URL prefix,
   defense control labels or regional provider code. No prototype assets are emitted.
-- Final targeted tests: **857 passed in 35 files** across web, game-engine and
+- Final targeted tests: **882 passed in 36 files** across web, game-engine and
   shared-types. This is not a full-workspace or database-suite acceptance claim. Focused coverage includes reducer
   immutability/undo/history/bounds, camera round trips, stale responses, React
   add/nudge/delete/undo controls, stable geometry under camera changes, real
@@ -168,13 +199,20 @@ production naval chokepoints or live order validation.
   access restriction was respected; HTTP/jsdom/Figma checks are not substituted
   for a fresh browser rendering pass. Manual checks below remain required.
 
-New defense/surface-preview correction history: **4/5**, separate from prior
+New defense/surface-preview correction history: **5/5**, separate from prior
 camera **5/5**, prior surface foundation **1/5**, and repeating-turn histories.
 Pass 1 resolved the explicit tiny quantized sliver and a const lint issue; pass 2
 retained literal protocol identities; pass 3 isolated the prototype contract to
 remove it from the production bundle; pass 4 polished drag checkpoint/no-op
 handling, formation/point centering and visible drawer feedback after interaction
-review. An initial broad test command also discovered temporary pristine archive
+review. Pass 5 reviewed coast/island/city anchors, upgraded to the pinned 10m-scale
+physical source and finer integer profile, and added versioned point-contact
+representation plus cached bounds/edge trees. Initial candidate masks correctly
+failed schema 1's contact guard; no assertion was disabled. The schema 2 extension
+was tested separately, retaining shared-edge/overlap and route-contact rejection,
+and the final asset omits no components. This is the fifth and final bounded
+correction pass; unresolved accuracy/browser/live-runtime work requires review
+before further implementation corrections. An initial broad test command also discovered temporary pristine archive
 copies under .cache, which lacked installed workspace links; moving that reference
 copy outside the repository restored the intended suite selection without changing
 or excluding any application test. Author review is not independent review.

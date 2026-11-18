@@ -105,8 +105,40 @@ describe("surface navigation", () => {
   it.each([[], [p(1, 1)], [p(NaN, 1), p(1, 1)], [p(1.5, 1), p(2, 2)], [{ x: 1, y: 2, domain: "LAND" }, p(2, 2)]].map((value) => ({ value })))("rejects malformed routes %#", ({ value }) => {
     expect(() => prepareSurfaceNavigation(fixture()).validateRoute("LAND", value)).toThrow(SurfaceNavigationInputError);
   });
+  it("keeps point-touching components invalid in schema 1", () => {
+    expect(() => prepareSurfaceNavigation({ ...fixture(), land: [rect(100, 100, 100, 100), rect(200, 200, 100, 100)], inlandWater: [] })).toThrow(SurfaceNavigationInputError);
+  });
+  it("admits isolated point contacts in schema 2 without opening either domain", () => {
+    const map = prepareSurfaceNavigation({ ...fixture(), schemaVersion: 2, land: [rect(100, 100, 100, 100), rect(200, 200, 100, 100)], inlandWater: [] });
+    expect(map.classifyPoint(p(200, 200))).toBe("BOUNDARY");
+    expect(map.validateRoute("LAND", route([150, 150], [250, 250]))).toMatchObject({ eligible: false, reason: "BOUNDARY_CONTACT" });
+    expect(map.validateRoute("NAVAL", route([150, 250], [250, 150]))).toMatchObject({ eligible: false, reason: "BOUNDARY_CONTACT" });
+  });
   it.each([
-    { ...fixture(), schemaVersion: 2 },
+    [rect(100, 100, 100, 100), rect(200, 100, 100, 100)], // shared edge
+    [rect(100, 100, 200, 200), rect(150, 150, 50, 50)], // containment
+    [rect(100, 200, 400, 100), rect(200, 100, 100, 400)], // crossing with no vertex inside
+    [rect(100, 100, 200, 200), rect(200, 200, 200, 200)], // partial overlap
+    [rect(100, 100, 100, 100), rect(100, 100, 100, 100)], // coincident
+  ])("still rejects ambiguous schema 2 components %#", (first, second) => {
+    for (const pair of [[first, second], [second, first]]) {
+      expect(() => prepareSurfaceNavigation({ ...fixture(), schemaVersion: 2, land: pair, inlandWater: [] })).toThrow(SurfaceNavigationInputError);
+    }
+  });
+  it("accepts an island touching a hole at one point but blocks the contact", () => {
+    const map = prepareSurfaceNavigation({ ...fixture(), schemaVersion: 2, land: [
+      { ...rect(100, 100, 800, 800), holes: [rect(300, 300, 400, 400).outer] },
+      { outer: [p(300, 500), p(400, 400), p(500, 500), p(400, 600)] },
+    ], inlandWater: [] });
+    expect(map.classifyPoint(p(400, 500))).toBe("LAND");
+    expect(map.classifyPoint(p(300, 500))).toBe("BOUNDARY");
+    expect(map.validateRoute("LAND", route([200, 500], [400, 500])).eligible).toBe(false);
+  });
+  it("retains ring self-contact rejection in schema 2", () => {
+    expect(() => prepareSurfaceNavigation({ ...fixture(), schemaVersion: 2, land: [{ outer: [p(100, 100), p(300, 300), p(100, 300), p(300, 100)] }], inlandWater: [] })).toThrow(SurfaceNavigationInputError);
+  });
+  it.each([
+    { ...fixture(), schemaVersion: 3 },
     { ...fixture(), maskId: " " },
     { ...fixture(), waterAllowed: true },
     { ...fixture(), bounds: { width: 0, height: 1000 } },

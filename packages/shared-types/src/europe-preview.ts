@@ -1,13 +1,13 @@
 import { z } from 'zod'
 
 export const EUROPE_FIXTURE_ID = 'europe-defense-preview-v1'
-export const EUROPE_MASK_ID = 'europe-ne50m-surface-v1'
-export const EUROPE_PROFILE_ID = 'europe-mercator-fixed-v1'
+export const EUROPE_MASK_ID = 'europe-ne10m-surface-v2'
+export const EUROPE_PROFILE_ID = 'europe-mercator-fixed-v2'
 const mercator = (lat: number) => (1 - Math.asinh(Math.tan(lat * Math.PI / 180)) / Math.PI) / 2
 export const EUROPE_PROFILE = Object.freeze({
-  id: EUROPE_PROFILE_ID, unitsPerWorld: 1_000_000,
+  id: EUROPE_PROFILE_ID, unitsPerWorld: 4_000_000,
   originX: (-25 + 180) / 360, originY: mercator(72),
-  width: Math.round(85 / 360 * 1_000_000), height: Math.round((mercator(25) - mercator(72)) * 1_000_000),
+  width: Math.round(85 / 360 * 4_000_000), height: Math.round((mercator(25) - mercator(72)) * 4_000_000),
 })
 export type EuropeMapPoint = Readonly<{ x: number; y: number }>
 export function europeWorldToMap(point: EuropeMapPoint): EuropeMapPoint {

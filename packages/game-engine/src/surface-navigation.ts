@@ -5,7 +5,7 @@ export type SurfacePolygon = Readonly<{
   holes?: readonly (readonly SurfacePoint[])[];
 }>;
 export type SurfaceMap = Readonly<{
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
   maskId: string;
   bounds: Readonly<{ width: number; height: number }>;
   land: readonly SurfacePolygon[];
@@ -26,7 +26,34 @@ export class SurfaceNavigationInputError extends Error {
 }
 
 type Ring = readonly SurfacePoint[];
-type Edge = Readonly<{ a: SurfacePoint; b: SurfacePoint }>;
+type Bounds = Readonly<{ minX: number; minY: number; maxX: number; maxY: number }>;
+type Edge = Readonly<{ a: SurfacePoint; b: SurfacePoint; index: number; bounds: Bounds }>;
+type EdgeTree = Readonly<{ bounds: Bounds; items: readonly Edge[] }> | Readonly<{ bounds: Bounds; left: EdgeTree; right: EdgeTree }>;
+type RingData = Readonly<{ edges: Edge[]; bounds: Bounds; tree: EdgeTree }>;
+const ringCache = new WeakMap<Ring, RingData>();
+const overlaps = (a: Bounds, b: Bounds) => a.minX <= b.maxX && a.maxX >= b.minX && a.minY <= b.maxY && a.maxY >= b.minY;
+function edgeTree(items: readonly Edge[]): EdgeTree {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const item of items) { minX = Math.min(minX, item.bounds.minX); minY = Math.min(minY, item.bounds.minY); maxX = Math.max(maxX, item.bounds.maxX); maxY = Math.max(maxY, item.bounds.maxY); }
+  const bounds = { minX, minY, maxX, maxY };
+  if (items.length <= 8) return { bounds, items };
+  const xAxis = maxX - minX >= maxY - minY;
+  const sorted = [...items].sort((a, b) => (xAxis ? a.bounds.minX + a.bounds.maxX - b.bounds.minX - b.bounds.maxX : a.bounds.minY + a.bounds.maxY - b.bounds.minY - b.bounds.maxY) || a.index - b.index);
+  const middle = Math.floor(sorted.length / 2);
+  return { bounds, left: edgeTree(sorted.slice(0, middle)), right: edgeTree(sorted.slice(middle)) };
+}
+function someEdge(tree: EdgeTree, bounds: Bounds, predicate: (edge: Edge) => boolean): boolean {
+  if (!overlaps(tree.bounds, bounds)) return false;
+  return 'items' in tree ? tree.items.some(e => overlaps(e.bounds, bounds) && predicate(e)) : someEdge(tree.left, bounds, predicate) || someEdge(tree.right, bounds, predicate);
+}
+function ringData(ring: Ring): RingData {
+  const cached = ringCache.get(ring);
+  if (cached) return cached;
+  const items = ring.map((a, index) => { const b = ring[(index + 1) % ring.length]!; return { a, b, index, bounds: { minX: Math.min(a.x, b.x), minY: Math.min(a.y, b.y), maxX: Math.max(a.x, b.x), maxY: Math.max(a.y, b.y) } }; });
+  const tree = edgeTree(items), result = { edges: items, bounds: tree.bounds, tree };
+  ringCache.set(ring, result);
+  return result;
+}
 type PreparedPolygon = Readonly<{ outer: Ring; holes: readonly Ring[] }>;
 const fail = (): never => { throw new SurfaceNavigationInputError(); };
 const record = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -40,7 +67,7 @@ function point(v: unknown): SurfacePoint {
   return Object.freeze({ x: v.x as number, y: v.y as number });
 }
 function edges(ring: Ring): Edge[] {
-  return ring.map((a, i) => ({ a, b: ring[(i + 1) % ring.length]! }));
+  return ringData(ring).edges;
 }
 const cross = (a: SurfacePoint, b: SurfacePoint, p: SurfacePoint) => (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x);
 function onSegment(p: SurfacePoint, a: SurfacePoint, b: SurfacePoint) {
@@ -49,8 +76,10 @@ function onSegment(p: SurfacePoint, a: SurfacePoint, b: SurfacePoint) {
   return Math.abs(cross(a, b, p)) <= tolerance && p.x >= Math.min(a.x, b.x) && p.x <= Math.max(a.x, b.x) && p.y >= Math.min(a.y, b.y) && p.y <= Math.max(a.y, b.y);
 }
 function inRing(p: SurfacePoint, ring: Ring): "INSIDE" | "OUTSIDE" | "BOUNDARY" {
+  const data = ringData(ring);
+  if (p.x < data.bounds.minX || p.x > data.bounds.maxX || p.y < data.bounds.minY || p.y > data.bounds.maxY) return 'OUTSIDE';
   let inside = false;
-  for (const { a, b } of edges(ring)) {
+  for (const { a, b } of data.edges) {
     if (onSegment(p, a, b)) return "BOUNDARY";
     if ((a.y > p.y) !== (b.y > p.y) && p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x) inside = !inside;
   }
@@ -105,17 +134,35 @@ function readRing(v: unknown, width: number, height: number): Ring {
   for (let i = 0; i < segments.length; i++) {
     const a = ring[i]!, b = ring[(i + 1) % ring.length]!, c = ring[(i + 2) % ring.length]!;
     if (onSegment(c, a, b) || onSegment(a, b, c)) return fail();
-    for (let j = i + 1; j < segments.length; j++) {
-      if (j === i + 1 || (i === 0 && j === segments.length - 1)) continue;
-      if (contactParameters(segments[i]!.a, segments[i]!.b, segments[j]!.a, segments[j]!.b).length) return fail();
-    }
+    const current = segments[i]!;
+    if (someEdge(ringData(ring).tree, current.bounds, other => other.index > i && other.index !== i + 1 && !(i === 0 && other.index === segments.length - 1) && contactParameters(current.a, current.b, other.a, other.b).length > 0)) return fail();
   }
   return Object.freeze(ring);
 }
 function ringsTouch(a: Ring, b: Ring) {
-  return edges(a).some((x) => edges(b).some((y) => contactParameters(x.a, x.b, y.a, y.b).length > 0));
+  const first = ringData(a), second = ringData(b);
+  if (!overlaps(first.bounds, second.bounds)) return false;
+  const [smaller, larger] = first.edges.length <= second.edges.length ? [first, second] : [second, first];
+  return smaller.edges.some(x => someEdge(larger.tree, x.bounds, y => contactParameters(x.a, x.b, y.a, y.b).length > 0));
 }
-function readPolygons(v: unknown, width: number, height: number): readonly PreparedPolygon[] {
+/** Schema 2 admits isolated point contacts, never shared edges or overlapping interiors. */
+function boundaryEnters(a: PreparedPolygon, b: PreparedPolygon): boolean {
+  return [a.outer, ...a.holes].some(ring => edges(ring).some(edge => {
+    const breaks = [0, 1];
+    for (const other of [b.outer, ...b.holes]) {
+      if (someEdge(ringData(other).tree, edge.bounds, candidate => {
+        const contacts = contactParameters(edge.a, edge.b, candidate.a, candidate.b);
+        if (contacts.length === 2 && contacts[0] !== contacts[1]) return true;
+        breaks.push(...contacts);
+        return false;
+      })) return true;
+    }
+    const ordered = [...new Set(breaks)].sort((x, y) => x - y);
+    const inside = (t: number) => inPolygon({ x: edge.a.x + (edge.b.x - edge.a.x) * t, y: edge.a.y + (edge.b.y - edge.a.y) * t }, b) === "INSIDE";
+    return ordered.some((t, i) => inside(t) || (i + 1 < ordered.length && inside((t + ordered[i + 1]!) / 2)));
+  }));
+}
+function readPolygons(v: unknown, width: number, height: number, allowPointContacts: boolean): readonly PreparedPolygon[] {
   if (!Array.isArray(v)) return fail();
   const polygons = v.map((poly: unknown) => {
     if (!record(poly)) return fail();
@@ -131,12 +178,14 @@ function readPolygons(v: unknown, width: number, height: number): readonly Prepa
     }
     return Object.freeze({ outer, holes: Object.freeze(holes) });
   });
-  // Author masks as dissolved surface areas, never touching national polygons.
-  // This rejects ambiguous internal seams rather than treating a country border as a coast.
+  // Shared national seams must be dissolved. Schema 2 preserves isolated physical
+  // point contacts, but those points remain impassable coast in route validation.
   for (let i = 0; i < polygons.length; i++) for (let j = i + 1; j < polygons.length; j++) {
     const a = polygons[i]!, b = polygons[j]!;
-    if ([a.outer, ...a.holes].some((x) => [b.outer, ...b.holes].some((y) => ringsTouch(x, y))) ||
-        inPolygon(a.outer[0]!, b) === "INSIDE" || inPolygon(b.outer[0]!, a) === "INSIDE") return fail();
+    if (!overlaps(ringData(a.outer).bounds, ringData(b.outer).bounds)) continue;
+    if (inPolygon(a.outer[0]!, b) === "INSIDE" || inPolygon(b.outer[0]!, a) === "INSIDE") return fail();
+    if ([a.outer, ...a.holes].some((x) => [b.outer, ...b.holes].some((y) => ringsTouch(x, y))) &&
+        (!allowPointContacts || boundaryEnters(a, b) || boundaryEnters(b, a))) return fail();
   }
   return Object.freeze(polygons);
 }
@@ -145,12 +194,12 @@ function readPolygons(v: unknown, width: number, height: number): readonly Prepa
 export function prepareSurfaceNavigation(input: unknown) {
   if (!record(input)) return fail();
   keys(input, ["schemaVersion", "maskId", "bounds", "land", "inlandWater"]);
-  if (input.schemaVersion !== 1 || typeof input.maskId !== "string" || input.maskId.trim() !== input.maskId || input.maskId.length < 1 || input.maskId.length > 128 || !record(input.bounds)) return fail();
+  if ((input.schemaVersion !== 1 && input.schemaVersion !== 2) || typeof input.maskId !== "string" || input.maskId.trim() !== input.maskId || input.maskId.length < 1 || input.maskId.length > 128 || !record(input.bounds)) return fail();
   keys(input.bounds, ["width", "height"]);
   const width = input.bounds.width, height = input.bounds.height;
   if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || (width as number) <= 0 || (height as number) <= 0 || (width as number) > 1_000_000 || (height as number) > 1_000_000) return fail();
-  const land = readPolygons(input.land, width as number, height as number);
-  const water = readPolygons(input.inlandWater, width as number, height as number);
+  const land = readPolygons(input.land, width as number, height as number, input.schemaVersion === 2);
+  const water = readPolygons(input.inlandWater, width as number, height as number, input.schemaVersion === 2);
   const maskId = input.maskId;
   const allEdges = [...land, ...water].flatMap((p) => [p.outer, ...p.holes].flatMap(edges));
   function classify(p: SurfacePoint): SurfaceKind {
