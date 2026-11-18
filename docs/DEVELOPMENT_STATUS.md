@@ -1345,3 +1345,33 @@ separate from this owner-started repair1/2; repairAuthorization=NOT_GRANTED for 
 further attempt. No ready/merge or independent-review claim. Publication/unchanged
 fresh disposable CI for this attempt is explicitly covered by the active owner
 launch; no existing DB, SQL execution locally, provisioning or deployment.
+
+## Owner-started Europe UI / automatic updates — 2026-11-18
+
+Baseline b216e43b1d00dafab9fab62886ea16ac9cb25a85; branch ui/live-europe-map.
+Owner reported successful two-browser combat, survivor carryover and logout
+isolation on the baseline Windows playtest. New work adds visible-tab automatic
+lobby/current-turn reads (10s, hidden/offline pause, bounded failure backoff),
+request/write race protection, preserved same-turn drafts/camera, country
+identification using unchanged display polygons, collapsed secondary map controls,
+full-width match planning and current-own Europe ownership wording. Main lobby
+visual redesign is deferred. Full scope/behavior/limits: LIVE_EUROPE_UI.md.
+
+New-task correction history: 1/5 updated one stale lobby-start copy assertion
+(first focused regression 98 passed/1 failed); 2/5 fixed an optional RequestInit
+access in the new test after build reported TS18048. No gameplay/security test
+expectation changed. Earlier implementation and repair histories remain intact.
+
+Final AUTH_ENABLED=false RUN_DATABASE_TESTS=0 checks: full build passed; full
+typecheck passed; final web build/typecheck and lint passed; full frontend suite
+258/258 passed; full suite 2397 passed/327 skipped/0 failed (113 passed/22 skipped
+files); git diff --check passed. Existing bundle-size advisory remains. New tests
+cover automatic lobby Ready/start visibility, no auto POST, hidden-tab pause,
+backoff/non-overlap, preserved input, next-turn reset, stale reads during writes,
+auth-loss clearing and country polygon/hole/ocean/anchor and hover behavior.
+
+No API/schema/gameplay/dependency/workflow/security edits; no DB connections,
+provisioning, real-browser acceptance of this layout, hosted CI, merge or
+deployment performed for this task. Implementation is prepared for feature-branch
+sharing/local owner testing; no PR or milestone completion is claimed. The user's
+Windows site changes only after fetching this branch and restarting pnpm dev.

@@ -5,6 +5,7 @@ import { TileCache } from './tile-cache'
 import { IMAGERY_CREDIT, IMAGERY_LICENSE_URL, IMAGERY_TILE_BUDGET, loadImageryTile, releaseImageryTile } from './imagery'
 import type { ImageryTile } from './imagery'
 import geography from './geography.json'
+import {countries,countryAt} from './countries'
 import overviewUrl from './overview.jpg'
 import './europe.css'
 import {europeGameToDisplay,europeDisplayToGame,EUROPE_SCENARIO_VIEW} from '@strategy-game/shared-types'
@@ -26,6 +27,8 @@ export default function EuropeMap({view:current,route,choose,world}:{view:Repeat
   const viewportRef = useRef<Viewport>(startView)
   const [view, setView] = useState(startView)
   const [camera, setCamera] = useState(() => fitTheatre(startView))
+  const [hoverCountry,setHoverCountry]=useState<string|null>(null)
+  const [countryLabels,setCountryLabels]=useState(true)
   const [selected, setSelected] = useState('Madrid')
   const [borders, setBorders] = useState(true)
   const [labels, setLabels] = useState(true)
@@ -154,12 +157,30 @@ export default function EuropeMap({view:current,route,choose,world}:{view:Repeat
     visibleLabels.add(city.name); labelBoxes.push(box)
   }
 
+  const countryBoxes:{x:number;y:number;right:number;bottom:number}[]=[]
+  const visibleCountries=new Set<string>()
+  for(const country of [...countries].sort((a,b)=>(b.bounds.right-b.bounds.left)*(b.bounds.bottom-b.bounds.top)-(a.bounds.right-a.bounds.left)*(a.bounds.bottom-a.bounds.top))){
+    const p=toScreen(country.anchor,camera,view),w=country.name.length*9+20
+    if(!onMap(p)||(country.bounds.right-country.bounds.left)*camera.scale<65)continue
+    const box={x:p.x-w/2,y:p.y-18,right:p.x+w/2,bottom:p.y+18}
+    if(countryBoxes.some(b=>box.x<b.right&&box.right>b.x&&box.y<b.bottom&&box.bottom>b.y))continue
+    countryBoxes.push(box);visibleCountries.add(country.name)
+  }
   return <main className="europe-prototype">
     <header className="ep-header">
       <div className="ep-brand"><img src="/assets/branding/emblem.svg" alt="" /><span>SOVEREIGN<small>GLOBAL CROWN</small></span></div>
       <div className="ep-heading"><span className="ep-eyebrow">WORLD MAP · EUROPE</span><strong>The continental theatre</strong></div>
       <span className="ep-fixture">EUROPE PLAYTEST <small>Server-authoritative own planning</small></span>
     </header>
+      <details className="ep-options"><summary>Map options · cities and layers</summary><aside className="ep-inspector" aria-label="City inspector">
+        <label htmlFor="ep-country-select">Find a country</label><select id="ep-country-select" value={hoverCountry??''} onChange={event=>{const c=countries.find(c=>c.name===event.target.value);if(c){setHoverCountry(c.name);target.current=clampCamera({...target.current,center:c.anchor},view)}}}><option value="">Choose a country</option>{countries.map(c=><option key={c.name} value={c.name}>{c.name}</option>)}</select>
+        <span className="ep-eyebrow">DISPLAY CITY · NOT A PLAYTEST CAMP</span>
+        <h1>{selectedCity.name}</h1><p>{selectedCity.country} <span>· {selectedCity.capital ? 'Capital' : 'City'}</span></p>
+        <label htmlFor="ep-city-select">Find a city</label>
+        <select id="ep-city-select" value={selected} onChange={event => selectCity(event.target.value)}>{cities.map(city => <option key={`${city.country}/${city.name}`} value={city.name}>{city.country} · {city.name}</option>)}</select>
+        <div className="ep-rule" /><p className="ep-muted">Country outlines and display cities do not indicate ownership or territory control. Only the two scenario camps are capture objectives. Geneva is unavailable for land gameplay: its original anchor is inland water.</p>
+        <div className="ep-layer-buttons"><button aria-pressed={borders} onClick={() => setBorders(!borders)}>Borders</button><button aria-pressed={labels} onClick={() => setLabels(!labels)}>City labels</button><button aria-pressed={countryLabels} onClick={()=>setCountryLabels(!countryLabels)}>Country names</button></div>
+      </aside></details>
     <div className="ep-map" ref={host} tabIndex={0} role="region" aria-label="Europe map camera" aria-describedby="ep-instructions"
       onKeyDown={event => {
         if (event.target !== event.currentTarget || event.ctrlKey || event.metaKey || event.altKey) return
@@ -177,7 +198,10 @@ export default function EuropeMap({view:current,route,choose,world}:{view:Repeat
         event.currentTarget.setPointerCapture(event.pointerId)
         drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, moved: false }
       }}
+      onPointerLeave={()=>setHoverCountry(null)}
       onPointerMove={event => {
+        const rect=event.currentTarget.getBoundingClientRect()
+        if (!(event.target as Element).closest('button,select,aside,a,details')) setHoverCountry(countryAt(toWorld({x:event.clientX-rect.left,y:event.clientY-rect.top},cameraRef.current,viewportRef.current)))
         const previous = drag.current
         if (!previous || previous.id !== event.pointerId) return
         if (!previous.moved && Math.hypot(event.clientX - previous.startX, event.clientY - previous.startY) < 4) return
@@ -212,14 +236,9 @@ export default function EuropeMap({view:current,route,choose,world}:{view:Repeat
           </button>
         })}
       </div>
-      <aside className="ep-inspector" aria-label="City inspector">
-        <span className="ep-eyebrow">DISPLAY CITY · NOT A PLAYTEST CAMP</span>
-        <h1>{selectedCity.name}</h1><p>{selectedCity.country} <span>· {selectedCity.capital ? 'Capital' : 'City'}</span></p>
-        <label htmlFor="ep-city-select">Find a city</label>
-        <select id="ep-city-select" value={selected} onChange={event => selectCity(event.target.value)}>{cities.map(city => <option key={`${city.country}/${city.name}`} value={city.name}>{city.country} · {city.name}</option>)}</select>
-        <div className="ep-rule" /><p className="ep-muted">Country outlines and display cities do not indicate ownership or territory control. Only the two scenario camps are capture objectives. Geneva is unavailable for land gameplay: its original anchor is inland water.</p>
-        <div className="ep-layer-buttons"><button aria-pressed={borders} onClick={() => setBorders(!borders)}>Borders</button><button aria-pressed={labels} onClick={() => setLabels(!labels)}>Labels</button></div>
-      </aside>
+      <div className="ep-country-labels" aria-hidden="true">{countryLabels&&countries.map(country=>{const p=toScreen(country.anchor,camera,view);return visibleCountries.has(country.name)?<span key={country.name} className="ep-country-name" style={{left:p.x,top:p.y}}>{country.name}</span>:null})}</div>
+      {hoverCountry&&<output className="ep-country-tooltip" aria-live="polite">{hoverCountry} · geographic border</output>}
+
       <svg className="ep-borders" width={view.width} height={view.height} aria-hidden="true">
         {(()=>{const a=toScreen(europeGameToDisplay({x:0,y:0}),camera,view),b=toScreen(europeGameToDisplay({x:1000,y:500}),camera,view);return <rect x={a.x} y={a.y} width={b.x-a.x} height={b.y-a.y} fill="none" stroke="#f5d66d" strokeDasharray="6 5"/>})()}
         {route?.segments.map(segment=>{const a=toScreen(europeGameToDisplay(segment.from),camera,view),b=toScreen(europeGameToDisplay(segment.destination),camera,view);return <line key={segment.orderId} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#f5d66d" strokeWidth={3} strokeDasharray="5 5"/>})}
@@ -233,16 +252,16 @@ export default function EuropeMap({view:current,route,choose,world}:{view:Repeat
       <div className="ep-camera-tools" aria-label="Map camera controls">
         <button onClick={() => { target.current = fitTheatre(view) }}>Europe overview</button>
         <button onClick={()=>{target.current=clampCamera({...fitSpain(view),center:europeGameToDisplay({x:500,y:250})},view)}}>Playtest area</button>
-        <button aria-pressed={draftMode} onClick={()=>setDraftMode(v=>!v)}>Uncommitted defense drawing</button>
+        <details className="ep-extra-tools"><summary>More map tools</summary><button aria-pressed={draftMode} onClick={()=>setDraftMode(v=>!v)}>Uncommitted defense drawing</button>
         <button onClick={()=>setDraft([])}>Clear drawing</button>
-        <button onClick={() => { target.current = fitSpain(view) }}>Spain · maximum zoom</button>
+        <button onClick={() => { target.current = fitSpain(view) }}>Spain · maximum zoom</button></details>
         <div><button aria-label="Zoom out" onClick={() => zoom(1 / 1.35)}>−</button><output aria-live="off" aria-label="Zoom relative to maximum">{zoomPercent}%</output><button aria-label="Zoom in" onClick={() => zoom(1.35)}>+</button></div>
       </div>
       <a className="ep-attribution" href={IMAGERY_LICENSE_URL} target="_blank" rel="noreferrer">{IMAGERY_CREDIT}</a>
       {pickError&&<div className="ep-tile-error" role="alert">{pickError}</div>}
       {errors > 0 && <div className="ep-tile-error" role="status">Some satellite detail is unavailable. Available imagery and the overview remain visible. <button onClick={() => cacheRef.current?.retry(tile => tile.degraded)}>Retry imagery</button></div>}
     </div>
-    <p>Defense drawings are local uncommitted drafts: no surface approval, assignment, control or combat effect. Click destinations only after selecting an own formation; map clicks fill the coordinate fields and never submit. Current own markers and camp ownership come from the server; background cities and borders are context. Projection {EUROPE_SCENARIO_VIEW.projectionId}.</p>
+    <details className="ep-help"><summary>Map help and playtest limits</summary><p>Defense drawings are local uncommitted drafts: no surface approval, assignment, control or combat effect. Click destinations only after selecting an own formation; map clicks fill the coordinate fields and never submit. Current own markers and camp ownership come from the server; background cities and borders are context. Projection {EUROPE_SCENARIO_VIEW.projectionId}.</p></details>
     <footer className="ep-footer"><span id="ep-instructions">Drag to pan · Scroll or + / − to zoom · Focus map and use arrows to pan · Find cities with the selector</span><span>{cached}/{IMAGERY_TILE_BUDGET} tiles cached · Sentinel-2 regional detail · Spain-wide zoom cap</span></footer>
   </main>
 }

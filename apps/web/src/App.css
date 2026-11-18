@@ -122,3 +122,12 @@
   .formation-marker[aria-expanded="true"] .formation-symbol { stroke: Highlight; }
   .formation-details h3:focus { outline-color: CanvasText; }
 }
+
+.loop-workspace select{max-width:100%;text-overflow:ellipsis}
+.loop-workspace .europe-prototype{margin-block:1rem}
+.loop-workspace details>summary{cursor:pointer;min-height:44px;padding:10px 0}
+.loop-workspace label:has(input[type=number]){display:inline-grid;max-width:100%;width:10rem;margin-right:1rem}
+.loop-workspace label input[type=number]{width:100%}
+/* During a match, reserve the full workspace width for planning. */
+.registered-layout:has(.world-workspace){grid-template-columns:minmax(0,1fr);max-width:none;padding:20px clamp(12px,2vw,32px)}
+.registered-layout:has(.world-workspace)>.account-panel{border-left:0;border-top:1px solid var(--border);padding:16px 0;max-width:560px}

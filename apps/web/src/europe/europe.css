@@ -8,3 +8,15 @@
 @media(forced-colors:active){.ep-inspector,.ep-camera-tools,.ep-header,.ep-footer{background:Canvas;color:CanvasText}.ep-city-name{background:Canvas;color:CanvasText;text-shadow:none}.ep-dot{color:Highlight!important;text-shadow:none}}
 
 .europe-prototype>.ep-map{min-height:560px}.europe-prototype>p{padding:8px 16px;margin:0;background:#0a0f16}.europe-prototype .ep-header{flex-wrap:wrap;gap:16px}.europe-prototype .ep-map{overflow:hidden}
+
+/* Keep secondary controls outside the camera instead of covering the map. */
+.europe-prototype{min-height:0}.europe-prototype>.ep-map{height:clamp(360px,66vh,880px);min-height:360px;flex:auto}
+.ep-options,.ep-help{background:#0e1a26;border-block:1px solid #344250;padding:0 16px}
+.ep-options summary,.ep-help summary,.ep-extra-tools summary{cursor:pointer;padding:12px;min-height:44px}
+.ep-options .ep-inspector{position:static;width:100%;max-width:none;padding:12px;box-shadow:none;border:0;display:grid;gap:8px;grid-template-columns:repeat(2,minmax(0,1fr))}
+.ep-options .ep-inspector h1{font-size:24px;margin:0}.ep-options .ep-inspector p{margin:0}.ep-options .ep-rule{display:none}.ep-options .ep-layer-buttons{grid-column:1/-1;display:flex;flex-wrap:wrap}.ep-options .ep-muted{grid-column:1/-1}
+.ep-camera-tools{right:12px;bottom:40px;min-width:0;width:170px;gap:4px}.ep-camera-tools button{padding:6px 10px}.ep-extra-tools{background:#0a0f16ee;border:1px solid #536170;border-radius:4px}.ep-extra-tools[open]{max-height:240px;overflow:auto}.ep-extra-tools button{display:block;width:100%}
+.ep-country-labels{position:absolute;inset:0;pointer-events:none}.ep-country-name{position:absolute;transform:translate(-50%,-50%);font-size:clamp(14px,2vw,26px);letter-spacing:.16em;text-transform:uppercase;white-space:nowrap;color:#f4eedb;opacity:.36;text-shadow:0 1px 4px #000,0 0 8px #000;font-weight:600}
+.ep-country-tooltip{position:absolute;left:12px;top:12px;background:#0a0f16e8;border:1px solid #536170;border-radius:4px;padding:5px 10px;pointer-events:none;color:#e8eaef;font-size:13px}
+@media(max-width:650px){.ep-options .ep-inspector{grid-template-columns:minmax(0,1fr)}.ep-options .ep-inspector .ep-muted{display:block}.ep-camera-tools{width:140px}.ep-country-name{font-size:14px}.ep-header{padding:10px}.ep-fixture{display:none}}
+@media(forced-colors:active){.ep-country-name{color:CanvasText;opacity:1;text-shadow:none;background:Canvas}.ep-country-tooltip{background:Canvas;color:CanvasText}}

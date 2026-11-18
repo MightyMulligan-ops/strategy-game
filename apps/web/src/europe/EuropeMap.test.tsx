@@ -25,3 +25,6 @@ it('keeps defense geometry explicitly local and uncommitted',async()=>{
  await mount();await act(async()=>[...host.querySelectorAll('button')].find(b=>b.textContent==='Uncommitted defense drawing')!.click());const el=host.querySelector('.ep-map')!;
  await act(async()=>{pointer(el,'pointerdown',600,300);pointer(el,'pointerup',600,300)});expect(choose).not.toHaveBeenCalled();expect(host.querySelector('polyline')!.getAttribute('points')).not.toBe('');
 });
+it('keeps options collapsed and identifies a country without changing destination intent',async()=>{
+ await mount();expect(host.querySelector<HTMLDetailsElement>('.ep-options')!.open).toBe(false);expect(host.querySelector('.ep-map .ep-inspector')).toBeNull();const el=host.querySelector('.ep-map')!,v={width:1920,height:920};const {project}=await import('./camera');const p=toScreen(project(-3.7,40.4),fitTheatre(v),v);await act(async()=>pointer(el,'pointermove',p.x,p.y));expect(host.querySelector('.ep-country-tooltip')!.textContent).toContain('Spain');expect(choose).not.toHaveBeenCalled();const select=host.querySelector<HTMLSelectElement>('#ep-country-select')!;expect([...select.options].some(o=>o.textContent==='France')).toBe(true)
+});
