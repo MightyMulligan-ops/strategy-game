@@ -1264,3 +1264,10 @@ only after required checks. Owner's subsequent distance-policy answer is recorde
 in EUROPE_PLAYTEST.md. No existing DB, workflows/dependencies/security/instructions,
 additional agent/API task or deployment. In review/unmerged upon publication;
 actual PR/current-head CI/merge evidence follows, without self-referential SHA loops.
+
+107 publication observed: [draft PR108](https://github.com/MightyMulligan-ops/strategy-game/pull/108),
+implementationf6d895c827ed295e0c07deef034ce38305017246, base
+2890ca9dd8b60841812a47e15a33a70dfd72ec75. In review/unmerged at this checkpoint.
+This status-only commit records the actual URL; final-head hosted results and
+observed merge or blocker are recorded in the PR conversation/handoff. Normal
+new-head CI supersession is not a failed-workflow rerun. History5/5 retained.
