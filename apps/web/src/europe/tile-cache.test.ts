@@ -2,6 +2,18 @@ import { describe, expect, it, vi } from 'vitest'
 import { TileCache } from './tile-cache'
 const flush = async () => { await new Promise(resolve => setTimeout(resolve, 0)) }
 describe('decoded tile cache lifecycle', () => {
+  it('retries degraded entries without discarding healthy imagery', async () => {
+    const release = vi.fn()
+    const cache = new TileCache(async (key: string) => ({ key, degraded: key === 'fallback' }), release, vi.fn())
+    cache.sync(['healthy', 'fallback']); await flush()
+    expect(cache.some(tile => tile.degraded)).toBe(true)
+    cache.retry(tile => tile.degraded)
+    expect(cache.get('healthy')?.key).toBe('healthy')
+    expect(cache.get('fallback')).toBeUndefined()
+    expect(release).toHaveBeenCalledWith({ key: 'fallback', degraded: true })
+    expect(cache.some(tile => tile.degraded)).toBe(false)
+    cache.dispose()
+  })
   it('loads once, evicts least recently used values and releases on disposal', async () => {
     const load = vi.fn(async (key: string) => key)
     const release = vi.fn(), changed = vi.fn()

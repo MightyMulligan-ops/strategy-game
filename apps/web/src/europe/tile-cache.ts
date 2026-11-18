@@ -19,6 +19,10 @@ export class TileCache<T> {
   }
   get errorCount() { return this.failed.size }
   get size() { return this.entries.size }
+  some(predicate: (value: T) => boolean) {
+    for (const value of this.entries.values()) if (predicate(value)) return true
+    return false
+  }
   sync(keys: string[]) {
     if (this.disposed) return
     const wanted = new Set(keys.slice(0, this.capacity))
@@ -50,7 +54,13 @@ export class TileCache<T> {
       })
     }
   }
-  retry() { this.failed.clear(); this.changed() }
+  retry(shouldEvict?: (value: T) => boolean) {
+    this.failed.clear()
+    if (shouldEvict) for (const [key, value] of this.entries) {
+      if (shouldEvict(value)) { this.release(value); this.entries.delete(key) }
+    }
+    this.changed()
+  }
   dispose() {
     this.disposed = true
     for (const controller of this.pending.values()) controller.abort()

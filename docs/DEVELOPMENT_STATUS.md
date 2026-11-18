@@ -1,5 +1,11 @@
 # Development status
 
+## Europe regional imagery delivery — resumed (feature branch, unmerged)
+
+Continued `feat/europe-camera-prototype` from `b2d08080d31d0947abab67d73862892abf2d4dff` on unchanged main `905ee35dc67e271fb64b613f0be83257b7c169fb`. Adds ESA WorldCover 2021 Sentinel-2 true-colour regional WMTS streaming at display scale, NASA overview/ocean fallback, independent provider failure handling, selective explicit retry and a display-only coastline clip. Keeps original country outlines, proposed cities and Spain-wide zoom cap. Cache has 96 bounded entries with up to two bitmaps per entry; source resolution never increases camera zoom. Figma maximum view now uses a terrain-only composite of 66 verified ESA/NASA tile pairs; the NASA-only comparison is archived.
+
+All **231 web tests** passed, including 20 camera/cache/imagery cases. Full web typecheck, lint and standard production build passed, with prototype assets still absent from production output. Direct HTTP/CORS and raster-source checks passed; a fresh browser preview was blocked by environment/URL security restrictions and is not claimed. Cumulative camera corrections **5/5**, all other histories unchanged. No manifests, lockfiles, gameplay/server/runtime, workflow, database, PR/hosted CI, merge or deployment changes. See [EUROPE_CAMERA_PROTOTYPE.md](EUROPE_CAMERA_PROTOTYPE.md) for exact provider/rights details, evidence and limitations. Defense-line drafts and authoritative Europe surface-mask integration remain follow-ups.
+
 ## Europe camera prototype — 2026-11-17 (feature branch, unmerged)
 
 Owner-started display-only Europe camera on main `905ee35dc67e271fb64b613f0be83257b7c169fb`; branch `feat/europe-camera-prototype`. Adds an explicit development-only fixture with continuous cursor-anchored pan/zoom, a responsive Spain-wide maximum, NASA satellite tiles with bounded caching and failure fallback, original national outlines and 138 proposed city objectives. Figma current board now pairs the theatre overview with a Spain-wide maximum; Lyon is archived as an imagery-quality reference. No live match/API/server/runtime/database changes. The full ESA 10m tile set and defense editor remain follow-up work.

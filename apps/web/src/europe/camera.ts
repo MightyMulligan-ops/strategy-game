@@ -53,13 +53,13 @@ export function panBy(camera: Camera, view: Viewport, delta: Point): Camera {
     y: camera.center.y - delta.y / camera.scale } }, view)
 }
 export type Tile = { key: string; z: number; x: number; y: number }
-export function visibleTiles(camera: Camera, view: Viewport, dpr = 1): Tile[] {
+export function visibleTiles(camera: Camera, view: Viewport, dpr = 1, budget = 64): Tile[] {
   let z = Math.max(0, Math.min(8, Math.ceil(Math.log2(camera.scale * Math.min(2, dpr) / 256))))
   let n = 2 ** z
   const a = toWorld({ x: 0, y: 0 }, camera, view)
   const b = toWorld({ x: view.width, y: view.height }, camera, view)
   // Fall back one source level on large/high-density displays rather than starving visible tiles.
-  while (z > 0 && (Math.floor(b.x * n) - Math.floor(a.x * n) + 1) * (Math.floor(b.y * n) - Math.floor(a.y * n) + 1) > 64) { z--; n = 2 ** z }
+  while (z > 0 && (Math.floor(b.x * n) - Math.floor(a.x * n) + 1) * (Math.floor(b.y * n) - Math.floor(a.y * n) + 1) > budget) { z--; n = 2 ** z }
   const tiles: Tile[] = []
   for (let y = Math.max(0, Math.floor(a.y * n)); y <= Math.min(n - 1, Math.floor(b.y * n)); y++) {
     for (let x = Math.max(0, Math.floor(a.x * n)); x <= Math.min(n - 1, Math.floor(b.x * n)); x++) {

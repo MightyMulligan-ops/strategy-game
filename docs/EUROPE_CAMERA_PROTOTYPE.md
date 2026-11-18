@@ -65,12 +65,30 @@ submit normalized display coordinates directly as game movement orders.
 
 ## Imagery, cache and provenance
 
-The camera prototype uses NASA Blue Marble Next Generation historical imagery,
-not a live feed. It currently streams the nominal 500m GIBS layer; the previously
-approved ESA 10m Lyon sample remains an archived imagery-quality reference. The
-full ESA 10m regional tile set has **not** been prepared or shipped. A Spain-wide
-camera cap does not require street/building resolution or an increase in zoom
-when higher-resolution source imagery is later connected.
+The prototype now streams **ESA WorldCover 2021 Sentinel-2 true-colour regional
+imagery** at source level 8, with NASA Blue Marble underneath and at overview
+levels. ESA's annual composite has nominal 10m source sampling; the server returns
+256px Web Mercator visualization tiles at the camera's display scale. These are
+not 10m screen pixels, a live feed or street/building positioning. The Spain-wide
+camera cap is unchanged. The application does not download continental 10m COGs
+or bundle the full dataset. Public-service hosting/offline distribution is still
+separate production work. The Lyon sample remains an archived quality reference.
+
+Regional source and license: [ESA data access](https://esa-worldcover.org/en/data-access)
+and [the annual composites registry](https://registry.opendata.aws/esa-worldcover-vito-composites/),
+CC BY 4.0. The application includes the required full attribution and a source
+link. [Asset register](assets/europe-imagery-register.csv) records source roles,
+rights, processing and verification.
+
+`imagery.ts` uses `https://wmts.terrascope.be/service` with WMTS 1.0.0 KVP GetTile,
+layer `esa-worldcover-s2rgbnir-10m-2021-v2_tcc`, style `default`, time `2021-01-01`,
+matrix set `EPSG:3857`, and separate TILECOL=x / TILEROW=y parameters. Capabilities
+advertise levels 8–14; this prototype intentionally requests only level 8. Lower
+levels retain NASA. Do not use the advertised REST path directly: it returned
+400 for missing SERVICE/GetTile parameters during verification. KVP returned a
+valid 256×256 RGBA PNG and echoed the supplied development Origin in CORS headers;
+requests omit credentials. Tile keys and matrix bounds are validated before URL
+construction.
 
 - [NASA source and nominal resolution](https://science.nasa.gov/earth/earth-observatory/blue-marble-next-generation/base-map/).
 - [GIBS access documentation](https://nasa-gibs.github.io/gibs-api-docs/access-basics/).
@@ -85,9 +103,21 @@ when higher-resolution source imagery is later connected.
   fallback, not additional native detail. No terrain colors imply combat effects.
 
 Only visible tiles are requested. The selected source level uses CSS scale and
-DPR capped at 2, with a source level cap of 8. If coverage would exceed 64 tiles,
-use a coarser source level. Decode into a 64-entry LRU cache (about 16MiB of RGBA
-tile pixels, excluding canvas, overview, networking and other browser memory).
+DPR capped at 2, with a source level cap of 8. If coverage would exceed the configured tile budget,
+use a coarser source level. The original camera helper retains its default
+64-tile budget; the regional fixture explicitly uses 96 to retain level 8 on
+1366/1920/2560 desktop and retina layouts. Decode into a 96-entry LRU cache, with
+at most two 256px bitmaps per entry (about 48MiB of RGBA pixels at the ceiling,
+excluding canvas, overview, networking and other browser memory).
+NASA and ESA loads run concurrently under one 15-second deadline. Draw NASA
+first, then ESA, retaining PNG transparency instead of replacing ocean with black
+nodata. Clip the ESA pass once per frame to the existing public country-outline
+silhouette so its blocky raster coverage does not spill into the sea. This is
+cartographic presentation only: coarse/missing island outlines may leave NASA
+visible, and it must never determine movement legality or navigability. A failed regional request can retain the NASA bitmap, and vice versa.
+Degraded successful entries also show the imagery-unavailable message. Explicit
+Retry imagery evicts and closes only degraded entries and clears failed keys;
+healthy cached images are retained. Abort after decoding closes both results.
 Cached ancestors provide temporary detail while finer children load; otherwise
 the bundled overview remains visible. Obsolete requests are aborted. Eviction
 and teardown close decoded bitmaps; late responses are released. Each request
@@ -124,7 +154,9 @@ Source Serif 4 substitutes and existing local city/button components.
 replaces the Lyon closeup on the current board. Lyon is preserved on the archive
 page, explicitly beyond the gameplay camera cap. The maximum view has editable
 country vectors, city component instances, text, HUD and controls; the terrain
-and original wordmark are the only raster content. The four-page current /
+and original wordmark are the only raster content. The regional terrain snapshot
+is composited directly from the same NASA/ESA source tiles at the Spain camera,
+with no screenshot of HUD, country outlines or city text baked into it. The four-page current /
 components / specification / archive organization is preserved. Static Figma
 controls illustrate the target; the browser fixture implements the camera.
 
@@ -155,7 +187,7 @@ With lockfile-pinned temporary dependencies and no package/lockfile changes:
   through the same browser fetch/decode/cache path. This is a browser fixture
   check, not an end-to-end hosted service or screen-reader acceptance claim.
 
-Implementation correction history: **3/5** bounded passes: (1) fixed overview
+Original camera correction history: **3/5** bounded passes: (1) fixed overview
 anchor clamping and adaptive tile coverage after two camera tests failed; (2)
 replaced constructor parameter properties to meet erasableSyntaxOnly; (3)
 initialized React state/refs independently to satisfy the existing ref lint rule.
@@ -165,6 +197,57 @@ unchanged. Author review is not independent review.
 
 This is a feature-branch candidate, unmerged. No PR/hosted CI, merge, deployment,
 existing database, migration, backend startup, gameplay change or new dependency
-was used. Next: accept the desktop camera feel, prepare the regional imagery
-delivery layer, then build world-coordinate defense drafts and wire a separately
-validated Europe surface mask into a new server-owned runtime profile.
+was used. Regional imagery delivery now uses the verified public ESA WMTS visualization
+service rather than a locally hosted continental tile pyramid. Next: accept the
+camera and imagery feel, then build world-coordinate defense drafts and wire a
+separately validated Europe surface mask into a new server-owned runtime profile.
+See the resumed-delivery evidence below; earlier verification above is historical.
+
+
+## Resumed regional-delivery evidence
+
+The resume continues the same unmerged camera branch from
+`b2d08080d31d0947abab67d73862892abf2d4dff`; main remains
+`905ee35dc67e271fb64b613f0be83257b7c169fb`. Only Europe display modules, their
+focused tests, imagery credits and these handoff documents change. No instruction,
+workflow, manifest, lockfile, database, authoritative runtime or gameplay file is
+part of this update. The original NASA-only Figma maximum frame is preserved as
+archive node `38:1928`; current maximum remains node `32:1905`.
+
+- Restored the published source in the new workspace and inspected current main,
+  branch, open work and repository instructions. Frozen lockfile dependencies
+  installed with lifecycle scripts disabled; shared-types built offline. The
+  available installer was pnpm 11.25.0, not the repository's requested 12.18.0;
+  preparation of the pinned native installer could not complete in this network.
+  No manifest or lockfile was changed. Node 24.22.1, TypeScript 6.0.3, Vite 8.3.6,
+  Vitest 4.1.12 and ESLint 10.14.0 were used for actual checks.
+- `AUTH_ENABLED=false RUN_DATABASE_TESTS=0 pnpm exec vitest run apps/web/src`:
+  **231 passed**, ten files. Twenty camera/cache/imagery cases include nine added
+  cases for verified KVP parameters, desktop source levels, per-provider failures,
+  independent bitmap release, late cancellation and selective explicit retry.
+- Full web typecheck, full web lint, and the standard web production build passed.
+  Production still emits only the existing app JS/CSS and no Europe imagery chunk
+  or regional-provider module. An isolated fixture bundle also compiled.
+- Direct asset verification downloaded **66 NASA + 66 ESA tiles**, all successful,
+  for the 1920×948 Spain viewport and composited a terrain-only reference. Two ESA
+  requests timed out on the first pass; one explicit rerun fetched those two while
+  retaining the other cached source files. There was no automatic retry loop.
+  All tiles decode to 256×256; ESA retains RGBA nodata. The reference was visually
+  inspected and used as Figma's terrain fill; HUD/borders/cities remain editable.
+- Fresh browser verification in this environment is **blocked**, not passed.
+  Native Chromium launch failed on a restricted Unix socket. Shared-browser access
+  could not reach the isolated app listener, and its URL policy explicitly rejected
+  local-file preview. No browser-security change or alternate workaround followed
+  that denial. The earlier camera browser checks above remain historical; direct
+  source HTTP/CORS and asset-composition checks are not a browser rendering test.
+
+Correction history now **5/5 cumulative** for this camera task. Two additional
+implementation corrections: (4) replace an unsafe generic default-loader cast
+with an explicit typed wrapper and correct a mock's inferred empty argument tuple;
+(5) after visual source review, clip regional coverage to the existing display
+land silhouette to remove blocky coastal footprints. The final source checks pass;
+any unresolved new failure requires escalation rather than a sixth correction.
+The original camera's 3/5 and all other task histories are preserved. Temporary
+installer/browser/harness setup failures were not application corrections.
+Source review was by the author, not independent review. This feature remains
+unmerged with no PR/hosted CI, database access, backend, migration or deployment.

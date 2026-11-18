@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { clampCamera, fitSpain, fitTheatre, limits, panBy, project, THEATRE, tileUrl, toScreen, visibleTiles, zoomAt } from './camera'
+import { clampCamera, fitSpain, fitTheatre, limits, panBy, project, THEATRE, toScreen, visibleTiles, zoomAt } from './camera'
 import type { Camera, Point, Viewport } from './camera'
 import { TileCache } from './tile-cache'
+import { IMAGERY_CREDIT, IMAGERY_LICENSE_URL, IMAGERY_TILE_BUDGET, loadImageryTile, releaseImageryTile } from './imagery'
+import type { ImageryTile } from './imagery'
 import geography from './geography.json'
 import overviewUrl from './overview.jpg'
 import './europe.css'
@@ -27,22 +29,21 @@ export default function EuropeMapPrototype() {
   const [labels, setLabels] = useState(true)
   const [errors, setErrors] = useState(0)
   const [cached, setCached] = useState(0)
-  const cacheRef = useRef<TileCache<ImageBitmap> | null>(null)
+  const cacheRef = useRef<TileCache<ImageryTile<ImageBitmap>> | null>(null)
   const drag = useRef<{ id: number; x: number; y: number } | null>(null)
 
   useEffect(() => {
     const element = host.current!
     const context = canvas.current!.getContext('2d')!
+    // Cartographic display clip only. Never a movement or navigability mask.
+    const landSilhouette = new Path2D(countryPaths.map(country => country.path).join(' '))
     let active = true
     let frame = 0
     let background: HTMLImageElement | null = new Image()
     background.src = overviewUrl
     const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)')
-    const cache = new TileCache<ImageBitmap>(async (key, signal) => {
-      const response = await fetch(tileUrl(key), { signal: AbortSignal.any([signal, AbortSignal.timeout(15000)]), credentials: 'omit' })
-      if (!response.ok) throw new Error('Satellite tile unavailable')
-      return createImageBitmap(await response.blob())
-    }, image => image.close(), () => { if (active) { setErrors(cache.errorCount); setCached(cache.size) } })
+    const cache: TileCache<ImageryTile<ImageBitmap>> = new TileCache(loadImageryTile, releaseImageryTile,
+      () => { if (active) { setErrors(cache.errorCount + Number(cache.some(tile => tile.degraded))); setCached(cache.size) } }, IMAGERY_TILE_BUDGET)
     cacheRef.current = cache
     let lastTime = 0
     const draw = (time: number) => {
@@ -69,23 +70,35 @@ export default function EuropeMapPrototype() {
       const nw = toScreen(project(THEATRE.west, THEATRE.north), c, v)
       const se = toScreen(project(THEATRE.east, THEATRE.south), c, v)
       if (background?.complete && background.naturalWidth) context.drawImage(background, nw.x, nw.y, se.x - nw.x, se.y - nw.y)
-      const tiles = visibleTiles(c, v, dpr)
+      const tiles = visibleTiles(c, v, dpr, IMAGERY_TILE_BUDGET)
       cache.sync(tiles.map(tile => tile.key))
-      for (const tile of tiles) {
-        let image = cache.get(tile.key)
-        let level = tile.z
-        while (!image && level > 0) {
-          level--
+      const drawLayer = (kind: 'base' | 'regional') => {
+        for (const tile of tiles) {
+          let image = cache.get(tile.key)
+          let level = tile.z
+          while (!image && level > 0) {
+            level--
+            const factor = 2 ** (tile.z - level)
+            image = cache.get(`${level}/${Math.floor(tile.y / factor)}/${Math.floor(tile.x / factor)}`)
+          }
+          const layer = image?.[kind]
+          if (!layer) continue
+          const p = toScreen({ x: tile.x / 2 ** tile.z, y: tile.y / 2 ** tile.z }, c, v)
+          const size = c.scale / 2 ** tile.z
           const factor = 2 ** (tile.z - level)
-          image = cache.get(`${level}/${Math.floor(tile.y / factor)}/${Math.floor(tile.x / factor)}`)
+          const sourceSize = layer.width / factor
+          context.drawImage(layer, (tile.x % factor) * sourceSize, (tile.y % factor) * sourceSize, sourceSize, sourceSize, p.x, p.y, size + 0.5, size + 0.5)
         }
-        if (!image) continue
-        const p = toScreen({ x: tile.x / 2 ** tile.z, y: tile.y / 2 ** tile.z }, c, v)
-        const size = c.scale / 2 ** tile.z
-        const factor = 2 ** (tile.z - level)
-        const sourceSize = image.width / factor
-        context.drawImage(image, (tile.x % factor) * sourceSize, (tile.y % factor) * sourceSize, sourceSize, sourceSize, p.x, p.y, size + 0.5, size + 0.5)
       }
+      drawLayer('base')
+      // Apply one shared clip per frame, not one expensive path clip per tile.
+      context.save()
+      context.setTransform(dpr * c.scale, 0, 0, dpr * c.scale,
+        dpr * (v.width / 2 - c.center.x * c.scale), dpr * (v.height / 2 - c.center.y * c.scale))
+      context.clip(landSilhouette)
+      context.setTransform(dpr, 0, 0, dpr, 0, 0)
+      drawLayer('regional')
+      context.restore()
       frame = requestAnimationFrame(draw)
     }
     const observer = new ResizeObserver(([entry]) => {
@@ -197,9 +210,9 @@ export default function EuropeMapPrototype() {
         <button onClick={() => { target.current = fitSpain(view) }}>Spain · maximum zoom</button>
         <div><button aria-label="Zoom out" onClick={() => zoom(1 / 1.35)}>−</button><output aria-live="off" aria-label="Zoom relative to maximum">{zoomPercent}%</output><button aria-label="Zoom in" onClick={() => zoom(1.35)}>+</button></div>
       </div>
-      <div className="ep-attribution">Imagery: NASA Blue Marble / GIBS · Borders & cities: Natural Earth</div>
-      {errors > 0 && <div className="ep-tile-error" role="status">Some satellite detail is unavailable. Overview remains visible. <button onClick={() => cacheRef.current?.retry()}>Retry imagery</button></div>}
+      <a className="ep-attribution" href={IMAGERY_LICENSE_URL} target="_blank" rel="noreferrer">{IMAGERY_CREDIT}</a>
+      {errors > 0 && <div className="ep-tile-error" role="status">Some satellite detail is unavailable. Available imagery and the overview remain visible. <button onClick={() => cacheRef.current?.retry(tile => tile.degraded)}>Retry imagery</button></div>}
     </div>
-    <footer className="ep-footer"><span id="ep-instructions">Drag to pan · Scroll or + / − to zoom · Focus map and use arrows to pan · Find cities with the selector</span><span>{cached}/64 tiles cached · Spain-wide zoom cap</span></footer>
+    <footer className="ep-footer"><span id="ep-instructions">Drag to pan · Scroll or + / − to zoom · Focus map and use arrows to pan · Find cities with the selector</span><span>{cached}/{IMAGERY_TILE_BUDGET} tiles cached · Sentinel-2 regional detail · Spain-wide zoom cap</span></footer>
   </main>
 }
