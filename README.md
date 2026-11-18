@@ -4,7 +4,17 @@ A browser-based, multiplayer 2D grand strategy game inspired by the broad gamepl
 
 ## Project status
 
-**Combat planning and aftermath.** Combat 1B is merged through PR #104, with historical cohorts preserved. Issue #105 implements a separate creation-pinned repeating runtime: survivor/position/capture carryover, fresh empty planning and Ready reset, complete combat and atomic next-turn opening. Its actual checks/publication/merge state is recorded in [DEVELOPMENT_STATUS.md](docs/DEVELOPMENT_STATUS.md); contracts and limits are in [REPEATING_COMBAT.md](docs/REPEATING_COMBAT.md). The initial map remains an archive; current own positions/ownership and bounded own history are separate views. Gameplay/balance playtesting, Europe-map work, economy/recruitment/supply, victory rules and deployment remain separate.
+**Combat planning and aftermath.** Combat 1B is merged through PR #104, with historical cohorts preserved. Issue #105 implements a separate creation-pinned repeating runtime: survivor/position/capture carryover, fresh empty planning and Ready reset, complete combat and atomic next-turn opening. Its actual checks/publication/merge state is recorded in [DEVELOPMENT_STATUS.md](docs/DEVELOPMENT_STATUS.md); contracts and limits are in [REPEATING_COMBAT.md](docs/REPEATING_COMBAT.md). The initial map remains an archive; current own positions/ownership and bounded own history are separate views. Human gameplay/balance playtesting, broader map/scenario expansion, economy/recruitment/supply, victory rules and deployment remain separate.
+
+Issue #107 integrates a separate creation-pinned, land-only **two-player Europe
+playtest**: approved satellite camera/borders/138 display cities, real own
+formations/orders/Ready, server physical-surface validation, repeating combat and
+private own aftermath. The playable scenario is two synthetic Iberian camps,
+not ownership of countries or activation of all display cities. Geneva remains
+unavailable for land gameplay. [EUROPE_PLAYTEST.md](docs/EUROPE_PLAYTEST.md) records
+contracts, source provenance, isolated human-test setup, actual checks and limits.
+Publication/merge evidence remains in DEVELOPMENT_STATUS.md and the PR; tests do
+not establish an actual human match, deployment or capacity certification.
 
 ## Product direction
 

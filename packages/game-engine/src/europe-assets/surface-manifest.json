@@ -1,0 +1,30 @@
+{
+  "maskId": "europe-ne10m-surface-v2",
+  "profileId": "europe-mercator-fixed-v2",
+  "bounds": {
+    "width": 944444,
+    "height": 886082
+  },
+  "sha256": "052b866179d2566fd37b2f22301d48c5e5fcec3f97e6e4bd806dcdc78374bfe6",
+  "inputs": {
+    "land": "1ac90796408bc6ad6911d69448485d3c4dbf2190370080368a09976e1c9f7416",
+    "lakes": "2d036f53dedec578001c5c30c2959ee7d4eebc1306900fa4367c49929ec8f2d9"
+  },
+  "processing": "Shapely 2.1.2; clip geographic theatre; normalized Web Mercator offset x4e6; dissolve physical polygons; topology-preserving simplify 1 map unit; integer precision grid 1; dissolve and clip; remove duplicate closing and collinear vertices",
+  "vertices": 110920,
+  "omittedSlivers": {
+    "land": [],
+    "lakes": []
+  },
+  "landPolygons": 1493,
+  "lakePolygons": 260,
+  "sources": {
+    "land": "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/ace5fed0eaf3c6c03c951e75b439ba8fffbc218e/geojson/ne_10m_land.geojson",
+    "lakes": "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/ace5fed0eaf3c6c03c951e75b439ba8fffbc218e/geojson/ne_10m_lakes.geojson"
+  },
+  "license": "Public domain",
+  "licenseUrl": "https://www.naturalearthdata.com/about/terms-of-use/",
+  "cartographicScale": "1:10,000,000",
+  "prototypeOnly": true,
+  "accuracyAcceptance": "Reviewed sample points/routes only; Geneva anchor unresolved; not accepted for live orders or production naval chokepoints"
+}

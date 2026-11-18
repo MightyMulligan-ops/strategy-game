@@ -1,5 +1,5 @@
 import {restoreCombatTurn} from "./combat-turn-storage.js";
-import {CombatTurnRuntimeSchema,LoopRuntimeSchema} from "@strategy-game/shared-types/server";
+import {CombatTurnRuntimeSchema,RepeatingRuntimeSchema,EuropeRuntimeSchema} from "@strategy-game/shared-types/server";
 import type {CombatInitialSnapshot} from "@strategy-game/shared-types/server";
 import { isDeepStrictEqual as same } from "node:util";
 import { GameConfigSchema } from "@strategy-game/shared-types";
@@ -28,7 +28,8 @@ export function configurationRuntime(row: MatchConfiguration): "legacy" | "initi
   const fields = [row.rulesetId, row.rulesetVersion, row.simulationVersion, row.pinnedRuleset];
   if (fields.every((value) => value === null)) return "legacy";
   if (fields.some((value) => value === null)) return invalid();
-  const pinned = PinnedRulesetSchema.parse(row.pinnedRuleset);
+  const europePin = EuropeRuntimeSchema.safeParse(row.pinnedRuleset);
+  const pinned = europePin.success ? europePin.data : PinnedRulesetSchema.parse(row.pinnedRuleset);
   if (row.rulesetId !== pinned.ruleset.rulesetId || row.rulesetVersion !== pinned.ruleset.version || row.simulationVersion !== pinned.simulationVersion) return invalid();
   if (pinned.simulationVersion === "initial-world-v1") {
     InitialWorldRuntimeProfileSchema.parse(pinned); return "initial_world";
@@ -44,7 +45,7 @@ export function configurationRuntime(row: MatchConfiguration): "legacy" | "initi
   }
   if (pinned.simulationVersion === "movement-resolution-v1") { MovementResolutionRuntimeSchema.parse(pinned); return "movement_resolution"; }
   if (pinned.simulationVersion === "combat-turn-v1") { CombatTurnRuntimeSchema.parse(pinned); return "combat_turn"; }
-  if (pinned.simulationVersion === "combat-loop-v1") { LoopRuntimeSchema.parse(pinned); return "combat_loop"; }
+  if (pinned.simulationVersion === "combat-loop-v1" || pinned.simulationVersion === "europe-playtest-v1") { RepeatingRuntimeSchema.parse(pinned); return "combat_loop"; }
   if (pinned.simulationVersion === "empty-turn-v1") return "empty";
   return invalid();
 }

@@ -1,13 +1,13 @@
 import {useCallback,useEffect,useId,useRef,useState} from 'react'
 import type {ReactNode} from 'react'
-import {LoopCommandSchema,LoopCurrentSchema,LoopHistorySchema,MovementDraftErrorSchema} from '@strategy-game/shared-types'
-import type {LoopCurrent,LoopCommand,OwnFormation,MovementRoute} from '@strategy-game/shared-types'
+import {RepeatingCommandSchema as LoopCommandSchema,RepeatingCurrentSchema as LoopCurrentSchema,RepeatingHistorySchema as LoopHistorySchema,MovementDraftErrorSchema} from '@strategy-game/shared-types'
+import type {RepeatingCurrent as LoopCurrent,RepeatingCommand as LoopCommand,OwnFormation,MovementRoute} from '@strategy-game/shared-types'
 import type {FormationInspection} from './Formations'
 import CombatAftermath from './CombatAftermath'
 
-type Props={matchId:string;onSessionError:()=>Promise<void>;map?:(formation:OwnFormation|null,route:MovementRoute|null,inspection:FormationInspection)=>ReactNode}
+type Props={expectedSchemaVersion?:1|2;matchId:string;onSessionError:()=>Promise<void>;map?:(formation:OwnFormation|null,route:MovementRoute|null,inspection:FormationInspection,context:{view:LoopCurrent;choose:((p:{x:number;y:number})=>void)|null})=>ReactNode}
 export default function LoopWorkspace(props:Props){return <LoopReader key={props.matchId} {...props}/>}
-function LoopReader({matchId,onSessionError,map}:Props){
+function LoopReader({matchId,onSessionError,map,expectedSchemaVersion}:Props){
  const [view,setView]=useState<LoopCurrent|null>(null),[busy,setBusy]=useState(false),[notice,setNotice]=useState('')
  const [history,setHistory]=useState<ReturnType<typeof LoopHistorySchema.parse>|null>(null),[historyError,setHistoryError]=useState('')
  const read=useRef<AbortController|null>(null),write=useRef<AbortController|null>(null),past=useRef<AbortController|null>(null),panel=useRef<HTMLElement>(null),title=useId()
@@ -20,26 +20,26 @@ function LoopReader({matchId,onSessionError,map}:Props){
  const refresh=useCallback(async(abortWrite=true)=>{
   read.current?.abort();past.current?.abort();if(abortWrite)write.current?.abort();const c=new AbortController();read.current=c
   if(panel.current?.contains(document.activeElement))panel.current.focus();setView(null);setHistory(null);setHistoryError('');setNotice('');setBusy(true)
-  try{const r=await fetch(`${base}/current`,{method:'GET',credentials:'same-origin',cache:'no-store',signal:c.signal});await checked(r,c.signal);const v=LoopCurrentSchema.parse(await r.json());if(v.matchId!==matchId)throw Error('Wrong match');if(!c.signal.aborted)setView(v)}
+  try{const r=await fetch(`${base}/current`,{method:'GET',credentials:'same-origin',cache:'no-store',signal:c.signal});await checked(r,c.signal);const v=LoopCurrentSchema.parse(await r.json());if(v.matchId!==matchId||expectedSchemaVersion!==undefined&&v.schemaVersion!==expectedSchemaVersion)throw Error('Wrong match/profile');if(!c.signal.aborted)setView(v)}
   catch{if(!c.signal.aborted)setNotice('Current planning could not be verified. Refresh to try again.')}
   finally{if(!c.signal.aborted)setBusy(false)}
- },[base,matchId,checked])
+ },[base,matchId,checked,expectedSchemaVersion])
  useEffect(()=>{let cancelled=false;queueMicrotask(()=>{if(!cancelled)void refresh()});const online=()=>void refresh();window.addEventListener('online',online);return()=>{cancelled=true;read.current?.abort();write.current?.abort();past.current?.abort();window.removeEventListener('online',online)}},[refresh])
  async function mutate(input:LoopCommand){
   if(!view||busy)return;const c=new AbortController();write.current?.abort();write.current=c;past.current?.abort();setHistory(null);setBusy(true);setNotice('');let message=''
   try{const command=LoopCommandSchema.parse(input),token=await fetch('/auth/csrf',{method:'GET',credentials:'same-origin',cache:'no-store',signal:c.signal});await checked(token,c.signal);const t:unknown=await token.json();if(!t||typeof t!=='object'||!('csrfToken'in t)||typeof t.csrfToken!=='string'||!t.csrfToken)throw Error('Token unavailable')
-   if(c.signal.aborted)return;const r=await fetch(`${base}/turns/${command.turnNumber}/commands`,{method:'POST',credentials:'same-origin',cache:'no-store',signal:c.signal,headers:{'Content-Type':'application/json','x-csrf-token':t.csrfToken},body:JSON.stringify(command)});await checked(r,c.signal);const v=LoopCurrentSchema.parse(await r.json());if(v.matchId!==matchId||v.turn.turnNumber!==command.turnNumber||v.own.revision!==command.expectedRevision+1)throw Error('Unverified write')
+   if(c.signal.aborted)return;const r=await fetch(`${base}/turns/${command.turnNumber}/commands`,{method:'POST',credentials:'same-origin',cache:'no-store',signal:c.signal,headers:{'Content-Type':'application/json','x-csrf-token':t.csrfToken},body:JSON.stringify(command)});await checked(r,c.signal);const v=LoopCurrentSchema.parse(await r.json());if(v.matchId!==matchId||v.turn.turnNumber!==command.turnNumber||v.own.revision!==command.expectedRevision+1||v.schemaVersion!==command.schemaVersion)throw Error('Unverified write')
   }catch{message='Write outcome could not be confirmed. The current turn is reloaded; review it before taking another action. No POST is retried.'}
   finally{if(!c.signal.aborted){await refresh(false);if(!c.signal.aborted)setNotice(message)}}
  }
  async function inspect(n:number){
   past.current?.abort();const c=new AbortController();past.current=c;setHistory(null);setHistoryError('');const turn=view?.turn.turnNumber
-  try{if(!Number.isSafeInteger(n)||n<1||!turn||n>=turn)throw Error('Invalid history turn');const r=await fetch(`${base}/turns/${n}/aftermath`,{method:'GET',credentials:'same-origin',cache:'no-store',signal:c.signal});await checked(r,c.signal);const h=LoopHistorySchema.parse(await r.json());if(h.matchId!==matchId||h.turnNumber!==n)throw Error('Wrong history');if(!c.signal.aborted)setHistory(h)}catch{if(!c.signal.aborted)setHistoryError('Own history could not be verified. Choose one completed turn and try again.')}
+  try{if(!Number.isSafeInteger(n)||n<1||!turn||n>=turn)throw Error('Invalid history turn');const r=await fetch(`${base}/turns/${n}/aftermath`,{method:'GET',credentials:'same-origin',cache:'no-store',signal:c.signal});await checked(r,c.signal);const h=LoopHistorySchema.parse(await r.json());if(h.matchId!==matchId||h.turnNumber!==n||h.schemaVersion!==view?.schemaVersion)throw Error('Wrong history');if(!c.signal.aborted)setHistory(h)}catch{if(!c.signal.aborted)setHistoryError('Own history could not be verified. Choose one completed turn and try again.')}
  }
  return <section ref={panel} tabIndex={-1} className="panel" aria-labelledby={title} aria-busy={busy}>
   <div className="section-heading"><h2 id={title}>Repeating combat planning</h2><button onClick={()=>void refresh()}>Refresh current turn</button></div>
   {notice&&<p role="alert">{notice}</p>}
-  {!view?<p role="status">{busy?'Loading current turn…':'Current turn unavailable.'}</p>:<LoopControls key={`${matchId}:${view.turn.turnNumber}`} view={view} busy={busy} mutate={c=>void mutate(c)} inspect={n=>void inspect(n)} {...(map?{map}:{})}/>}
+  {!view?<p role="status">{busy?'Loading current turn…':'Current turn unavailable.'}</p>:<LoopControls key={`${matchId}:${view.schemaVersion}:${view.turn.turnNumber}`} view={view} busy={busy} mutate={c=>void mutate(c)} inspect={n=>void inspect(n)} {...(map?{map}:{})}/>}
   {historyError&&<p role="alert">{historyError}</p>}
   {history&&<section aria-label={`Your Turn ${history.turnNumber} aftermath`}><h3>Own Turn {history.turnNumber} history</h3><CombatAftermath view={history.aftermath} turnNumber={history.turnNumber}/></section>}
  </section>
@@ -51,7 +51,7 @@ function LoopControls({view,busy,mutate,inspect,map}:{view:LoopCurrent;busy:bool
  useEffect(()=>{if(focusRequest>0)heading.current?.focus()},[focusRequest])
  useEffect(()=>{const timer=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(timer)},[])
  const f=view.formations.find(f=>f.formationId===selected)??null,n=view.turn.turnNumber,locked=busy||view.turn.status!=='open',editable=!locked&&!view.own.ready
- const common={schemaVersion:1 as const,turnNumber:n,expectedRevision:view.own.revision}
+ const common={...(view.schemaVersion===2?{schemaVersion:2 as const,profile:view.profile}:{schemaVersion:1 as const}),turnNumber:n,expectedRevision:view.own.revision}
  let from=f?.position??{x:0,y:0},distance=0
  const segments=view.own.orders.filter(o=>o.stackId===f?.formationId).map((o,i)=>{const d=Math.sqrt((o.destination.x-from.x)**2+(o.destination.y-from.y)**2);distance+=d;const s={orderId:o.orderId,moveNumber:i+1,from,destination:o.destination,distance:d,cumulative:distance};from=o.destination;return s})
  const route:MovementRoute|null=f?{formationId:f.formationId,range:250,distance,remaining:Math.max(0,250-distance),segments}:null
@@ -64,7 +64,7 @@ function LoopControls({view,busy,mutate,inspect,map}:{view:LoopCurrent;busy:bool
   <button disabled={locked} onClick={()=>mutate({...common,kind:'set_ready',ready:!view.own.ready})}>{view.own.ready?'Become Unready':'Mark Ready'}</button>
   {!view.formations.length&&<p>No surviving own formations. You remain a participant and may Ready with empty orders.</p>}
   <label>Own formation<select value={selected} disabled={locked} onChange={e=>{setSelected(e.target.value);setX('');setY('')}}><option value="">Select an own formation</option>{view.formations.map(f=><option key={f.formationId} value={f.formationId}>{f.formationId}</option>)}</select></label>
-  {map?.(f?{...f,units:[...f.units]}:null,route,inspection)}
+  {map?.(f?{...f,units:[...f.units]}:null,route,inspection,{view,choose:editable&&f?p=>{setX(String(p.x));setY(String(p.y))}:null})}
   {f&&<section id={detailsId} aria-label="Current own formation"><h3 ref={heading} tabIndex={-1}>Own formation {f.formationId}</h3><p>Current stored position: {f.position.x}, {f.position.y}.</p><p>Fresh turn budget250; planned {distance.toFixed(3)}, remaining {Math.max(0,250-distance).toFixed(3)}. Planning does not move your formation.</p><ul>{f.units.map(u=><li key={u.unitId}>{u.unitId}: {u.hp}/{u.maxHp} HP · original spawn {u.originalSpawnNodeId}</li>)}</ul></section>}
   <label>Destination X<input type="number" value={x} disabled={!editable||!f?.units.some(u=>u.kind==='LEADER')} onChange={e=>setX(e.target.value)}/></label>
   <label>Destination Y<input type="number" value={y} disabled={!editable||!f?.units.some(u=>u.kind==='LEADER')} onChange={e=>setY(e.target.value)}/></label>

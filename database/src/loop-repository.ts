@@ -1,4 +1,4 @@
-import {LoopCommandSchema,UsernameSchema,LoopTurnNumberSchema} from '@strategy-game/shared-types';
+import {RepeatingCommandSchema as LoopCommandSchema,UsernameSchema,LoopTurnNumberSchema} from '@strategy-game/shared-types';
 import type {LoopState} from '@strategy-game/shared-types/server';
 import {applyLoop,freezeLoop,resolveLoop,openLoopNext,LoopFailure} from '@strategy-game/game-engine/server';
 import {observeDeadline} from '@strategy-game/game-engine';
@@ -18,7 +18,7 @@ export async function loopMember(tx:Tx,id:string,identity:string){
 async function bounded(tx:Tx,id:string,timeout:number){
  await tx.$queryRaw(Prisma.sql`SELECT set_config('lock_timeout',${String(timeout)},true)`);await tx.$queryRaw(Prisma.sql`SELECT set_config('statement_timeout',${String(timeout)},true)`);
  await tx.$queryRaw`SELECT "id" FROM "Match" WHERE "id"=${id} FOR UPDATE`;
- return (await tx.matchConfiguration.findUnique({where:{matchId:id}}))?.simulationVersion==='combat-loop-v1';
+ return ['combat-loop-v1','europe-playtest-v1'].includes((await tx.matchConfiguration.findUnique({where:{matchId:id}}))?.simulationVersion??'');
 }
 export async function insertLoopTurn(tx:Tx,state:TurnState,snapshot:LoopState){
  const matchId=state.config.gameId,turnNumber=BigInt(state.turn.turnNumber);
@@ -62,7 +62,7 @@ export class LoopRepository{
   // Sample only after complete pure resolution, while the same parent lock is held.
   const next=openLoopNext(a.state,this.clock()),scope={matchId:id,turnNumber:a.row.number};
   await tx.gameSnapshotRecord.create({data:{matchId:id,stateVersion:a.row.number,completedTurnNumber:a.row.number,snapshotId:result.nextState.snapshotId,payload:json(result.nextState)}});
-  await tx.resolutionResult.create({data:{...scope,nextStateVersion:a.row.number,resolutionId:result.resolutionId,payload:json({schemaVersion:1,kind:'loop_commit',result,nextOpenedAtMs:next.turn.openedAtMs})}});
+  await tx.resolutionResult.create({data:{...scope,nextStateVersion:a.row.number,resolutionId:result.resolutionId,payload:json({schemaVersion:result.runtimeProfile.simulationVersion==='europe-playtest-v1'?2:1,kind:result.runtimeProfile.simulationVersion==='europe-playtest-v1'?'europe_loop_commit':'loop_commit',result,nextOpenedAtMs:next.turn.openedAtMs})}});
   await tx.turn.update({where:{matchId_number:{matchId:id,number:a.row.number}},data:{status:'RESOLVED'}});
   await insertLoopTurn(tx,next,result.nextState);
   await tx.match.update({where:{id},data:{currentStateVersion:a.row.number}});return true;
@@ -70,6 +70,6 @@ export class LoopRepository{
  async process(id:string,timeout:number){const closed=await this.closeDue(id,timeout);return await this.resolveClosed(id,timeout)||closed}
  async dueMatches(limit:number){if(!Number.isSafeInteger(limit)||limit<1||limit>100)throw Error('Invalid loop batch');const now=this.clock();if(!Number.isSafeInteger(now)||now<0)throw Error('Invalid loop clock');
   return this.client.$transaction(async tx=>{await tx.$executeRaw`SET TRANSACTION READ ONLY`;await tx.$executeRaw`SET LOCAL statement_timeout=5000`;
-   return(await tx.turn.findMany({where:{match:{status:'RUNNING',configuration:{simulationVersion:'combat-loop-v1'}},OR:[{status:'CLOSED'},{status:'OPEN',deadlineAtMs:{lte:BigInt(now)}}]},orderBy:[{deadlineAtMs:'asc'},{matchId:'asc'}],take:limit,select:{matchId:true}})).map(r=>r.matchId);
+   return(await tx.turn.findMany({where:{match:{status:'RUNNING',configuration:{simulationVersion:{in:['combat-loop-v1','europe-playtest-v1']}}},OR:[{status:'CLOSED'},{status:'OPEN',deadlineAtMs:{lte:BigInt(now)}}]},orderBy:[{deadlineAtMs:'asc'},{matchId:'asc'}],take:limit,select:{matchId:true}})).map(r=>r.matchId);
   },{timeout:6000})}
 }

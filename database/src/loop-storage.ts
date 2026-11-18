@@ -1,6 +1,6 @@
 import {isDeepStrictEqual as same} from 'node:util';
-import {LoopCommandSchema,TurnRecordSchema} from '@strategy-game/shared-types';
-import {LoopCommitSchema,LoopRuntimeSchema,LoopFrozenSchema} from '@strategy-game/shared-types/server';
+import {RepeatingCommandSchema as LoopCommandSchema,TurnRecordSchema} from '@strategy-game/shared-types';
+import {RepeatingCommitSchema as LoopCommitSchema,RepeatingRuntimeSchema as LoopRuntimeSchema,RepeatingFrozenSchema as LoopFrozenSchema} from '@strategy-game/shared-types/server';
 import type {LoopState,LoopResult,InitialWorldArchive} from '@strategy-game/shared-types/server';
 import {planLoop,validateLoopState,reviseLoop,freezeLoop,resolveLoop,loopSame} from '@strategy-game/game-engine/server';
 import type {TurnState,PlayerTurnDraft} from '@strategy-game/game-engine';
@@ -53,15 +53,15 @@ export type LoopAggregate=ReturnType<typeof restoreLoopRow>;
 /** Constant-turn footprint: genesis plus requested/adjacent rows, never a whole-match history dump. */
 export async function readLoop(tx:Prisma.TransactionClient,matchId:string,requested?:number):Promise<LoopAggregate>{
  const m=await tx.match.findUniqueOrThrow({where:{id:matchId},include:{configuration:true,world:true,participants:{where:{active:true}}}});
- if(!m.configuration||!m.world||m.status!=='RUNNING')loopInvalid();LoopRuntimeSchema.parse(m.configuration.pinnedRuleset);
+ if(!m.configuration||!m.world||m.status!=='RUNNING')loopInvalid();const profile=LoopRuntimeSchema.parse(m.configuration.pinnedRuleset);
  const archive=restoreWorldArchive(m.world),current=safeNumber(m.currentStateVersion)+1,n=requested??current;
  if(!Number.isSafeInteger(n)||n<1||n>current)loopInvalid();
  const fetch=(number:number)=>tx.turn.findUniqueOrThrow({where:{matchId_number:{matchId,number:BigInt(number)}},include:storedTurnInclude});
  const row=await fetch(n),a=restoreLoopRow(row,archive);
- if(!same(m.configuration.config,a.snapshot.config)||m.configuration.turnDurationMs!==BigInt(a.snapshot.config.turnDurationMs)||m.configuration.rulesetId!=='combat-loop'||m.configuration.rulesetVersion!=='1'||m.configuration.simulationVersion!=='combat-loop-v1'||
+ if(!same(m.configuration.config,a.snapshot.config)||m.configuration.turnDurationMs!==BigInt(a.snapshot.config.turnDurationMs)||m.configuration.rulesetId!==profile.ruleset.rulesetId||m.configuration.rulesetVersion!==profile.ruleset.version||m.configuration.simulationVersion!==profile.simulationVersion||a.snapshot.simulationVersion!==profile.simulationVersion||
   !same(m.participants.map(p=>p.playerId).sort(),a.snapshot.players.map(p=>p.playerId))||m.participants.some(p=>!p.active)||a.snapshot.players.some(p=>!p.active))loopInvalid();
  const genesis=await tx.gameSnapshotRecord.findUniqueOrThrow({where:{matchId_stateVersion:{matchId,stateVersion:0n}}});
- const start=planLoop(a.snapshot.config,a.snapshot.players,archive,undefined,a.snapshot.combatPolicy.setup).snapshot;
+ const start=planLoop(a.snapshot.config,a.snapshot.players,archive,profile,a.snapshot.combatPolicy.setup).snapshot;
  if(genesis.snapshotId!==start.snapshotId||!same(genesis.payload,json(start))||genesis.completedTurnNumber!==0n)loopInvalid();
  for(const unit of a.snapshot.units){const original=start.units.find(u=>u.unitId===unit.unitId);if(!original)loopInvalid();const {hp:oldHp,...originalFields}=original,{hp:newHp,...fields}=unit;void oldHp;void newHp;if(!same(fields,originalFields))loopInvalid()}
  for(const form of a.snapshot.formations){const original=start.formations.find(f=>f.formationId===form.formationId);if(!original||form.ownerPlayerId!==original.ownerPlayerId||form.unitIds.some(id=>!original.unitIds.includes(id)))loopInvalid()}

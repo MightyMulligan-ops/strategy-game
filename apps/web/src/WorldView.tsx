@@ -1,3 +1,5 @@
+import {lazy,Suspense} from 'react'
+const EuropeMap=lazy(()=>import('./europe/EuropeMap'))
 import LoopWorkspace from './LoopWorkspace'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
@@ -149,7 +151,7 @@ function MatchWorldView({ matchId, onClose, onSessionError }: { matchId: string;
     <div className="section-heading"><h1 id="world-title">Initial world</h1><button onClick={onClose}>Back to lobbies</button><button disabled={loading} onClick={() => void refresh()}>Refresh world</button></div>
     {loading ? <p role="status">Loading world…</p> : error ? <p role="alert">{error}</p>
       : result?.state === 'READY' ? <Formations matchId={matchId} world={result.world} onSessionError={sessionError}
-        onLoopReady={markLoop} renderLoop={()=><LoopWorkspace matchId={matchId} onSessionError={sessionError} map={(formation,route,inspection)=><MapView world={result.world} formation={formation} route={route} choose={null} inspection={inspection} policy={{radius:10,pending:false,combat:true,loop:true}}/>}/>} selectedFormationId={selectedFormationId} onSelectionChange={setSelectedFormationId}
+        onLoopReady={markLoop} renderLoop={europe=><LoopWorkspace expectedSchemaVersion={europe?2:1} matchId={matchId} onSessionError={sessionError} map={(formation,route,inspection,context)=>context.view.schemaVersion===2?<Suspense fallback={<p role="status">Loading Europe display…</p>}><EuropeMap world={result.world} view={context.view} route={route} choose={context.choose}/></Suspense>:<MapView world={result.world} formation={formation} route={route} choose={null} inspection={inspection} policy={{radius:10,pending:false,combat:true,loop:true}}/>}/>} selectedFormationId={selectedFormationId} onSelectionChange={setSelectedFormationId}
         map={(formation,inspection,policy) => <><MovementQueue matchId={matchId} world={result.world} formation={formation} onSessionError={sessionError}
           map={(route, choose) => <MapView inspection={inspection} world={result.world} formation={formation} route={route} choose={choose} {...(policy?{policy}:{})} />} />{policy&&<MovementResolution matchId={matchId} onSessionError={sessionError} combat={policy.combat??false}/>}</>} />
         : result?.state === 'UNINITIALIZED' ? <section className="panel" role="status" aria-live="polite" aria-atomic="true" aria-labelledby="world-unavailable-title">

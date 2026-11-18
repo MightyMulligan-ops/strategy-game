@@ -411,14 +411,32 @@ export const LoopStateSchema=z.strictObject({...combatBase,schemaVersion:z.liter
  units:z.array(CombatTurnUnitSchema).max(240).readonly(),formations:z.array(z.strictObject({...CombatTurnFormationSchema.unwrap().shape,position:MilliPointSchema}).readonly()).max(80).readonly(),
  cityOwners:z.array(z.strictObject({cityId:identifier,ownerPlayerId:identifier}).readonly()).max(40).readonly()
 }).refine(s=>s.stateVersion===s.completedTurnNumber).readonly();
-export type LoopState=z.infer<typeof LoopStateSchema>;
+export type LoopState=RepeatingState;
 export const LoopFrozenSchema=z.strictObject({schemaVersion:z.literal(5),kind:z.literal('loop_frozen'),runtimeProfile:LoopRuntimeSchema,
  startingSnapshotId:identifier,startingStateVersion:loopCounter,worldRef:InitialWorldReferenceSchema,worldSeed:SeedSchema,resolutionSeed:SeedSchema,seedIdentity:identifier,
  combatPolicy:CombatPolicySchema,turn:TurnRecordSchema.refine(t=>t.status==='closed'),players:ClosureFrozenInputSchema.unwrap().shape.players
 }).readonly();
-export type LoopFrozen=z.infer<typeof LoopFrozenSchema>;
+export type LoopFrozen=RepeatingFrozen;
 export const LoopResultSchema=z.strictObject({schemaVersion:z.literal(4),kind:z.literal('loop_result'),runtimeProfile:LoopRuntimeSchema,
  resolutionId:identifier,startingSnapshotId:identifier,turnNumber:positiveInteger.max(0xfffffffe),seed:SeedSchema,seedIdentity:identifier,nextState:LoopStateSchema,
  battles:CombatTurnResultSchema.unwrap().shape.battles,audits:CombatTurnResultSchema.unwrap().shape.audits}).readonly();
-export type LoopResult=z.infer<typeof LoopResultSchema>;
+export type LoopResult=RepeatingResult;
 export const LoopCommitSchema=z.strictObject({schemaVersion:z.literal(1),kind:z.literal('loop_commit'),result:LoopResultSchema,nextOpenedAtMs:nonnegativeInteger}).readonly();
+
+// Europe is a new creation pin. Historical schemas above remain exact.
+export const EUROPE_POLICY=Object.freeze({mapId:'europe-playtest-map-v1',projectionId:'europe-mercator-fixed-v2',maskId:'europe-ne10m-surface-v2',maskSha256:'052b866179d2566fd37b2f22301d48c5e5fcec3f97e6e4bd806dcdc78374bfe6',distanceId:'europe-100-mask-per-game-v1',scenarioId:'iberian-two-camps-v1'} as const);
+const europePolicySchema=z.strictObject({mapId:z.literal(EUROPE_POLICY.mapId),projectionId:z.literal(EUROPE_POLICY.projectionId),maskId:z.literal(EUROPE_POLICY.maskId),maskSha256:z.literal(EUROPE_POLICY.maskSha256),distanceId:z.literal(EUROPE_POLICY.distanceId),scenarioId:z.literal(EUROPE_POLICY.scenarioId)}).readonly();
+export const EUROPE_RUNTIME=Object.freeze({schemaVersion:2 as const,ruleset:Object.freeze({rulesetId:'europe-playtest' as const,version:'1' as const}),simulationVersion:'europe-playtest-v1' as const,movementTieBreakPolicy:'chronological-speed-v1' as const,europe:EUROPE_POLICY});
+export const EuropeRuntimeSchema=z.strictObject({schemaVersion:z.literal(2),ruleset:z.strictObject({rulesetId:z.literal('europe-playtest'),version:z.literal('1')}).readonly(),simulationVersion:z.literal('europe-playtest-v1'),movementTieBreakPolicy:z.literal('chronological-speed-v1'),europe:europePolicySchema}).readonly();
+export const EuropeStateSchema=z.strictObject({...LoopStateSchema.unwrap().shape,schemaVersion:z.literal(11),kind:z.literal('europe_loop_state'),ruleset:EuropeRuntimeSchema.unwrap().shape.ruleset,simulationVersion:z.literal('europe-playtest-v1')}).refine(s=>s.stateVersion===s.completedTurnNumber).readonly();
+export const EuropeFrozenSchema=LoopFrozenSchema.unwrap().extend({schemaVersion:z.literal(6),kind:z.literal('europe_loop_frozen'),runtimeProfile:EuropeRuntimeSchema}).readonly();
+export const EuropeResultSchema=LoopResultSchema.unwrap().extend({schemaVersion:z.literal(5),kind:z.literal('europe_loop_result'),runtimeProfile:EuropeRuntimeSchema,nextState:EuropeStateSchema}).readonly();
+export const EuropeCommitSchema=z.strictObject({schemaVersion:z.literal(2),kind:z.literal('europe_loop_commit'),result:EuropeResultSchema,nextOpenedAtMs:nonnegativeInteger}).readonly();
+export const RepeatingRuntimeSchema=z.union([LoopRuntimeSchema,EuropeRuntimeSchema]);
+export const RepeatingStateSchema=z.union([LoopStateSchema,EuropeStateSchema]);
+export const RepeatingFrozenSchema=z.union([LoopFrozenSchema,EuropeFrozenSchema]);
+export const RepeatingResultSchema=z.union([LoopResultSchema,EuropeResultSchema]);
+export const RepeatingCommitSchema=z.union([LoopCommitSchema,EuropeCommitSchema]);
+export type RepeatingState=z.infer<typeof RepeatingStateSchema>;
+export type RepeatingFrozen=z.infer<typeof RepeatingFrozenSchema>;
+export type RepeatingResult=z.infer<typeof RepeatingResultSchema>;

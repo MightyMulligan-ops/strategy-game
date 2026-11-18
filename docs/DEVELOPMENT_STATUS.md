@@ -1151,3 +1151,197 @@ implementation928f1d27fcfd154970639e2bc5585e4c504628f1, base
 This status-only commit records the actual URL. Final-head hosted CI/SQL evidence
 and observed merge or blocker will be recorded in the PR conversation/handoff;
 no self-referential SHA commits or failed-workflow rerun.105 history5/5 retained.
+
+
+## Issue107 Europe playtest — new owner-started integration
+
+Verified main2890ca9dd8b60841812a47e15a33a70dfd72ec75 and selected map
+source91d2474d399071759e3119fee3c7de00a6080e36 share that base. New branch
+issue/107-europe-playtest; previous branches/changes preserved. Full107 and both
+map source documents including appended boundary repair read. No competing107
+claim/PR observed. Active launch covers scoped implementation, additive offline
+SQL, database-free checks, one draft, unchanged fresh disposable hosted CI and
+merge after checks; independent review waived, not claimed. No existing DB or
+deployment. Frozen checkpoint manifest and pending numeric proposal are in
+EUROPE_PLAYTEST.md. New history0/5; all earlier histories retained there.
+Checkpoint1 in progress/unmerged; no PR/CI or human live playtest claimed.
+
+107 initial focused checkpoint:72/72 passed; after the first engine extension,
+81/81 passed including all nine historical loop cases. Frozen pnpm12.18.0 install
+and Prisma7.10.1 generation exit0, no DB connection. Initial full typecheck failed:
+one historical synthetic test inferred a legacy-only state while the new resolver
+return type was a union, and the new geographic test imported across package
+rootDir. Pass1/5 begins: preserve the legacy-specific resolver overload, export
+public geometry through the existing public barrel, and verify the initial
+integration/UI build. No historical assertion or runtime schema is weakened.
+
+107 Pass1 engine build passed. Focused engine run14 passed/1 failed. The new
+campaign fixture selected array index0 again after the resolver canonically
+sorted formations, switching to the stationary target and dividing zero distance.
+Diagnostic rerun reproduced this (1failed/5 deliberately filtered tests), without
+changing assertions. A compiled-engine smoke also found that TypeScript formats
+emitted JSON differently, invalidating a raw-byte runtime checksum despite equal
+geometry. Pass2/5 begins: track the immutable attacker ID, retain the source-byte
+checksum test, and validate compiled runtime geometry using a separately pinned
+compact-JSON content digest. No snapping or water predicate relaxation.
+
+Compact parsed JSON reproduces the existing published SHA exactly; runtime now
+checks that same digest after whitespace normalization, not a different geometry.
+
+Pass2 offline SQL review caught a copied cleanup function/trigger name at the
+end of the new migration; renamed it to the Europe namespace before any SQL
+execution. Historical cleanup and migration files remain untouched.
+
+107 Pass2 results: focused45 passed/1 failed. The projection correctly rounded a
+floating-point value to negative zero; deterministic round-trip equality caught
+it. Build/typecheck failed because the legacy overload referred to Zod directly
+from engine, which intentionally has no direct Zod dependency. Lint exit0.
+Pass3/5 begins: normalize zero in the projection and derive the overload types
+from the existing shared-schema parse signatures, without adding dependencies.
+Continue the initial UI/signed-route/disposable acceptance fixtures and verify
+compiled mask identity; no old test or assertion is changed.
+
+107 Pass3 build/typecheck/lint exit0; focused40/40 passed. Compiled Node engine
+smoke loaded the canonical pinned mask and admitted the two-camp state; coastal
+(350,0) classified as water, (0,0) as land. Full database-free suite2359 passed,
+307 deliberate DB skips,108 passed/21 skipped files, zero failures. Subsequent
+new map-component harness failed3/3 before mount because jsdom lacks native
+setPointerCapture. Pass4/5 begins: explicitly stub that missing browser API in
+the new harness, then verify map picking/drafts, current full checks and the
+complete inventory. No production assertion, old test or browser safeguard changes.
+
+Actual Chrome mock-fixture check: Europe satellite imagery and138-city selector
+rendered; native own selection, Spain100% cap, keyboard coordinate entry, one
+acknowledged mock order/revision1 and Ready revision2/edit lock observed. The
+initial mock singleton Infantry correctly displayed the source-radius restriction;
+adding an explicit mock Lieutenant enabled controls. A coordinate-click attempt
+did not populate the fields; component pointer acceptance is checked separately.
+Browser route-selector locator failed; native accessibility controls worked.
+This used a temporary ignored Vite fixture and mock transport, no backend/DB,
+real sign-in, human match or deployment. No browser restriction was bypassed.
+
+107 Pass4 map component tests3/3 passed, including integer picking, pan separation
+and local uncommitted drawing. Full typecheck caught an incomplete newly authored
+PublicWorld test fixture cast; lint also discovered the ignored temporary browser
+harness under web/.cache. Pass5/5 begins: give the test a complete typed public
+world, preserve the temporary browser fixture outside the repository after its
+completed check, and add explicit Europe-response scenario-bound checks identified
+by author review so a malformed projected point cannot crash the renderer. Verify
+all checks/inventory and retain hosted results; no correction allowance remains
+after this pass. This is author implementation review, not independent review.
+
+Within107 Pass5, pre-publication fixture review aligned the new disposable
+rejection test with established trusted-time observation: rejection may advance
+lastObservedAtMs, so assert it is monotonic and every other persisted field is
+identical. New battle acceptance asserts casualties across both separately
+authorized own reports, rather than assuming which participant loses units.
+These are new fixture contract corrections before hosted execution; no existing
+test/assertion, surface predicate, lifecycle or combat balance changed.
+
+107 Pass5 final local results: frozen install pnpm12.18.0 and Prisma7.10.1
+generation succeeded; complete build/typecheck/lint succeeded. Full database-free
+suite2365 passed/308 deliberate DB skips/0 failed,109 passed/21 skipped files.
+Final database test typecheck also succeeded after the new fixture review.
+All task checks used AUTH_ENABLED=false RUN_DATABASE_TESTS=0. Diff check passed.
+Production output deliberately selects a lazy Europe display chunk/overview and
+contains no raw surface asset/hash, Vite prototype endpoints or fixture formations.
+Complete49-path inventory/provenance/runbook is in EUROPE_PLAYTEST.md.
+
+Author review covered old-cohort strict schemas, explicit Europe command identity,
+trusted origin/domain/mask ownership, fractional full-segment surface validation,
+land-safe capture/placement, atomic existing loop protocol, allowlisted own data,
+profile/turn/auth stale-response clearing and migration namespace/admission scope.
+This is not independent review. Implementation history5/5 retained; no failed CI
+rerun or sixth correction is authorized. Any hosted implementation failure will
+be reported with commit/draft retained and merge held. SQL/real DB concurrency,
+restart and rollback are pending unchanged hosted fresh disposable CI, not inferred
+from local skips. Actual human playtest/deployment/capacity remain unperformed.
+
+Publication checkpoint: main still2890ca9dd8b60841812a47e15a33a70dfd72ec75;
+no competing107 claim/PR observed. Active107 launch explicitly covers TASK_SCOPE
+feature publication, one draft, unchanged fresh disposable PostgreSQL CI and merge
+only after required checks. Owner's subsequent distance-policy answer is recorded
+in EUROPE_PLAYTEST.md. No existing DB, workflows/dependencies/security/instructions,
+additional agent/API task or deployment. In review/unmerged upon publication;
+actual PR/current-head CI/merge evidence follows, without self-referential SHA loops.
+
+107 publication observed: [draft PR108](https://github.com/MightyMulligan-ops/strategy-game/pull/108),
+implementationf6d895c827ed295e0c07deef034ce38305017246, base
+2890ca9dd8b60841812a47e15a33a70dfd72ec75. In review/unmerged at this checkpoint.
+This status-only commit records the actual URL; final-head hosted results and
+observed merge or blocker are recorded in the PR conversation/handoff. Normal
+new-head CI supersession is not a failed-workflow rerun. History5/5 retained.
+
+## Issue107 bounded owner-started repair attempt1/2
+
+Repair begins for EUROPE107-APP-ADMISSION-001 and EUROPE107-SQL-ADMISSION-002.
+Owner's active November18 launch explicitly confirms the project-chat “Approved”
+response to these two findings, strict Europe admission/additive offline SQL,
+local database-free checks and same-branch commit/push/draft update with unchanged
+fresh disposable hosted CI. This is repair1/2 for both stable IDs; no earlier
+repair exists for them. Implementation5/5 and all older histories remain intact.
+No second attempt, broad correction loop, ready, merge, issue closure, deployment,
+existing DB, additional agent/API, workflow/dependency/security/instruction change.
+
+Preflight: clean issue/107-europe-playtest at expected head
+7b020235bacfd694bda13300a981d6f6c61dab57; fetched remote matches; expected/current
+main/base2890ca9dd8b60841812a47e15a33a70dfd72ec75. PR108 open/draft, exact pair
+API-verified. Only existing107 claim/PR observed; one worktree. Full issue and
+findings comments6981030557/6981121356/6981159831 read. CI44320931586 attempt1
+remains failure: application2365pass/308deliberateDBskips, DB300pass/8fail before
+Europe gameplay; migration/cleanup succeeded. No failed workflow rerun.
+
+Exact repair manifest frozen before source edits:
+- database/src/turn-storage.ts
+- database/prisma/migrations/202611180002_europe_configuration_admission/migration.sql
+- database/tests/europe-admission.test.ts
+- database/tests/europe-admission-migration.test.ts
+- database/tests/europe-admission.integration.test.ts
+- docs/DEVELOPMENT_STATUS.md
+- docs/EUROPE_PLAYTEST.md
+
+Select strict EuropeRuntimeSchema before the historical parser, retaining the
+same metadata comparison. Add an exact Europe-only OPEN configuration branch to
+the existing SQL guard via one new migration; preserve the old body and published
+migrations. New pure tests cover valid, malformed, partial and spoofed pins and
+all old profile modes; offline SQL test compares the preserved body byte-for-byte;
+new hosted cases test valid/invalid Europe configuration metadata. Existing eight
+Europe cases and all historical assertions stay unchanged and must actually pass
+in hosted CI before either finding is reported verified. Stop after this bounded
+attempt; repairAuthorization=NOT_GRANTED for any further attempt.
+
+Repair1 local verification: frozen install/generation/preparation exit0; focused
+131/131 passed. Build exit0. Initial full typecheck caught only the new admission
+fixture's inferred literal Europe metadata types, which prevented assigning the
+intended invalid metadata cases. Within this same bounded repair, explicitly type
+the fixture as the existing MatchConfiguration row; no runtime logic, assertions
+or scope changes. Recheck full typecheck. This is not a second repair invocation
+or a reset of implementation5/5. Lint/full test results follow.
+
+Repair1 full typecheck recheck exit0; build/lint exit0. First full suite:
+2388 passed/1 failed/326 deliberate DB skips(110 passed/1 failed/22 skipped files).
+The unchanged40-player turn-read repository case exceeded its5000ms timeout at
+5833ms while the explicit typecheck recheck overlapped this run. No assertion,
+timeout or source behavior will be changed for that result. With both processes
+finished, perform one isolated reader check and one non-overlapping full run to
+diagnose the contention hypothesis; retain both results. This is verification of
+the same bounded repair, not another source repair or a hosted workflow retry.
+
+Repair1 final local verification: isolated unchanged reader31/31 passed; one
+non-overlapping full run2389 passed/326 deliberate DB skips/0failed(111 passed/
+22 skipped files), exit0. The earlier2388pass/1timeout and fixture typecheck failure
+remain recorded above. Final typecheck/build/lint/frozen install/generation and
+diff checks passed. All checks used AUTH_ENABLED=false RUN_DATABASE_TESTS=0.
+No assertion/timeout or existing eight Europe integration tests changed. New18
+hosted configuration cases remain locally skipped; SQL and real Europe gameplay
+acceptance are pending unchanged hosted CI, never inferred from local success.
+
+Author diff review confirms exactly the seven frozen paths, one new corrective
+migration, unchanged published migration/guard body outside the exact Europe
+branch, no UI/gameplay/distance/coast/defense/dependency/security/workflow/instruction
+change. Same PR108 stays draft/unmerged,107 open. Current-head CI and final finding
+outcomes will be recorded in its conversation/handoff. Implementation5/5 remains
+separate from this owner-started repair1/2; repairAuthorization=NOT_GRANTED for any
+further attempt. No ready/merge or independent-review claim. Publication/unchanged
+fresh disposable CI for this attempt is explicitly covered by the active owner
+launch; no existing DB, SQL execution locally, provisioning or deployment.

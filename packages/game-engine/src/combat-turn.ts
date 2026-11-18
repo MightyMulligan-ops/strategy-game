@@ -60,7 +60,7 @@ export function executeValidatedCombatTurn(snapshotInput:CombatInitialSnapshot,f
  return executeCombatForces(snapshot,frozen,archive,budget);
 }
 /** Internal kernel; only callers with their own strict runtime validation may enter. */
-export function executeCombatForces(snapshot:CombatInitialSnapshot,frozen:CombatFrozenInput,archive:InitialWorldArchive,budget?:MultiForceBudget,carriedOwners?:readonly {cityId:string;ownerPlayerId:string}[]):CombatTurnResult{
+export function executeCombatForces(snapshot:CombatInitialSnapshot,frozen:CombatFrozenInput,archive:InitialWorldArchive,budget?:MultiForceBudget,carriedOwners?:readonly {cityId:string;ownerPlayerId:string}[],surface?:{point:(p:{x:number;y:number})=>boolean;segment:(a:{x:number;y:number},b:{x:number;y:number})=>boolean}):CombatTurnResult{
  const forms=[...snapshot.formations].sort((a,b)=>compareIds(a.formationId,b.formationId));
  const units=[...snapshot.units].sort((a,b)=>compareIds(a.unitId,b.unitId));
  if(new Set(forms.map(f=>f.formationId)).size!==forms.length||new Set(units.map(u=>u.unitId)).size!==units.length||
@@ -70,6 +70,9 @@ export function executeCombatForces(snapshot:CombatInitialSnapshot,frozen:Combat
  const canonical={...snapshot,formations:forms.map(f=>({...f,unitIds:[...f.unitIds].sort(compareIds)})),units};
  const resolutionId=`combat-turn:${auditHash({snapshot:canonical,frozen:{...frozen,players:[...frozen.players].sort((a,b)=>compareIds(a.playerId,b.playerId))}})}`;
  const movement=gatherCombatEncounters(canonical,frozen);
+ if(surface)for(const e of movement.encounters){
+  if(!surface.point(e.position)||[...e.members.keys()].some(id=>!surface.segment(movement.position(id,e.time),e.position)))throw Error("EUROPE_CONTACT_SURFACE_UNAVAILABLE");
+ }
  const hp=new Map(units.map(u=>[u.unitId,u.hp])),positions=new Map(forms.map(f=>[f.formationId,milli(movement.position(f.formationId,250))]));
  const cityOwners=(carriedOwners??archive.payload.startingState.cities).map(c=>({cityId:c.cityId,ownerPlayerId:c.ownerPlayerId})).sort((a,b)=>compareIds(a.cityId,b.cityId));
  const battles:CombatTurnResult["battles"][number][]=[];
@@ -80,6 +83,7 @@ export function executeCombatForces(snapshot:CombatInitialSnapshot,frozen:Combat
   const cities=archive.payload.startingState.cities.filter(c=>distanceSquared(c.position,e.position)<=400)
    .sort((a,b)=>distanceSquared(a.position,e.position)-distanceSquared(b.position,e.position)||compareIds(a.cityId,b.cityId));
   const city=cities[0];
+  if(surface&&city&&(!surface.point(city.position)||!surface.segment(e.position,city.position)))throw Error("EUROPE_CAPTURE_SURFACE_UNAVAILABLE");
   const input={schemaVersion:1,rulesetVersion:MULTI_FORCE_COMBAT_VERSION,encounterId:e.encounterId,seed:frozen.resolutionSeed,
    ownership:city?{locationId:city.cityId,ownerPlayerId:cityOwners.find(c=>c.cityId===city.cityId)!.ownerPlayerId}:null,
    rules:{schedule:MULTI_FORCE_SCHEDULE,roll:MULTI_FORCE_ROLL,statFloor:"minimum-one-v1",alliances:"equivalence-v1",leadership:snapshot.combatPolicy.setup.leadership},relationships:relevant,
@@ -96,7 +100,7 @@ export function executeCombatForces(snapshot:CombatInitialSnapshot,frozen:Combat
   const relocating=survivors.filter(f=>city&&recipient&&f.ownerPlayerId!==recipient),placed=new Set<string>();
   for(const f of relocating){
    const occupied=forms.filter(other=>other.formationId!==f.formationId&&other.ownerPlayerId!==f.ownerPlayerId&&(!relocating.some(x=>x.formationId===other.formationId)||placed.has(other.formationId))&&other.unitIds.some(id=>hp.get(id)!>0)).map(other=>world(positions.get(other.formationId)!));
-   positions.set(f.formationId,milli(adjacentCombatPosition(city!.position,archive.payload.bounds,occupied)));placed.add(f.formationId);
+   positions.set(f.formationId,milli(adjacentCombatPosition(city!.position,archive.payload.bounds,occupied,100000,surface?p=>surface.point(p)&&surface.segment(city!.position,p):undefined)));placed.add(f.formationId);
   }
   battles.push({encounterId:e.encounterId,position:milli(e.position),locationId:city?.cityId??null,
    formations:participants.map(f=>({formationId:f.formationId,stance:e.members.get(f.formationId)!})),outcome:audit.outcome,
@@ -118,6 +122,7 @@ export function executeCombatForces(snapshot:CombatInitialSnapshot,frozen:Combat
   const a=activeForms[i]!,b=activeForms[j]!;
   if(snapshot.combatPolicy.relationships.some(r=>r.from===a.ownerPlayerId&&r.to===b.ownerPlayerId&&r.relation==="hostile")&&distanceSquared(world(a.position),world(b.position))<=400)throw Error("COMBAT_PLACEMENT_UNAVAILABLE");
  }
+ if(surface&&activeForms.some(f=>!surface.point(world(f.position))))throw Error("EUROPE_FINAL_POSITION_NOT_LAND");
  const {snapshotId:initialSnapshotId,...base}=canonical;
  const next={...base,schemaVersion:9 as const,kind:"combat_resolved" as const,stateVersion:1 as const,completedTurnNumber:1 as const,initialSnapshotId,resolutionId,
   units:activeUnits,formations:activeForms,cityOwners};
