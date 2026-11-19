@@ -25,3 +25,35 @@ it('keeps defense geometry explicitly local and uncommitted',async()=>{
  await mount();await act(async()=>[...host.querySelectorAll('button')].find(b=>b.textContent==='Uncommitted defense drawing')!.click());const el=host.querySelector('.ep-map')!;
  await act(async()=>{pointer(el,'pointerdown',600,300);pointer(el,'pointerup',600,300)});expect(choose).not.toHaveBeenCalled();expect(host.querySelector('polyline')!.getAttribute('points')).not.toBe('');
 });
+it('keeps options collapsed and identifies a country without changing destination intent',async()=>{
+ await mount();expect(host.querySelector<HTMLDetailsElement>('.ep-options')!.open).toBe(false);expect(host.querySelector('.ep-map .ep-inspector')).toBeNull();const el=host.querySelector('.ep-map')!,v={width:1920,height:920};const {project}=await import('./camera');const p=toScreen(project(-3.7,40.4),fitTheatre(v),v);await act(async()=>pointer(el,'pointermove',p.x,p.y));expect(host.querySelector('.ep-country-tooltip')!.textContent).toContain('Spain');expect(choose).not.toHaveBeenCalled();const select=host.querySelector<HTMLSelectElement>('#ep-country-select')!;expect([...select.options].some(o=>o.textContent==='France')).toBe(true)
+});
+
+const armyId=`formation:${'a'.repeat(64)}`;
+const armyView=EuropeCurrentSchema.parse({...view,formations:[{schemaVersion:1,formationId:armyId,ownerPlayerId:'own',position:{x:240,y:240},units:[{schemaVersion:1,unitId:`unit:${'b'.repeat(64)}`,originalSpawnNodeId:'west',hp:1,maxHp:1,kind:'LEADER',rank:'LIEUTENANT',specialization:'INFANTRY'}]}]});
+async function interactive(ready=false){
+ const move=vi.fn(),select=vi.fn();await act(async()=>root.render(<EuropeMap view={{...armyView,own:{...armyView.own,ready}}} route={null} choose={null} world={world} interaction={{selectedId:null,select,queueMove:ready?null:move}}/>));
+ const element=host.querySelector<HTMLElement>('.ep-map')!,marker=host.querySelector<HTMLElement>('[data-formation-id]')!;
+ Object.defineProperty(element,'getBoundingClientRect',{configurable:true,value:()=>new DOMRect(0,0,1920,920)});
+ const camera=fitTheatre({width:1920,height:920}),p=toScreen(europeGameToDisplay({x:240,y:240}),camera,{width:1920,height:920}),q=toScreen(europeGameToDisplay({x:480,y:240}),camera,{width:1920,height:920});
+ return {element,marker,p,q,move,select};
+}
+it('drags an own army into one queued integer destination without moving the stored marker',async()=>{
+ const {element,marker,p,q,move}=await interactive();const left=marker.style.left;
+ await act(async()=>{pointer(marker,'pointerdown',p.x,p.y);pointer(element,'pointermove',q.x,q.y)});
+ expect(host.querySelector('.ep-move-preview')).not.toBeNull();expect(move).not.toHaveBeenCalled();expect(marker.style.left).toBe(left);
+ await act(async()=>pointer(element,'pointerup',q.x,q.y));expect(move).toHaveBeenCalledExactlyOnceWith(armyId,{x:480,y:240});expect(host.querySelector('.ep-move-preview')).toBeNull();expect(marker.style.left).toBe(left);
+});
+it.each(['pointercancel','lostpointercapture','escape'])('cancels an army drag on %s without a command',async(kind)=>{
+ const {element,marker,p,q,move}=await interactive();await act(async()=>{pointer(marker,'pointerdown',p.x,p.y);pointer(element,'pointermove',q.x,q.y);if(kind==='escape')element.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));else pointer(element,kind,q.x,q.y);pointer(element,'pointerup',q.x,q.y)});expect(move).not.toHaveBeenCalled();expect(host.querySelector('.ep-move-preview')).toBeNull();
+});
+it('rejects drops outside the scenario and keeps Ready armies locked',async()=>{
+ const a=await interactive(),v={width:1920,height:920},outside=toScreen(europeGameToDisplay({x:1000,y:500}),fitTheatre(v),v);outside.x+=20;
+ await act(async()=>{pointer(a.marker,'pointerdown',a.p.x,a.p.y);pointer(a.element,'pointermove',outside.x,outside.y);pointer(a.element,'pointerup',outside.x,outside.y)});expect(a.move).not.toHaveBeenCalled();expect(host.textContent).toContain('No order was submitted');
+ const b=await interactive(true);await act(async()=>{pointer(b.marker,'pointerdown',b.p.x,b.p.y);pointer(b.element,'pointermove',b.q.x,b.q.y);pointer(b.element,'pointerup',b.q.x,b.q.y)});expect(b.move).not.toHaveBeenCalled();
+});
+it('rejects a drag if a background update changed its planning revision',async()=>{
+ const a=await interactive();await act(async()=>{pointer(a.marker,'pointerdown',a.p.x,a.p.y);pointer(a.element,'pointermove',a.q.x,a.q.y)});
+ await act(async()=>root.render(<EuropeMap view={{...armyView,own:{...armyView.own,revision:1}}} route={null} choose={null} world={world} interaction={{selectedId:armyId,select:a.select,queueMove:a.move}}/>));
+ await act(async()=>pointer(a.element,'pointerup',a.q.x,a.q.y));expect(a.move).not.toHaveBeenCalled();expect(host.textContent).toContain('Planning changed during this drag');
+});

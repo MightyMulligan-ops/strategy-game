@@ -121,7 +121,7 @@ Ranks, highest to lowest:
 3. Captain
 4. Lieutenant
 
-A stack may contain at most one leader of each rank (maximum four leaders). The highest-ranking leader is the primary commander; all other leaders are secondary commanders.
+A field army may contain at most one leader of each rank (maximum four leaders). City garrisons have the owner-approved duplicate-rank exception in section 5. The highest-ranking leader is the primary commander; all other leaders are secondary commanders.
 
 If a leader is removed or destroyed, the next-highest remaining leader automatically becomes primary. If no leader remains, non-infantry units cannot move; the single-infantry exception still applies only to an individual infantry unit within its original source-node radius.
 
@@ -259,6 +259,56 @@ The reference gameplay baseline includes:
 - Auto-production, rare units, strategies, upgrades, and strategy points are part of the broader reference feature set.
 
 Some detailed reference formulas have been observed in atWar documentation but require a source audit before being adopted. Do not hard-code unverified values. See `ATWAR_REFERENCE.md`.
+
+### Approved city economy, recruitment and garrisons (Issue110)
+
+These owner-approved defaults are adjustable between playtests, frozen in each
+new match's validated balance snapshot. This records the next runtime's design;
+existing matches and the synthetic-camp runtime remain unchanged.
+
+| Setting | Default |
+|---|---:|
+| Host-configurable starting funds per player | 2,000 credits |
+| Infantry cost | 100 credits |
+| Lieutenant cost | 200 credits |
+| Normal city income per turn | 200 credits |
+| Capital income, replacing normal city income | 400 credits |
+| Recruitment capacity per city per turn, leaders included | 5 units |
+| Recruitment delay for initial types | 1 turn |
+| Credit upkeep | None initially |
+
+Future rank prices: Captain500, Colonel1,000, General2,000; these do not authorize
+those ranks in the initial Infantry/Lieutenant implementation.
+
+- Cities replace camps for ownership, recruitment, army entry and dispatch.
+- Recruit only at owned cities; pay upfront. Cancel while Unready/open for a full
+  refund; Ready locks edits until cleared before closure.
+- Preserve chronological movement/combat/capture, settle recruitment/refunds,
+  then pay income to the final city owner and open fresh planning.
+- Recruits become available in that new planning phase, never in their recruitment
+  turn's combat. Any capture cancels pre-existing recruitment and fully refunds
+  its original player, even if the city is recaptured later that turn.
+- One combined own garrison per city; own arrivals/recruits consolidate. No allied
+  ownership transfer. Empty cities receive a new garrison when recruitment completes.
+- City garrisons may contain duplicate leader ranks; duplicates grant no extra
+  attacks/bonuses. Highest eligible rank commands; player choice among equal ranks
+  falls back to stable unit-ID ordering if invalidated.
+- All garrison leaders remain vulnerable to combat casualties. Preserve removal
+  of remaining leaders when no Infantry survive and single-leader compatibility.
+- Departing selected troops/leaders form a field army with normal rank/movement
+  limits. Preserve unit identity, wounds and permanent recruitment provenance.
+- No new leaderless movement radius or supply modifiers/formulas are approved.
+- Show treasury, city recruitment/garrison/dispatch controls, own recruitment queue
+  with city/type/quantity/amount paid/arrival turn, automatic updates and clear
+  completion/cancellation/refund/income reports.
+- Two-player initial scenario: each starts with one designated capital, other
+  scenario cities neutral. Freeze a small explicit real, land-validated city set
+  before implementation. No silent snapping or activation of all display cities.
+
+Starting funds is a validated host setting; prices/income/capacity are versioned
+developer balance settings. Other atWar setup options remain inspiration until
+their mechanics are implemented. Full approved scope and launch boundaries:
+[CITY_RECRUITMENT_TASK.md](CITY_RECRUITMENT_TASK.md).
 
 ## 6. Combat
 
