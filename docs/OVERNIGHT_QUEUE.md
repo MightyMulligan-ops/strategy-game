@@ -1,3 +1,5 @@
+> Manual start / GPT-6.2 Astra runner update: see [MANUAL_PAID_RUNNER.md](MANUAL_PAID_RUNNER.md). The separately signed manual mode supersedes the fixed nightly start and short coding caps only for new manual approvals. Historical evidence and legacy manifests below remain intact.
+
 # Overnight queue — production integration, paid activation OFF
 
 PR #91 is merged. Prepare, agent, termination sealing, real isolated validation,

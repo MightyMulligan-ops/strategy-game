@@ -7,7 +7,7 @@ const stream=(chunks:string[])=>new ReadableStream<Uint8Array>({
   start(controller){for(const chunk of chunks)controller.enqueue(encode(chunk));controller.close();}
 });
 const request:HostedSessionRequest={
-  agent:{model:'gpt-6-astra',instructions:'code'},
+  agent:{model:'gpt-6.2-astra',reasoning:{effort:'high'},service_tier:'default',multi_agent:{enabled:false},instructions:'code'},
   environment:{type:'openai_hosted',container_size:'medium',
     network:{access:'disabled'},files:[{type:'file_id',path:'/workspace/source.tar.gz',file_id:'file_fixture'}],
     setup_commands:[{command:'true'}]},input:'fix combat',stream:true,

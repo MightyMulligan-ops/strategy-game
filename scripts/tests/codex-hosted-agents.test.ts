@@ -22,7 +22,7 @@ const admission = (): HostedAdmission => ({
 
 test('builds a network-disabled hosted session without environment credentials or external tools', () => {
   const r = buildHostedSessionRequest(admission());
-  expect(r.agent.model).toBe('gpt-6-astra');
+  expect(r.agent.model).toBe('gpt-6.2-astra');
   expect(r.environment.type).toBe('openai_hosted');
   expect(r.environment.network.access).toBe('disabled');
   expect(r.environment.files).toEqual([{

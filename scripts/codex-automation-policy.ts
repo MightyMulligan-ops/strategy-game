@@ -21,20 +21,35 @@ export function validPath(path: string): boolean {
   return typeof path === 'string' && path.length < 200 && pathPattern.test(path) && !path.includes('//') &&
     !path.split('/').some(x => x === '..' || x === '.' || x.startsWith('.')) && !forbidden.test(path);
 }
+export const FEATURE_SCOPE_PROFILE = 'city-feature-v1' as const;
+export const MAX_FEATURE_FILES = 128;
+export function validScopePath(path:string,profile?:typeof FEATURE_SCOPE_PROFILE):boolean {
+  if (profile === undefined) return validPath(path);
+  if (profile !== FEATURE_SCOPE_PROFILE || typeof path !== 'string' || path.length >= 200 ||
+      path.includes('\\') || path.includes('//') || path.split('/').some(p => p === '..' || p.startsWith('.') ||
+      /^(?:node_modules|secrets|AGENTS\.md|package\.json)$/i.test(p))) return false;
+  return /^(?:apps|packages)\/[A-Za-z0-9_./-]+\.(?:ts|tsx|css|json)$/.test(path) ||
+    /^database\/(?:src|tests)\/[A-Za-z0-9_./-]+\.ts$/.test(path) ||
+    /^database\/prisma\/schema\.prisma$/.test(path) ||
+    /^database\/prisma\/migrations\/[A-Za-z0-9_-]+\/migration\.sql$/.test(path) ||
+    /^docs\/[A-Za-z0-9_-]+\.md$/.test(path);
+}
+export const scopeFileLimit=(s:TaskScope)=>s.profile===FEATURE_SCOPE_PROFILE?MAX_FEATURE_FILES:MAX_SOURCE_FILES;
 export type TaskScope = Readonly<{
   repository: string; issue: number; sourceSha: string; baseSha: string;
-  approvedPaths: readonly string[]; acceptanceDigest: string; expiresAt: string;
+  profile?: typeof FEATURE_SCOPE_PROFILE; approvedPaths: readonly string[]; acceptanceDigest: string; expiresAt: string;
 }>;
 export function canonicalScope(scope: TaskScope): string {
   if (scope.repository !== REPOSITORY || !Number.isSafeInteger(scope.issue) || scope.issue <= 0 ||
     !SHA.test(scope.sourceSha) || !SHA.test(scope.baseSha) || !DIGEST.test(scope.acceptanceDigest) ||
     !Number.isFinite(Date.parse(scope.expiresAt)) || !scope.approvedPaths.length ||
-    scope.approvedPaths.length > MAX_SOURCE_FILES ||
+    scope.approvedPaths.length > scopeFileLimit(scope) ||
     new Set(scope.approvedPaths).size !== scope.approvedPaths.length ||
-    scope.approvedPaths.some(p => !validPath(p))) throw Error('Invalid frozen task scope');
+    (scope.profile !== undefined && scope.profile !== FEATURE_SCOPE_PROFILE) ||
+    scope.approvedPaths.some(p => !validScopePath(p,scope.profile))) throw Error('Invalid frozen task scope');
   return JSON.stringify({ repository: scope.repository, issue: scope.issue,
     sourceSha: scope.sourceSha, baseSha: scope.baseSha,
-    approvedPaths: [...scope.approvedPaths].sort(),
+    ...(scope.profile ? {profile:scope.profile}:{}), approvedPaths: [...scope.approvedPaths].sort(),
     acceptanceDigest: scope.acceptanceDigest, expiresAt: scope.expiresAt });
 }
 export type TrustedAdmission = Readonly<{
@@ -80,11 +95,11 @@ export function validateProposal(scope: TaskScope, manifestText: string, patch: 
   if (m.format !== 'sovereign-codex-proposal-v1' || m.source_sha !== scope.sourceSha ||
     m.scope_digest !== scopeDigest || !DIGEST.test(m.patch_sha256) ||
     m.patch_sha256 !== sha256(patch) || m.patch_bytes !== patch.length) errors.push('artifact-identity');
-  if (!Array.isArray(m.paths) || !m.paths.length || m.paths.length > MAX_SOURCE_FILES) return [...errors, 'artifact-paths'];
+  if (!Array.isArray(m.paths) || !m.paths.length || m.paths.length > scopeFileLimit(scope)) return [...errors, 'artifact-paths'];
   const approved = new Set(scope.approvedPaths);
   const seen = new Set<string>();
   for (const f of m.paths) {
-    if (!f || typeof f.path !== 'string' || !validPath(f.path) || !approved.has(f.path) || seen.has(f.path) ||
+    if (!f || typeof f.path !== 'string' || !validScopePath(f.path,scope.profile) || !approved.has(f.path) || seen.has(f.path) ||
       !DIGEST.test(f.sha256) || !Number.isSafeInteger(f.bytes) || f.bytes < 0 || f.bytes > MAX_PATCH_BYTES) errors.push('artifact-paths');
     else seen.add(f.path);
   }

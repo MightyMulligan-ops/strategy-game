@@ -1345,3 +1345,20 @@ separate from this owner-started repair1/2; repairAuthorization=NOT_GRANTED for 
 further attempt. No ready/merge or independent-review claim. Publication/unchanged
 fresh disposable CI for this attempt is explicitly covered by the active owner
 launch; no existing DB, SQL execution locally, provisioning or deployment.
+
+### Manual paid runner / GPT-6.2 Astra (prepared for review)
+
+Owner requested manual paid-runner update and latest 6.2 Astra. New signed manual
+mode permits arbitrary start, one session, $50 conservative estimated soft-cost
+stop, 5-hour watchdog, exact model/high reasoning/standard tier/no subagents,
+accounting/model preflight and confirmed termination. City feature scope admits
+explicit migration source/docs while preserving legacy and protected-path rules.
+No paid/API/session/dispatch/config change, DB access, merge or deployment.
+
+Local command-UI-baseline checks: build/typecheck/lint and 167 focused runner tests
+passed. Full suite 2436 passed / 18 Windows tooling failures / 326 DB skips; not
+fully green. Python replay 24 cases require Linux CI (no usable local Python).
+Focused runner-only tree is based on mainb216e43, excluding command-UI commits and
+unpublished recruitment design edits. Exact-head CI is required before activation.
+New runner correction history1/5; prior histories preserved. Details and operating
+limits: MANUAL_PAID_RUNNER.md.

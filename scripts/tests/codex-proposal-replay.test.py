@@ -110,5 +110,40 @@ class ReplayTests(unittest.TestCase):
         def prepare(root): (root/'proposal.patch').write_bytes(b'x'*1_500_001)
         self.assertNotEqual(self.run_replay(prepare).returncode,0)
 
+    def feature_patch(self, path, existing=False):
+        target = self.root/path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if existing:
+            target.write_text('-- existing migration\n')
+            cmd(self.root, 'git', 'add', path)
+            cmd(self.root, 'git', 'commit', '-qm', 'existing migration')
+            self.sha = cmd(self.root, 'git', 'rev-parse', 'HEAD').stdout.decode().strip()
+        content = b'CREATE TABLE city_test (id integer);\n'
+        target.write_bytes(content)
+        cmd(self.root, 'git', 'add', '-N', path)
+        self.patch = cmd(self.root, 'git', 'diff', '--binary').stdout
+        cmd(self.root, 'git', 'reset', '--hard', 'HEAD')
+        if not existing and target.exists():
+            target.unlink()
+        self.scope.update(profile='city-feature-v1', sourceSha=self.sha, approvedPaths=[path])
+        self.manifest.update(source_sha=self.sha, patch_sha256=hashlib.sha256(self.patch).hexdigest(),
+                             patch_bytes=len(self.patch), paths=[{'path':path,'sha256':hashlib.sha256(content).hexdigest(),'bytes':len(content)}])
+    def test_feature_new_migration_source_accepted(self):
+        self.feature_patch('database/prisma/migrations/20261119_city/migration.sql')
+        r=self.run_replay();self.assertEqual(r.returncode,0,r.stderr.decode())
+    def test_feature_existing_migration_edit_rejected(self):
+        self.feature_patch('database/prisma/migrations/20261119_city/migration.sql', existing=True)
+        r=self.run_replay();self.assertNotEqual(r.returncode,0);self.assertIn(b'existing-migration-change',r.stderr)
+    def test_feature_cannot_modify_controller(self):
+        self.feature_patch('scripts/controller.ts')
+        self.assertNotEqual(self.run_replay().returncode,0)
+    def test_unknown_profile_rejected(self):
+        self.scope['profile']='unknown'
+        self.assertNotEqual(self.run_replay().returncode,0)
+    def test_legacy_scope_cannot_use_feature_paths(self):
+        self.feature_patch('database/prisma/schema.prisma')
+        del self.scope['profile']
+        self.assertNotEqual(self.run_replay().returncode,0)
+
 if __name__=='__main__':unittest.main()
 

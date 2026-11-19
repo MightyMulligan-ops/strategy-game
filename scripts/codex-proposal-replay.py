@@ -35,7 +35,13 @@ def git(*args, env=None, data=None):
     return p.stdout
 
 
-def safe_path(path):
+def safe_path(path, profile=None):
+    if profile == 'city-feature-v1':
+        return (isinstance(path, str) and len(path) < 200 and '\\' not in path and '//' not in path
+                and not any(p.startswith('.') or p.lower() in ('node_modules', 'secrets', 'agents.md', 'package.json') or p == '..' for p in path.split('/'))
+                and bool(re.fullmatch(r'(?:apps|packages)/[A-Za-z0-9_./-]+\.(?:ts|tsx|css|json)|database/(?:src|tests)/[A-Za-z0-9_./-]+\.ts|database/prisma/schema\.prisma|database/prisma/migrations/[A-Za-z0-9_-]+/migration\.sql|docs/[A-Za-z0-9_-]+\.md', path)))
+    if profile is not None:
+        return False
     return (isinstance(path, str) and len(path) < 200 and bool(SAFE_PATH.fullmatch(path))
             and '//' not in path
             and not any(part.startswith('.') or part.lower() in ('node_modules', 'prisma', 'migrations', 'secrets')
@@ -72,13 +78,15 @@ def parse_json(path, limit):
 def verify(scope_path, manifest_path, patch_path):
     scope = parse_json(scope_path, MAX_MANIFEST)
     manifest = parse_json(manifest_path, MAX_MANIFEST)
+    profile = scope.get('profile')
+    limit = 128 if profile == 'city-feature-v1' else MAX_FILES
     expected = scope.get('sourceSha')
     allowed = scope.get('approvedPaths')
     digest = scope.get('scopeDigest')
     if (not isinstance(expected, str) or not SHA.fullmatch(expected)
         or not isinstance(digest, str) or not DIGEST.fullmatch(digest)
-        or not isinstance(allowed, list) or not (1 <= len(allowed) <= MAX_FILES)
-        or any(not safe_path(p) for p in allowed) or len(allowed) != len(set(allowed))):
+        or not isinstance(allowed, list) or not (1 <= len(allowed) <= limit)
+        or any(not safe_path(p, profile) for p in allowed) or len(allowed) != len(set(allowed))):
         deny('scope')
     if git('rev-parse', 'HEAD').decode().strip() != expected:
         deny('source-head')
@@ -93,8 +101,8 @@ def verify(scope_path, manifest_path, patch_path):
         or manifest.get('patch_bytes') != len(patch)):
         deny('manifest-identity')
     files = manifest.get('paths')
-    if (not isinstance(files, list) or not (1 <= len(files) <= MAX_FILES)
-        or any(not isinstance(f, dict) or not safe_path(f.get('path'))
+    if (not isinstance(files, list) or not (1 <= len(files) <= limit)
+        or any(not isinstance(f, dict) or not safe_path(f.get('path'), profile)
                or type(f.get('bytes')) is not int or not (0 <= f['bytes'] <= MAX_PATCH)
                or not isinstance(f.get('sha256'), str) or not DIGEST.fullmatch(f['sha256']) for f in files)
         or len(files) != len({f['path'] for f in files})):
@@ -117,10 +125,12 @@ def verify(scope_path, manifest_path, patch_path):
                 name = changed[i+1].decode('utf-8')
             except UnicodeError:
                 deny('path-encoding')
-            if name not in allowed or not safe_path(name):
+            if name not in allowed or not safe_path(name, profile):
                 deny('unapproved-path')
+            if name.startswith('database/prisma/migrations/') and changed[i] != b'A':
+                deny('existing-migration-change')
             names.append(name)
-        if not names or len(names) != len(set(names)) or len(names) > MAX_FILES:
+        if not names or len(names) != len(set(names)) or len(names) > limit:
             deny('path-count')
         if set(names) != {f['path'] for f in files}:
             deny('manifest-inventory')

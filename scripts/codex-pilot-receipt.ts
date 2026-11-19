@@ -1,7 +1,7 @@
 /** Trusted validator/publisher contract. A replay receipt is NOT test evidence.
  * Authenticity comes from the digest passed through Actions needs/outputs,
  * never from a digest, status or receipt supplied by generated code. */
-import {canonicalScope,sha256,REPOSITORY,validPath,SHA,DIGEST,validateProposal,type TaskScope} from './codex-automation-policy.ts';
+import {canonicalScope,sha256,REPOSITORY,validScopePath,SHA,DIGEST,validateProposal,type TaskScope} from './codex-automation-policy.ts';
 import {requireControl} from './codex-run-control.ts';
 
 export const VALIDATION_POLICY='isolated-checks-v1';
@@ -34,7 +34,7 @@ export function verifyReplayReceipt(value:unknown,scope:TaskScope,patch:Uint8Arr
   requireControl(typeof r.source_sha==='string'&&SHA.test(r.source_sha)&&typeof r.tree_sha==='string'&&SHA.test(r.tree_sha)&&
     r.source_sha===scope.sourceSha&&r.scope_digest===sha256(canonicalScope(scope))&&r.patch_sha256===sha256(patch)&&
     r.result==='RECONSTRUCTED_NO_EXECUTION'&&Array.isArray(r.paths)&&r.paths.length>=1&&r.paths.length<=25&&
-    r.paths.every(p=>typeof p==='string'&&validPath(p)&&scope.approvedPaths.includes(p))&&
+    r.paths.every(p=>typeof p==='string'&&validScopePath(p,scope.profile)&&scope.approvedPaths.includes(p))&&
     new Set(r.paths).size===r.paths.length,'validation-replay-receipt');
   return r as ReplayReceipt;
 }

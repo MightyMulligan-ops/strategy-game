@@ -2,7 +2,7 @@
  * uses Git object APIs only. It never checks out, imports, installs or runs code.
  */
 import { createPublicKey, verify } from 'node:crypto';
-import { canonicalScope, sha256, validPath, SHA, MAX_PATCH_BYTES, MAX_SOURCE_FILES, type TaskScope } from './codex-automation-policy.ts';
+import { canonicalScope, sha256, validScopePath, scopeFileLimit, SHA, MAX_PATCH_BYTES, type TaskScope } from './codex-automation-policy.ts';
 import { ControlDenied, requireControl, type AdmissionCollector, type RunController } from './codex-run-control.ts';
 import type { GitHubTransport } from './codex-github-control.ts';
 
@@ -27,11 +27,11 @@ export function verifyReceipt(text: string,signature: string,publicKeyPem: strin
   requireControl(Number.isFinite(now.getTime()) && Number.isFinite(tested) && tested <= now.getTime() &&
     Number.isFinite(expires) && now.getTime() < expires && expires - tested <= 3_600_000 &&
     now.getTime() < Date.parse(scope.expiresAt),'receipt-time');
-  requireControl(Array.isArray(receipt.files) && receipt.files.length > 0 && receipt.files.length <= MAX_SOURCE_FILES &&
+  requireControl(Array.isArray(receipt.files) && receipt.files.length > 0 && receipt.files.length <= scopeFileLimit(scope) &&
     files.length === receipt.files.length,'receipt-files');
   const seen = new Set<string>(); let total = 0;
   for (const f of receipt.files) {
-    requireControl(f && typeof f.path === 'string' && validPath(f.path) && scope.approvedPaths.includes(f.path) &&
+    requireControl(f && typeof f.path === 'string' && validScopePath(f.path,scope.profile) && scope.approvedPaths.includes(f.path) &&
       !seen.has(f.path) && /^[a-f0-9]{64}$/.test(f.sha256) && Number.isSafeInteger(f.bytes) && f.bytes >= 0,'receipt-path');
     seen.add(f.path); const matches = files.filter(file => file.path === f.path); const matched = matches[0];
     requireControl(matches.length === 1 && matched && matched.content.byteLength === f.bytes && sha256(matched.content) === f.sha256,'receipt-file-digest');
