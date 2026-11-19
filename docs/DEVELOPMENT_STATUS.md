@@ -1452,3 +1452,20 @@ source preparation uses exact existing blobs and awaits exact-head CI. No paid
 session or OpenAI API call, existing database operation or deployment occurred.
 Earlier command-interface5/5 and runner1/5 histories remain unchanged. This new
 source-integration preparation starts at0/5 corrections.
+
+## Owner-local launcher reconciliation for Issue110
+
+PR109 and source-preparation PR111 are merged. Preserve PR96's useful local
+signing/start mechanism through a new helper adapted to manual-cost-v1; do not
+merge its conflicting v2 protocol. Fresh issue/source/profile checks and an
+existing enrolled owner key replace reliance on the expired Issue95 manifest.
+Prepare is read-only remotely; start marks its attempt before activation/config/
+dispatch mutations. Lost responses and active/uncertain ledger states deny retry.
+No provider key is accepted by the helper. No new credentials/permissions/billing
+settings, existing database operations or paid calls are performed by preparation.
+Windows execution is unavailable; source is authored remotely and must pass
+exact-head CI before merge. Synthetic tests are not live signing/billing evidence.
+This newly owner-approved launcher adaptation starts at0/5 corrections; prior
+histories remain preserved. See MANUAL_PAID_LAUNCH.md for exact owner-local steps.
+
+Launcher preparation also includes a read-only freeze command and the exact128-path Issue110 scope. It derives the issue digest/current main locally, avoids manual hash entry, and writes no signature or remote state. New freeze tests cover unsupported issue/controller paths and no-overwrite behavior. This is an implementation extension, not a correction or paid retry; final-head CI remains required.
