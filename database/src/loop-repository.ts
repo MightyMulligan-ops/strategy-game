@@ -1,6 +1,6 @@
 import {RepeatingCommandSchema as LoopCommandSchema,UsernameSchema,LoopTurnNumberSchema} from '@strategy-game/shared-types';
 import type {LoopState} from '@strategy-game/shared-types/server';
-import {applyLoop,freezeLoop,resolveLoop,openLoopNext,LoopFailure} from '@strategy-game/game-engine/server';
+import {applyLoop,freezeLoop,resolveLoop,openLoopNext,LoopFailure,initialCityDraft} from '@strategy-game/game-engine/server';
 import {observeDeadline} from '@strategy-game/game-engine';
 import type {TurnState} from '@strategy-game/game-engine';
 import {Prisma} from './generated/prisma/client.js';
@@ -18,12 +18,12 @@ export async function loopMember(tx:Tx,id:string,identity:string){
 async function bounded(tx:Tx,id:string,timeout:number){
  await tx.$queryRaw(Prisma.sql`SELECT set_config('lock_timeout',${String(timeout)},true)`);await tx.$queryRaw(Prisma.sql`SELECT set_config('statement_timeout',${String(timeout)},true)`);
  await tx.$queryRaw`SELECT "id" FROM "Match" WHERE "id"=${id} FOR UPDATE`;
- return ['combat-loop-v1','europe-playtest-v1'].includes((await tx.matchConfiguration.findUnique({where:{matchId:id}}))?.simulationVersion??'');
+ return ['combat-loop-v1','europe-playtest-v1','iberian-cities-v1'].includes((await tx.matchConfiguration.findUnique({where:{matchId:id}}))?.simulationVersion??'');
 }
 export async function insertLoopTurn(tx:Tx,state:TurnState,snapshot:LoopState){
  const matchId=state.config.gameId,turnNumber=BigInt(state.turn.turnNumber);
  await tx.turn.create({data:{matchId,number:turnNumber,startingStateVersion:BigInt(snapshot.stateVersion),...turnFields(state)}});
- for(const p of state.players){const scope={matchId,turnNumber,playerId:p.playerId};await tx.playerTurnState.create({data:{...scope,active:true,revision:0n,ready:false}});await tx.playerSubmissionRevision.create({data:{...scope,revision:0n,kind:'INITIAL',ready:false,orders:[]}})}
+ for(const p of state.players){const scope={matchId,turnNumber,playerId:p.playerId};await tx.playerTurnState.create({data:{...scope,active:true,revision:0n,ready:false}});await tx.playerSubmissionRevision.create({data:{...scope,revision:0n,kind:'INITIAL',ready:false,orders:[],...(snapshot.kind==='city_loop_state'?{cityDraft:json(initialCityDraft(snapshot,p.playerId))}:{})}})}
 }
 async function lifecycle(tx:Tx,a:LoopAggregate,state:TurnState){
  await tx.turn.update({where:{matchId_number:{matchId:a.row.matchId,number:a.row.number}},data:turnFields(state)});
@@ -40,9 +40,9 @@ export class LoopRepository{
    await loopMember(tx,id,identity);if(!await bounded(tx,id,10000))throw new MovementDraftError('UNSUPPORTED_RUNTIME');const actor=await loopMember(tx,id,identity),a=await readLoop(tx,id);
    if(a.state.turn.turnNumber!==n)throw new MovementDraftError('WRONG_TURN');const c=parsed.data,out=applyLoop(a.state,a.snapshot,a.archive,actor,c,this.clock());
    if(out.draft){const next=out.draft,scope={matchId:id,turnNumber:BigInt(n),playerId:actor};
-    await tx.playerSubmissionRevision.create({data:{...scope,revision:BigInt(next.revision),kind:c.kind==='set_ready'?'SET_READY':c.kind==='replace_orders'?'REPLACE_ORDERS':'CANCEL_ORDER',ready:next.ready,orders:json(next.orders),command:json(c)}});
+    await tx.playerSubmissionRevision.create({data:{...scope,revision:BigInt(next.revision),kind:c.kind==='set_ready'?'SET_READY':c.kind==='replace_orders'?'REPLACE_ORDERS':c.kind==='city_edit'?'CITY_EDIT':'CANCEL_ORDER',ready:next.ready,orders:json(next.orders),command:json(c),...(next.city?{cityDraft:json(next.city)}:{})}});
     const updated=await tx.playerTurnState.updateMany({where:{...scope,revision:BigInt(c.expectedRevision)},data:{revision:BigInt(next.revision),ready:next.ready}});if(updated.count!==1)throw new MovementDraftError('STALE_REVISION');
-    if(c.kind!=='set_ready'){await tx.playerOrder.updateMany({where:{...scope,active:true},data:{active:false,draftPosition:null,moveNumber:null,lastRevision:BigInt(next.revision)}});
+    if(c.kind!=='set_ready'&&c.kind!=='city_edit'){await tx.playerOrder.updateMany({where:{...scope,active:true},data:{active:false,draftPosition:null,moveNumber:null,lastRevision:BigInt(next.revision)}});
      for(const o of orderRows(id,n,next))await tx.playerOrder.upsert({where:{matchId_turnNumber_playerId_orderId:{...scope,orderId:o.orderId}},create:o,update:{payload:o.payload,kind:o.kind,active:true,draftPosition:o.draftPosition,moveNumber:o.moveNumber,lastRevision:o.lastRevision}})}
    }
    await lifecycle(tx,a,out.state);return {error:out.error,view:loopCurrent({...a,state:out.state},actor)};
@@ -62,7 +62,7 @@ export class LoopRepository{
   // Sample only after complete pure resolution, while the same parent lock is held.
   const next=openLoopNext(a.state,this.clock()),scope={matchId:id,turnNumber:a.row.number};
   await tx.gameSnapshotRecord.create({data:{matchId:id,stateVersion:a.row.number,completedTurnNumber:a.row.number,snapshotId:result.nextState.snapshotId,payload:json(result.nextState)}});
-  await tx.resolutionResult.create({data:{...scope,nextStateVersion:a.row.number,resolutionId:result.resolutionId,payload:json({schemaVersion:result.runtimeProfile.simulationVersion==='europe-playtest-v1'?2:1,kind:result.runtimeProfile.simulationVersion==='europe-playtest-v1'?'europe_loop_commit':'loop_commit',result,nextOpenedAtMs:next.turn.openedAtMs})}});
+  await tx.resolutionResult.create({data:{...scope,nextStateVersion:a.row.number,resolutionId:result.resolutionId,payload:json({schemaVersion:result.kind==='city_loop_result'?3:result.kind==='europe_loop_result'?2:1,kind:result.kind==='city_loop_result'?'city_loop_commit':result.kind==='europe_loop_result'?'europe_loop_commit':'loop_commit',result,nextOpenedAtMs:next.turn.openedAtMs})}});
   await tx.turn.update({where:{matchId_number:{matchId:id,number:a.row.number}},data:{status:'RESOLVED'}});
   await insertLoopTurn(tx,next,result.nextState);
   await tx.match.update({where:{id},data:{currentStateVersion:a.row.number}});return true;
@@ -70,6 +70,6 @@ export class LoopRepository{
  async process(id:string,timeout:number){const closed=await this.closeDue(id,timeout);return await this.resolveClosed(id,timeout)||closed}
  async dueMatches(limit:number){if(!Number.isSafeInteger(limit)||limit<1||limit>100)throw Error('Invalid loop batch');const now=this.clock();if(!Number.isSafeInteger(now)||now<0)throw Error('Invalid loop clock');
   return this.client.$transaction(async tx=>{await tx.$executeRaw`SET TRANSACTION READ ONLY`;await tx.$executeRaw`SET LOCAL statement_timeout=5000`;
-   return(await tx.turn.findMany({where:{match:{status:'RUNNING',configuration:{simulationVersion:{in:['combat-loop-v1','europe-playtest-v1']}}},OR:[{status:'CLOSED'},{status:'OPEN',deadlineAtMs:{lte:BigInt(now)}}]},orderBy:[{deadlineAtMs:'asc'},{matchId:'asc'}],take:limit,select:{matchId:true}})).map(r=>r.matchId);
+   return(await tx.turn.findMany({where:{match:{status:'RUNNING',configuration:{simulationVersion:{in:['combat-loop-v1','europe-playtest-v1','iberian-cities-v1']}}},OR:[{status:'CLOSED'},{status:'OPEN',deadlineAtMs:{lte:BigInt(now)}}]},orderBy:[{deadlineAtMs:'asc'},{matchId:'asc'}],take:limit,select:{matchId:true}})).map(r=>r.matchId);
   },{timeout:6000})}
 }

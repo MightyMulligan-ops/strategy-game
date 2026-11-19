@@ -22,7 +22,7 @@ export function initialTurnFixture(count = 2) {
       world: { matchId: id, schemaVersion: 1, generatorVersion: archive.generatorVersion, seed: 123n, payload: json(generated.world) },
       participants: players.map((p) => ({ matchId: id, playerId: p.playerId, identityId: `account-${p.playerId}`, active: true, lobbyReady: true })) },
     players: players.map((p) => ({ matchId: id, turnNumber: 1n, playerId: p.playerId, active: true, revision: 0n, ready: false, orders: [],
-      revisions: [{ matchId: id, turnNumber: 1n, playerId: p.playerId, revision: 0n, kind: "INITIAL", ready: false, orders: [], command: null, recordedAt: new Date(0) }] }))
+      revisions: [{ matchId: id, turnNumber: 1n, playerId: p.playerId, revision: 0n, kind: "INITIAL", ready: false, orders: [], command: null, cityDraft: null, recordedAt: new Date(0) }] }))
   };
   return { row, plan, archive, config, players };
 }

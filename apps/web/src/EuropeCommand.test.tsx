@@ -27,3 +27,26 @@ it('locks dragging while Ready and preserves exact intended-turn Ready controls'
 it('shows historical inspection in a contextual report panel',async()=>{
  await mount();await click('Reports');expect(host.querySelector('[aria-label="Battle reports"]')!.textContent).toContain('Saved own aftermath');await click('Read own aftermath');expect(inspect).toHaveBeenCalledExactlyOnceWith(1);expect(mutate).not.toHaveBeenCalled()
 })
+
+it('sends a dispatch from the city panel and discards a stale selection after a revision refresh',async()=>{
+ const {CITY_BALANCE_V1,CITY_PROFILE,CityCurrentSchema}=await import('@strategy-game/shared-types')
+ const c=CityCurrentSchema.parse({...view,schemaVersion:3,profile:CITY_PROFILE,balance:{...CITY_BALANCE_V1,startingCredits:2000},
+  ownedLocationIds:['madrid'],cityPlan:{credits:2000,recruitment:[],dispatches:[],commanders:[]},
+  cities:[
+   {cityId:'madrid',name:'Madrid',capital:true,owned:true,neutral:false,garrisonId:id,commanderId:view.formations[0]!.units[0]!.unitId,position:{x:368,y:463}},
+   {cityId:'andorra-la-vella',name:'Andorra la Vella',capital:true,owned:false,neutral:false,garrisonId:null,commanderId:null,position:{x:946,y:152}},
+   {cityId:'bilbao',name:'Bilbao',capital:false,owned:false,neutral:true,garrisonId:null,commanderId:null,position:{x:452,y:38}}
+  ]})
+ const render=(revision:number)=>act(async()=>root.render(<EuropeCommand view={{...c,own:{...c.own,revision}}}
+  busy={false} mutate={mutate} inspect={inspect} map={map}/>))
+ await render(3);await click('Select army')
+ expect(host.textContent).toContain('Madrid · Capital');expect(host.textContent).toContain('Your treasury')
+ await act(()=>host.querySelector<HTMLInputElement>('input[type=checkbox]')!.click())
+ await click('Set destination for selected units')
+ await render(4);await click('Drop army');expect(mutate).not.toHaveBeenCalled()
+ await click('Set destination for selected units');await click('Drop army')
+ expect(mutate).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+  schemaVersion:3,profile:CITY_PROFILE,turnNumber:2,expectedRevision:4,kind:'city_edit',
+  edit:{kind:'dispatch',dispatch:{dispatchId:expect.any(String),cityId:'madrid',unitIds:[c.formations[0]!.units[0]!.unitId],destination:{x:480,y:240}}}
+ }))
+})

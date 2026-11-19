@@ -41,7 +41,8 @@ export default function LobbyBrowser({ busy, onBegin, onEnd, onSessionError }: {
   const [actionError, setActionError] = useState('')
   const [sessionInvalid, setSessionInvalid] = useState(false)
   const [name, setName] = useState('')
-  const [capacity, setCapacity] = useState('10')
+  const [capacity, setCapacity] = useState('2')
+  const [startingCredits, setStartingCredits] = useState('')
   const [turnDuration, setTurnDuration] = useState(String(LOBBY_TURN_DURATION_PRESETS_MS[0]))
   const listRead = useRef<AbortController | null>(null)
   const detailRead = useRef<AbortController | null>(null)
@@ -146,8 +147,8 @@ export default function LobbyBrowser({ busy, onBegin, onEnd, onSessionError }: {
   function create(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault()
     const parsed = CreateLobbyRequestSchema.safeParse({ schemaVersion: 1,
-      settings: { name, playerCapacity: Number(capacity), turnDurationMs: Number(turnDuration), visibility: 'PUBLIC' } })
-    if (!parsed.success) { setActionError('Enter a name without surrounding spaces, 2–40 players, and a valid turn duration.'); return }
+      settings: { name, playerCapacity: Number(capacity), turnDurationMs: Number(turnDuration), visibility: 'PUBLIC', ...(startingCredits.trim()?{startingCredits:Number(startingCredits)}:{}) } })
+    if (!parsed.success || parsed.data.settings.playerCapacity!==2) { setActionError('Enter a name without surrounding spaces, two players, and valid turn duration and starting credits.'); return }
     void act('create', parsed.data)
   }
 
@@ -183,7 +184,7 @@ export default function LobbyBrowser({ busy, onBegin, onEnd, onSessionError }: {
         {detailLoading ? <p role="status">Loading lobby details…</p> : detailError ? <p role="alert" className="notice">{detailError}</p> : !detail ? <p className="muted">Inspect a lobby to see its settings and participants.</p> : <>
           <span className="badge">{detail.status}</span><h3 className="detail-name">{detail.settings.name}</h3>
           <dl className="lobby-facts"><div><dt>Host</dt><dd>{detail.host.username}</dd></div><div><dt>Players</dt><dd>{detail.participantCount} / {detail.settings.playerCapacity}</dd></div>
-            <div><dt>Turn duration</dt><dd>{duration(detail.settings.turnDurationMs)}</dd></div><div><dt>Category</dt><dd>{detail.durationCategory}</dd></div>
+            <div><dt>Turn duration</dt><dd>{duration(detail.settings.turnDurationMs)}</dd></div><div><dt>Category</dt><dd>{detail.durationCategory}</dd></div>{detail.settings.startingCredits!==undefined&&<div><dt>Starting credits</dt><dd>{detail.settings.startingCredits.toLocaleString()}</dd></div>}
             <div><dt>Your role</dt><dd>{detail.viewer.role.replaceAll('_', ' ')}</dd></div><div><dt>Visibility</dt><dd>Public</dd></div></dl>
           <p>{detail.readyCount} / {detail.participantCount} ready</p>
           <h4>Participants</h4><ul className="roster">{detail.participants.map((player) => <li key={player.playerId}>{player.username}{player.playerId === detail.host.playerId && <span className="muted"> · Host</span>} <span className="badge">{player.ready ? 'READY' : 'NOT READY'}</span></li>)}</ul>
@@ -202,9 +203,12 @@ export default function LobbyBrowser({ busy, onBegin, onEnd, onSessionError }: {
       <section className="panel create-lobby" aria-labelledby="create-title"><p className="eyebrow">Set your terms</p><h2 id="create-title">Create a public lobby</h2>
         <form onSubmit={create}><fieldset disabled={disabled}><legend className="sr-only">Lobby settings</legend>
           <label htmlFor="lobby-name">Lobby name</label><input id="lobby-name" required value={name} onChange={(event) => setName(event.target.value)} placeholder="Name your assembly" />
-          <label htmlFor="capacity">Player capacity</label><input id="capacity" type="number" required min="2" max="40" step="1" value={capacity} onChange={(event) => setCapacity(event.target.value)} aria-describedby="capacity-help" />
-          <p id="capacity-help" className="small muted">2–40 players, including you as host.</p>
+          <label htmlFor="capacity">Player capacity</label><input id="capacity" type="number" required min="2" max="2" step="1" value={capacity} onChange={(event) => setCapacity(event.target.value)} aria-describedby="capacity-help" />
+          <p id="capacity-help" className="small muted">The city scenario uses two seats, including yours.</p>
           <label htmlFor="turn-duration">Turn duration</label><select id="turn-duration" value={turnDuration} onChange={(event) => setTurnDuration(event.target.value)}>{LOBBY_TURN_DURATION_PRESETS_MS.map((ms) => <option key={ms} value={ms}>{duration(ms)}</option>)}</select>
+          <label htmlFor="starting-credits">Starting credits per player</label>
+          <input id="starting-credits" type="number" min="0" max="1000000000" step="1" value={startingCredits}
+            onChange={event=>setStartingCredits(event.target.value)} placeholder="2000" />
           <p className="small muted">Public visibility. All settings are fixed after creation.</p>
           <button className="primary" type="submit">{busy ? 'Please wait…' : 'Create lobby'}</button>
         </fieldset></form></section>

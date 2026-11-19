@@ -13,7 +13,7 @@ export type FormationInspection = {
 /** Mounted only alongside a matching READY world. Unmount clears all private data. */
 export default function Formations({ matchId, world, onSessionError, map, selectedFormationId, onSelectionChange, renderLoop, onLoopReady }: {
   onLoopReady?:()=>void
-  renderLoop?:(europe?:boolean)=>ReactNode
+  renderLoop?:(schemaVersion:1|2|3)=>ReactNode
   matchId: string; world: PublicWorld; onSessionError: () => Promise<void>; selectedFormationId: string | null; onSelectionChange: Dispatch<SetStateAction<string | null>>
   map: (formation: OwnFormation | null, inspection: FormationInspection, policy?:{radius:10;pending:boolean;combat?:boolean}) => ReactNode
 }) {
@@ -59,7 +59,7 @@ export default function Formations({ matchId, world, onSessionError, map, select
     const online=()=>void refresh();window.addEventListener('online',online)
     return () => { cancelled = true; read.current?.abort();window.removeEventListener('online',online) }
   }, [refresh])
-  useEffect(()=>{if((result?.schemaVersion===4||result?.schemaVersion===5))onLoopReady?.()},[result?.schemaVersion,onLoopReady])
+  useEffect(()=>{if((result?.schemaVersion===4||result?.schemaVersion===5||result?.schemaVersion===6))onLoopReady?.()},[result?.schemaVersion,onLoopReady])
   const own = result?.state === 'READY' ? (result.formations[0]??null) : null
   const expanded = !!own && selectedFormationId === own.formationId
   const infantryCount = own?.units.filter((unit) => unit.kind === 'INFANTRY').length ?? 0
@@ -69,7 +69,7 @@ export default function Formations({ matchId, world, onSessionError, map, select
     requestFocus((value) => value + 1)
   }
   const mapFormation = useMemo(() => own ? {...own,units:[...own.units]} : null, [own])
-  if((result?.schemaVersion===4||result?.schemaVersion===5))return <>{renderLoop?.(result.schemaVersion===5)}</>
+  if((result?.schemaVersion===4||result?.schemaVersion===5||result?.schemaVersion===6))return <>{renderLoop?.(result.schemaVersion===6?3:result.schemaVersion===5?2:1)}</>
   return <>{map(mapFormation, { markerId, detailsId, expanded, inspect },result?.schemaVersion!==1&&result?.state==='READY'?{radius:10,pending:result.pendingEncounter,combat:result.schemaVersion===3}:undefined)}<section ref={panel} tabIndex={-1} className="panel formation-panel" aria-labelledby={title} aria-busy={loading}
     onKeyDown={(event) => { if (event.key === 'Escape' && expanded) { event.preventDefault(); event.stopPropagation(); closeDetails() } }}>
     <div className="section-heading"><h2 id={title}>Your formations</h2><button type="button" disabled={loading} onClick={() => void refresh()}>Refresh formations</button></div>

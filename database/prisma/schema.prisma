@@ -36,6 +36,7 @@ enum RevisionKind {
   REPLACE_ORDERS
   CANCEL_ORDER
   SET_READY
+  CITY_EDIT
 }
 
 model PlayerIdentity {
@@ -202,6 +203,7 @@ model PlayerSubmissionRevision {
   ready      Boolean
   orders     Json
   command    Json?
+  cityDraft  Json?
   recordedAt DateTime        @default(now()) @db.Timestamptz(3)
   player     PlayerTurnState @relation(fields: [matchId, turnNumber, playerId], references: [matchId, turnNumber, playerId], onDelete: Cascade)
 

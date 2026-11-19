@@ -192,8 +192,8 @@ export type { ReadMovementQueue } from "./movement-drafts.js";
 
 export { ResolutionMovementReadySchema, ReadMovementPlanSchema } from "./movement-drafts.js";
 export type { ReadMovementPlan } from "./movement-drafts.js";
-export {ReadFormationViewSchema,ResolvedOwnFormationSchema,ResolutionViewSchema} from "./movement-resolution-view.js";
-export type {ReadFormationView,ResolutionView} from "./movement-resolution-view.js";
+export {ResolvedOwnFormationSchema,ResolutionViewSchema} from "./movement-resolution-view.js";
+export type {ResolutionView} from "./movement-resolution-view.js";
 
 export {CombatAftermathSchema,CombatAftermathViewSchema,CombatOwnFormationSchema,CombatFormationViewSchema} from "./combat-turn-view.js";
 export type {CombatAftermath} from "./combat-turn-view.js";
@@ -203,3 +203,11 @@ export {EuropeCommandSchema,EuropeCurrentSchema,EuropeHistorySchema,EuropeFormat
 export type {RepeatingCommand,RepeatingCurrent} from './loop.js';
 export {EUROPE_SCENARIO_VIEW,europeGameToDisplay,europeDisplayToGame} from './europe-map.js';
 export {europeLonLatToMask,europeLonLatToDisplay,europeDisplayToMask,europeMaskToDisplay,europeDisplayToLonLat} from './europe-map.js';
+
+export * from "./city-economy.js";
+
+import { ReadFormationViewSchema as HistoricalFormationViewSchema } from "./movement-resolution-view.js";
+import { CityFormationGateSchema } from './loop.js';
+export const ReadFormationViewSchema = z.union([HistoricalFormationViewSchema, CityFormationGateSchema]);
+export type ReadFormationView = z.infer<typeof ReadFormationViewSchema>;
+export { CITY_PROFILE, CityAftermathSchema, CityCurrentSchema } from './loop.js';

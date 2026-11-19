@@ -1,8 +1,14 @@
+import { milli } from "./combat-chronology.js";
+import { validateCitySites, scenarioCity } from "./city-scenario.js";
+import { CityLoopFrozenSchema, CityLoopResultSchema, CityLoopStateSchema, CityRuntimeSchema, CITY_RUNTIME } from "@strategy-game/shared-types/server";
+import type { CityDraft, CityLoopState, CityRuntime } from "@strategy-game/shared-types/server";
+import { initialCityEconomy, applyCityEdit, initialCityDraft, settleCityEconomy } from "./city-economy.js";
+import { cityCommander, formGarrison } from "./city-garrison.js";
 import {RepeatingCommandSchema as LoopCommandSchema,MovementDraftOrdersSchema,TurnRecordSchema} from '@strategy-game/shared-types';
 import type {RepeatingCommand as LoopCommand,MovementDraftOrder} from '@strategy-game/shared-types';
 import {RepeatingStateSchema as LoopStateSchema,RepeatingFrozenSchema as LoopFrozenSchema,RepeatingResultSchema as LoopResultSchema,RepeatingRuntimeSchema as LoopRuntimeSchema,LOOP_RUNTIME,EUROPE_RUNTIME,FIRST_COMBAT_SETUP,COMBAT_TURN_RUNTIME_PROFILE} from '@strategy-game/shared-types/server';
 import type {LoopState,LoopFrozen,InitialWorldArchive,CombatInitialSnapshot,CombatFrozenInput,LoopResult} from '@strategy-game/shared-types/server';
-import {planCombatTurn,executeCombatForces} from './combat-turn.js';
+import {planCombatTurn,executeCombatForces,executeCityForces} from './combat-turn.js';
 import type {MultiForceBudget} from './multi-force-combat.js';
 import {validateEuropeScenario,europeLandPoint,europeLandSegment} from './europe-playtest.js';
 import {auditHash,canonicalJson} from './determinism.js';
@@ -10,10 +16,13 @@ import {observeDeadline,createTurn,openNextTurn} from './turn.js';
 import type {PlayerTurnDraft,TurnState} from './turn.js';
 export class LoopFailure extends Error{constructor(readonly code:string){super(code)}}
 export const loopSame=(a:unknown,b:unknown)=>canonicalJson(a)===canonicalJson(b);
-const runtimeFor=(s:LoopState)=>s.simulationVersion==='europe-playtest-v1'?EUROPE_RUNTIME:LOOP_RUNTIME;
+export type RepeatingDraft = PlayerTurnDraft & {city?: CityDraft};
+const geographic=(s:LoopState)=>s.simulationVersion!=="combat-loop-v1";
+const runtimeFor=(s:LoopState)=>s.kind==="city_loop_state"?CityRuntimeSchema.parse({...CITY_RUNTIME,balance:s.economy.balance}):s.simulationVersion==='europe-playtest-v1'?EUROPE_RUNTIME:LOOP_RUNTIME;
 function seal(value:Omit<LoopState,'snapshotId'>):LoopState{const {snapshotId:previous,...meta}=value as LoopState;void previous;return LoopStateSchema.parse({...meta,snapshotId:`loop-state:${auditHash(meta)}`})}
-export function planLoop(config:unknown,players:unknown,archive:InitialWorldArchive,runtime:unknown=LOOP_RUNTIME,setup?:unknown){
- const profile=LoopRuntimeSchema.parse(runtime),europe=profile.simulationVersion==='europe-playtest-v1';if(europe)validateEuropeScenario(archive);
+export function planLoop(config:unknown,players:unknown,archive:InitialWorldArchive,runtime:unknown=LOOP_RUNTIME,setup?:unknown):{runtimeProfile:ReturnType<typeof LoopRuntimeSchema.parse>;snapshot:LoopState}{
+ const profile=LoopRuntimeSchema.parse(runtime);if(profile.simulationVersion==='iberian-cities-v1')return planCityLoop(config,players,archive,profile);
+ const europe=profile.simulationVersion==='europe-playtest-v1';if(europe)validateEuropeScenario(archive);
  const explicit={...FIRST_COMBAT_SETUP,relationshipPolicy:{mode:'explicit-v1' as const,relationships:archive.payload.players.flatMap(from=>archive.payload.players.filter(to=>to!==from).map(to=>({from,to,relation:'hostile' as const})))}};
  if(europe&&setup!==undefined&&!loopSame(setup,FIRST_COMBAT_SETUP)&&!loopSame(setup,explicit))throw new LoopFailure('INTERNAL_ERROR');
  const initial=planCombatTurn(config,players,archive,undefined,europe?explicit:setup).snapshot;
@@ -28,8 +37,17 @@ export function validateLoopState(input:unknown,archive:InitialWorldArchive):Loo
  const unitIds=new Set(s.units.map(u=>u.unitId)),formIds=new Set(s.formations.map(f=>f.formationId)),members=s.formations.flatMap(f=>f.unitIds);
  if(unitIds.size!==s.units.length||formIds.size!==s.formations.length||members.length!==unitIds.size||new Set(members).size!==members.length||
   s.units.some(u=>!s.players.some(p=>p.playerId===u.ownerPlayerId))||s.formations.some(f=>f.unitIds.some(id=>!s.units.some(u=>u.unitId===id&&u.ownerPlayerId===f.ownerPlayerId))||f.position.xMilli>archive.payload.bounds.width*1000||f.position.yMilli>archive.payload.bounds.height*1000)||
-  s.cityOwners.length!==archive.payload.startingState.cities.length||new Set(s.cityOwners.map(c=>c.cityId)).size!==s.cityOwners.length||s.cityOwners.some(c=>!archive.payload.startingState.cities.some(x=>x.cityId===c.cityId)||!s.players.some(p=>p.playerId===c.ownerPlayerId)))throw new LoopFailure('INTERNAL_ERROR');
- if(s.simulationVersion==='europe-playtest-v1'){validateEuropeScenario(archive);if(s.formations.some(f=>!europeLandPoint({x:f.position.xMilli/1000,y:f.position.yMilli/1000})))throw new LoopFailure('INTERNAL_ERROR')}
+  new Set(s.cityOwners.map(c=>c.cityId)).size!==s.cityOwners.length||
+  s.cityOwners.some(c=>c.ownerPlayerId!==null&&!s.players.some(p=>p.playerId===c.ownerPlayerId)))throw new LoopFailure('INTERNAL_ERROR');
+ if(s.kind==="city_loop_state"){
+  if(!loopSame(s.economy.treasury.map(p=>p.playerId),s.players.map(p=>p.playerId))||
+     s.formations.some(f=>f.garrisonCityId!==null&&(!s.cityOwners.some(c=>c.cityId===f.garrisonCityId&&c.ownerPlayerId===f.ownerPlayerId)||
+      !loopSame(f.position,milli(scenarioCity(f.garrisonCityId).position))))||
+     new Set(s.formations.filter(f=>f.garrisonCityId!==null).map(f=>f.garrisonCityId)).size!==s.formations.filter(f=>f.garrisonCityId!==null).length||
+     s.units.some(u=>!s.cityOwners.some(c=>c.cityId===u.originalSpawnNodeId)))throw new LoopFailure('INTERNAL_ERROR');
+  validateCitySites();
+ }else if(s.cityOwners.length!==archive.payload.startingState.cities.length||s.cityOwners.some(c=>!archive.payload.startingState.cities.some(x=>x.cityId===c.cityId)))throw new LoopFailure('INTERNAL_ERROR');
+ if(geographic(s)){validateEuropeScenario(archive);if(s.formations.some(f=>!europeLandPoint({x:f.position.xMilli/1000,y:f.position.yMilli/1000})))throw new LoopFailure('INTERNAL_ERROR')}
  return s;
 }
 /** Current state, never the immutable initial six-unit roster. No numeric source radius invented. */
@@ -38,18 +56,24 @@ export function previewLoop(snapshot:LoopState,archive:InitialWorldArchive,actor
  for(const order of orders){if(!snapshot.formations.some(f=>f.formationId===order.stackId&&f.ownerPlayerId===actor))throw new LoopFailure('INVALID_DRAFT');byForm.set(order.stackId,[...byForm.get(order.stackId)??[],order])}
  return snapshot.formations.filter(f=>f.ownerPlayerId===actor).map(f=>{let from={x:f.position.xMilli/1000,y:f.position.yMilli/1000},distance=0;
   const route=byForm.get(f.formationId)??[],units=snapshot.units.filter(u=>f.unitIds.includes(u.unitId));
-  if(route.length&&!units.some(u=>u.kind==='LEADER'))throw new LoopFailure('INVALID_DRAFT');
+  if(route.length&&(('garrisonCityId' in f && f.garrisonCityId!==null)||!units.some(u=>u.kind==='LEADER')))throw new LoopFailure('INVALID_DRAFT');
   const segments=route.map((o,i)=>{if(o.destination.x>archive.payload.bounds.width||o.destination.y>archive.payload.bounds.height)throw new LoopFailure('INVALID_DRAFT');
-   if(snapshot.simulationVersion==='europe-playtest-v1'&&!europeLandSegment(from,o.destination))throw new LoopFailure('INVALID_DRAFT');
+   if(geographic(snapshot)&&!europeLandSegment(from,o.destination))throw new LoopFailure('INVALID_DRAFT');
    const length=Math.sqrt((o.destination.x-from.x)**2+(o.destination.y-from.y)**2);distance+=length;const s={orderId:o.orderId,moveNumber:i+1,from,destination:o.destination,distance:length,cumulative:distance};from=o.destination;return s});
   if(distance>250)throw new LoopFailure('INVALID_DRAFT');return {formationId:f.formationId,range:250 as const,distance,remaining:250-distance,segments};
  });
 }
-export function reviseLoop(snapshot:LoopState,archive:InitialWorldArchive,draft:PlayerTurnDraft,input:unknown){
- const c=LoopCommandSchema.parse(input);if((snapshot.simulationVersion==='europe-playtest-v1')!==(c.schemaVersion===2))throw new LoopFailure('INVALID_DRAFT');if(c.turnNumber!==snapshot.completedTurnNumber+1)throw new LoopFailure('WRONG_TURN');
+export function reviseLoop(snapshot:LoopState,archive:InitialWorldArchive,draft:RepeatingDraft,input:unknown):RepeatingDraft{
+ const c=LoopCommandSchema.parse(input);if(c.schemaVersion!==(snapshot.kind==='city_loop_state'?3:geographic(snapshot)?2:1))throw new LoopFailure('INVALID_DRAFT');if(c.turnNumber!==snapshot.completedTurnNumber+1)throw new LoopFailure('WRONG_TURN');
  if(c.expectedRevision!==draft.revision)throw new LoopFailure('STALE_REVISION');if(draft.revision===Number.MAX_SAFE_INTEGER)throw new LoopFailure('REVISION_EXHAUSTED');
  if(c.kind==='set_ready'){if(c.ready===draft.ready)throw new LoopFailure('READY_UNCHANGED');return {...draft,revision:draft.revision+1,ready:c.ready}}
- if(draft.ready)throw new LoopFailure('READY_LOCKED');if(c.kind==='cancel_order'&&!draft.orders.some(o=>o.orderId===c.orderId))throw new LoopFailure('ORDER_NOT_FOUND');
+ if(draft.ready)throw new LoopFailure('READY_LOCKED');
+ if(c.kind==='city_edit'){
+  if(snapshot.kind!=='city_loop_state')throw new LoopFailure('INVALID_DRAFT');
+  try{return {...draft,revision:draft.revision+1,city:applyCityEdit(snapshot,draft.city??initialCityDraft(snapshot,draft.playerId),c.edit)}}
+  catch{throw new LoopFailure('INVALID_DRAFT')}
+ }
+ if(c.kind==='cancel_order'&&!draft.orders.some(o=>o.orderId===c.orderId))throw new LoopFailure('ORDER_NOT_FOUND');
  const orders=c.kind==='replace_orders'?c.orders:draft.orders.filter(o=>o.orderId!==c.orderId);previewLoop(snapshot,archive,draft.playerId,orders);return {...draft,revision:draft.revision+1,orders};
 }
 export function applyLoop(state:TurnState,snapshot:LoopState,archive:InitialWorldArchive,actor:string,c:LoopCommand,now:number){
@@ -65,6 +89,14 @@ export function freezeLoop(state:TurnState,snapshot:LoopState,archive:InitialWor
  if(state.turn.status!=='closed'||state.turn.turnNumber!==snapshot.stateVersion+1||!loopSame(state.config,snapshot.config)||!loopSame(state.players,snapshot.players))throw new LoopFailure('INTERNAL_ERROR');
  for(const d of state.drafts)previewLoop(snapshot,archive,d.playerId,d.orders);
  const turn=state.turn.turnNumber;
+ if(snapshot.kind==='city_loop_state'){
+  return CityLoopFrozenSchema.parse({schemaVersion:7,kind:'city_loop_frozen',runtimeProfile:runtimeFor(snapshot),
+   startingSnapshotId:snapshot.snapshotId,startingStateVersion:snapshot.stateVersion,worldRef:snapshot.worldRef,
+   worldSeed:archive.payload.seed,resolutionSeed:(archive.payload.seed+turn-1)%0x100000000,
+   seedIdentity:`loop-seed:${auditHash({match:snapshot.config.gameId,turn,state:snapshot.snapshotId,worldSeed:archive.payload.seed})}`,
+   combatPolicy:snapshot.combatPolicy,turn:state.turn,players:state.drafts.map(({playerId,revision,ready,orders})=>({playerId,revision,ready,orders})),
+   cityDrafts:state.drafts.map((d:RepeatingDraft)=>d.city??initialCityDraft(snapshot,d.playerId))});
+ }
  return LoopFrozenSchema.parse({schemaVersion:snapshot.simulationVersion==='europe-playtest-v1'?6:5,kind:snapshot.simulationVersion==='europe-playtest-v1'?'europe_loop_frozen':'loop_frozen',runtimeProfile:runtimeFor(snapshot),startingSnapshotId:snapshot.snapshotId,startingStateVersion:snapshot.stateVersion,
   worldRef:snapshot.worldRef,worldSeed:archive.payload.seed,resolutionSeed:(archive.payload.seed+turn-1)%0x100000000,
   seedIdentity:`loop-seed:${auditHash({match:snapshot.config.gameId,turn,state:snapshot.snapshotId,worldSeed:archive.payload.seed})}`,combatPolicy:snapshot.combatPolicy,turn:state.turn,players:state.drafts});
@@ -73,8 +105,19 @@ export function resolveLoop(snapshotInput:ReturnType<(typeof import('@strategy-g
 export function resolveLoop(snapshotInput:unknown,frozenInput:unknown,archive:InitialWorldArchive,budget?:MultiForceBudget):LoopResult;
 export function resolveLoop(snapshotInput:unknown,frozenInput:unknown,archive:InitialWorldArchive,budget?:MultiForceBudget):LoopResult{
  const s=validateLoopState(snapshotInput,archive),f=LoopFrozenSchema.parse(frozenInput);
- const state:TurnState={config:s.config,players:s.players,turn:f.turn,drafts:f.players,lastObservedAtMs:f.turn.closedAtMs};
+ const cityDrafts=f.kind==='city_loop_frozen'?f.cityDrafts:undefined;
+ const state:TurnState={config:s.config,players:s.players,turn:f.turn,drafts:f.players.map(d=>cityDrafts?{...d,city:cityDrafts.find(p=>p.playerId===d.playerId)}:d),lastObservedAtMs:f.turn.closedAtMs};
  if(!loopSame(f,freezeLoop(state,s,archive)))throw new LoopFailure('INTERNAL_ERROR');
+ if(s.kind==='city_loop_state'){
+  if(f.kind!=='city_loop_frozen')throw new LoopFailure('INTERNAL_ERROR');
+  const motion=executeCityForces(s,f,budget);
+  const {economyReports,...settled}=settleCityEconomy(s,f.cityDrafts,motion.captures,motion.units,motion.formations);
+  const resolutionId=`loop-result:${auditHash({state:s.snapshotId,frozen:f})}`;
+  const nextState=seal({...s,...settled,stateVersion:s.stateVersion+1,completedTurnNumber:s.completedTurnNumber+1,predecessorResolutionId:resolutionId});
+  return CityLoopResultSchema.parse({schemaVersion:6,kind:'city_loop_result',runtimeProfile:f.runtimeProfile,resolutionId,
+   startingSnapshotId:s.snapshotId,turnNumber:f.turn.turnNumber,seed:f.resolutionSeed,seedIdentity:f.seedIdentity,
+   nextState,battles:motion.battles,audits:motion.audits,captures:motion.captures,economyReports});
+ }
  const {cityOwners:ignoredOwners,predecessorResolutionId:ignoredPredecessor,...surrogateBase}=s;void ignoredOwners;void ignoredPredecessor;
  const surrogate:CombatInitialSnapshot={...surrogateBase,schemaVersion:8,kind:'combat_initial',ruleset:COMBAT_TURN_RUNTIME_PROFILE.ruleset,simulationVersion:'combat-turn-v1',stateVersion:0,completedTurnNumber:0,
   snapshotId:`combat-initial:${auditHash({loop:s.snapshotId,turn:f.turn.turnNumber})}`,formations:s.formations.map(x=>({...x,position:{x:x.position.xMilli/1000,y:x.position.yMilli/1000}}))};
@@ -86,3 +129,24 @@ export function resolveLoop(snapshotInput:unknown,frozenInput:unknown,archive:In
 }
 export function openLoopNext(previous:TurnState,openedAtMs:number){return openNextTurn({...previous,turn:TurnRecordSchema.parse({...previous.turn,status:'resolved'})},openedAtMs)}
 export function initialLoopTurn(snapshot:LoopState,now:number){return createTurn(snapshot.config,snapshot.players,now)}
+
+/** City genesis preserves the historical archive as a terrain reference. Its
+ * synthetic capital centers are never used as city locations or unit origins. */
+export function planCityLoop(config: unknown, players: unknown, archive: InitialWorldArchive, runtime: unknown):{runtimeProfile:CityRuntime;snapshot:CityLoopState} {
+ const profile = CityRuntimeSchema.parse(runtime);
+ validateCitySites();
+ const initial = planLoop(config, players, archive, EUROPE_RUNTIME).snapshot;
+ const { cityOwners, economy } = initialCityEconomy(initial, profile.balance);
+ const units = initial.units.map(u => ({
+  ...u, originalSpawnNodeId: cityOwners.find(c => c.ownerPlayerId === u.ownerPlayerId)!.cityId
+ }));
+ const seedState = { ...initial, ruleset: profile.ruleset, simulationVersion: profile.simulationVersion,
+  schemaVersion: 12 as const, kind: "city_loop_state" as const, units, cityOwners, economy, formations: [] };
+ const formations = cityOwners.flatMap(city => city.ownerPlayerId === null ? [] :
+  [formGarrison(seedState, city.ownerPlayerId, city.cityId, units.filter(u => u.ownerPlayerId === city.ownerPlayerId).map(u => u.unitId))]);
+ const commanders = formations.map(f => ({
+  cityId: f.garrisonCityId!, unitId: cityCommander(units.filter(u => f.unitIds.includes(u.unitId)), undefined)!
+ }));
+ const { snapshotId: _, ...metadata } = { ...seedState, formations, economy: { ...economy, commanders } };
+ return { runtimeProfile: profile, snapshot: CityLoopStateSchema.parse({ ...metadata, snapshotId: `loop-state:${auditHash(metadata)}` }) };
+}

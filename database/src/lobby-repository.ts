@@ -1,3 +1,5 @@
+import { CITY_BALANCE_V1, DEFAULT_STARTING_CREDITS } from "@strategy-game/shared-types";
+import { CityRuntimeSchema } from "@strategy-game/shared-types/server";
 import {generateWorld} from '@strategy-game/game-engine';
 import {planLoop} from '@strategy-game/game-engine/server';
 import {RepeatingRuntimeSchema} from '@strategy-game/shared-types/server';
@@ -66,7 +68,8 @@ function summary(row: LobbyRow): LobbySummary {
   const result = LobbySummarySchema.safeParse({
     schemaVersion: 1, lobbyId: row.id, status: row.status,
     settings: { name: config.name, playerCapacity: config.playerCapacity,
-      turnDurationMs: safeNumber(config.turnDurationMs), visibility: "PUBLIC" },
+      turnDurationMs: safeNumber(config.turnDurationMs), visibility: "PUBLIC",
+      ...(config.simulationVersion==="iberian-cities-v1"?{startingCredits:CityRuntimeSchema.parse(config.pinnedRuleset).balance.startingCredits}:{}) },
     host: { playerId: host.playerId, username: host.identity.username, ready: host.lobbyReady },
     participantCount: row.participants.length,
     readyCount: row.participants.filter((participant) => participant.lobbyReady).length,
@@ -121,13 +124,16 @@ export class LobbyRepository {
     const parsed = LobbySettingsSchema.safeParse(settingsInput);
     if (!parsed.success) throw new LobbyError("INVALID_INPUT");
     const settings = parsed.data;
-    if((this.creationRuntime as {simulationVersion?:string})?.simulationVersion==='europe-playtest-v1'&&settings.playerCapacity!==2)throw new LobbyError('INVALID_INPUT');
+    const simulation=(this.creationRuntime as {simulationVersion?:string})?.simulationVersion;
+    const city=simulation==="iberian-cities-v1";
+    if((city||simulation==="europe-playtest-v1")&&settings.playerCapacity!==2||!city&&settings.startingCredits!==undefined)throw new LobbyError('INVALID_INPUT');
     // Trusted creation-time selection only; request fields never select a runtime.
     const oldProfile = InitialWorldRuntimeProfileSchema.safeParse(this.creationRuntime);
     const armyProfile = InitialArmiesRuntimeProfileSchema.safeParse(this.creationRuntime);
     const movementProfile = MovementDraftRuntimeProfileSchema.safeParse(this.creationRuntime);
     const closureProfile = TurnClosureRuntimeProfileSchema.safeParse(this.creationRuntime);
-    const runtime = oldProfile.success ? oldProfile.data : armyProfile.success ? armyProfile.data : movementProfile.success ? movementProfile.data : closureProfile.success ? closureProfile.data : CombatTurnRuntimeSchema.safeParse(this.creationRuntime).success ? CombatTurnRuntimeSchema.parse(this.creationRuntime) : RepeatingRuntimeSchema.safeParse(this.creationRuntime).success ? RepeatingRuntimeSchema.parse(this.creationRuntime) : MovementResolutionRuntimeSchema.parse(this.creationRuntime);
+    const runtime = city ? CityRuntimeSchema.parse({...(this.creationRuntime as object),
+      balance:{...CITY_BALANCE_V1,startingCredits:settings.startingCredits??DEFAULT_STARTING_CREDITS}}) : oldProfile.success ? oldProfile.data : armyProfile.success ? armyProfile.data : movementProfile.success ? movementProfile.data : closureProfile.success ? closureProfile.data : CombatTurnRuntimeSchema.safeParse(this.creationRuntime).success ? CombatTurnRuntimeSchema.parse(this.creationRuntime) : RepeatingRuntimeSchema.safeParse(this.creationRuntime).success ? RepeatingRuntimeSchema.parse(this.creationRuntime) : MovementResolutionRuntimeSchema.parse(this.creationRuntime);
     return this.client.$transaction(async (tx) => {
       const username = await registeredUsername(tx, identityId);
       const id = randomUUID();
@@ -199,7 +205,7 @@ export class LobbyRepository {
           await tx.gameSnapshotRecord.count({ where: { matchId: row.id } }) !== 0 ||
           await tx.turn.count({ where: { matchId: row.id } }) !== 0)) throw new LobbyError("INVALID_STORAGE");
       const players = row.participants.map((p) => p.playerId);
-      const europe=row.configuration.simulationVersion==='europe-playtest-v1';if(europe&&players.length!==2)throw new LobbyError('INVALID_INPUT');
+      const europe=['europe-playtest-v1','iberian-cities-v1'].includes(row.configuration.simulationVersion??'');if(europe&&players.length!==2)throw new LobbyError('INVALID_INPUT');
       const archive = await insertInitialWorld(tx, row.id, europe?europeScenarioWorld(players):this.worldFactory(players), players);
       if(mode==='combat_loop'){
         const roster=players.map(playerId=>({schemaVersion:1 as const,gameId:row.id,playerId,active:true}));

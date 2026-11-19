@@ -1,3 +1,4 @@
+import { CITY_PROFILE } from "@strategy-game/shared-types";
 import {readLoop} from './loop-storage.js';
 import {loopFormations,europeEnvelope} from './loop-view.js';
 import {ownCombatFormationView} from "./combat-turn-view.js";
@@ -38,7 +39,7 @@ export class FormationReadRepository {
           return ReadFormationViewSchema.parse({ ...envelope, state: "NOT_STARTED" });
         }
         if (match.status !== "RUNNING") return invalid();
-        if(runtime==='combat_loop'){const a=await readLoop(tx,matchId);return ReadFormationViewSchema.parse({...(a.snapshot.simulationVersion==='europe-playtest-v1'?{...europeEnvelope(true),schemaVersion:5,runtime:'europe-playtest-v1'}:{schemaVersion:4,runtime:'combat-loop-v1'}),matchId,state:'READY',turnNumber:a.state.turn.turnNumber,collisionRadius:10,pendingEncounter:false,formations:loopFormations(a,member.playerId)})}
+        if(runtime==='combat_loop'){const a=await readLoop(tx,matchId);return ReadFormationViewSchema.parse({...(a.snapshot.kind==='city_loop_state'?{profile:CITY_PROFILE,schemaVersion:6,runtime:'iberian-cities-v1'}:a.snapshot.simulationVersion==='europe-playtest-v1'?{...europeEnvelope(true),schemaVersion:5,runtime:'europe-playtest-v1'}:{schemaVersion:4,runtime:'combat-loop-v1'}),matchId,state:'READY',turnNumber:a.state.turn.turnNumber,collisionRadius:10,pendingEncounter:false,formations:loopFormations(a,member.playerId)})}
         if (runtime === "legacy") {
           if (match.turns.length) return invalid();
           return ReadFormationViewSchema.parse({ ...envelope, state: "UNINITIALIZED" });

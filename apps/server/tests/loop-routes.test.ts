@@ -18,3 +18,24 @@ describe('signed repeating routes: exact-turn privacy and CSRF',()=>{
  it('checks exact intended turn after a delayed request body completes',async()=>{const f=await fixture(),body=new PassThrough();let active=1;f.loops.command.mockImplementation(async()=>{if(active!==1)throw new MovementDraftError('WRONG_TURN');return current(1,1)});const p=f.app.inject({method:'POST',url:'/api/matches/match/loop/turns/1/commands',headers:{cookie:f.browser.cookie,origin,'x-csrf-token':f.browser.csrf,'content-type':'application/json'},payload:body}).then(r=>r);body.write('{');active=2;body.end(JSON.stringify(command).slice(1));expect((await p).statusCode).toBe(409)});
  it('rejects hidden projection fields, wrong historical identity, and sanitizes internal errors',async()=>{const f=await fixture();f.loops.current.mockResolvedValueOnce({...current(),seed:'canary'} as never);const r=await f.request(f.browser,'GET','/api/matches/match/loop/current');expect(r.statusCode).toBe(500);expect(r.body+f.logs.join()).not.toContain('canary');f.loops.history.mockResolvedValueOnce({schemaVersion:1,kind:'loop_aftermath',matchId:'match',turnNumber:2,aftermath:{schemaVersion:2,matchId:'match',state:'RESOLVED',formations:[],battles:[]}});expect((await f.request(f.browser,'GET','/api/matches/match/loop/turns/1/aftermath')).statusCode).toBe(500);f.loops.current.mockRejectedValueOnce(new MovementDraftError('NOT_FOUND'));expect((await f.request(f.browser,'GET','/api/matches/match/loop/current')).statusCode).toBe(404)});
 });
+
+it('rejects client-supplied city charge and ownership before dispatching an authenticated command',async()=>{
+ const {CITY_PROFILE,CITY_BALANCE_V1,CityCurrentSchema}=await import('@strategy-game/shared-types');
+ const f=await fixture(),path='/api/matches/match/loop/turns/1/commands';
+ const draft={schemaVersion:3,profile:CITY_PROFILE,turnNumber:1,expectedRevision:0,kind:'city_edit',
+  edit:{kind:'recruit',cityId:'madrid',recruitmentId:'37d5bdee-08c1-4af6-b120-17a05ca161ff',unitType:'INFANTRY',quantity:1}};
+ for(const injection of [{paid:0},{ownerPlayerId:'opponent'},{arrivalTurn:1}]){
+  expect((await f.request(f.browser,'POST',path,{...draft,edit:{...draft.edit,...injection}})).statusCode).toBe(400);
+ }
+ expect(f.loops.command).not.toHaveBeenCalled();
+ const view=CityCurrentSchema.parse({...current(1,1),schemaVersion:3,profile:CITY_PROFILE,
+  balance:{...CITY_BALANCE_V1,startingCredits:2000},
+  cityPlan:{credits:1900,recruitment:[],dispatches:[],commanders:[]},
+  cities:['madrid','andorra-la-vella','bilbao'].map(cityId=>({cityId,name:cityId,capital:cityId!=='bilbao',
+   position:{x:100,y:100},owned:cityId==='madrid',neutral:cityId==='bilbao',garrisonId:null,commanderId:null}))});
+ f.loops.command.mockResolvedValueOnce(view as never);
+ const response=await f.request(f.browser,'POST',path,draft);
+ expect(response.statusCode).toBe(200);
+ expect(response.headers['cache-control']).toBe('no-store');
+ expect(f.loops.command).toHaveBeenCalledExactlyOnceWith('match',1,f.browser.identityId,draft);
+});

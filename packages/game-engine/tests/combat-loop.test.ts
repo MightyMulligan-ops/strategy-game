@@ -6,7 +6,7 @@ import {auditHash} from '../src/determinism.js';
 import {observeDeadline} from '../src/turn.js';
 import type {LoopState,InitialWorldArchive} from '@strategy-game/shared-types/server';
 import type {TurnState} from '../src/turn.js';
-function fixture(count=2){const f=armyFixture(count),archive=InitialWorldArchiveSchema.parse(f.archive),snapshot=planLoop(f.config,f.players,archive).snapshot;return {...f,archive,snapshot,state:initialLoopTurn(snapshot,1000)}}
+function fixture(count=2){const f=armyFixture(count),archive=InitialWorldArchiveSchema.parse(f.archive),snapshot=LoopStateSchema.parse(planLoop(f.config,f.players,archive).snapshot);return {...f,archive,snapshot,state:initialLoopTurn(snapshot,1000)}}
 function ready(state:TurnState,snapshot:LoopState,archive:InitialWorldArchive){let s=state;for(const d of s.drafts)s=applyLoop(s,snapshot,archive,d.playerId,{schemaVersion:1,turnNumber:s.turn.turnNumber,expectedRevision:d.revision,kind:'set_ready',ready:true},s.turn.openedAtMs+1).state;return s}
 function signed(s:LoopState){const {snapshotId,...meta}=s;void snapshotId;return LoopStateSchema.parse({...meta,snapshotId:`loop-state:${auditHash(meta)}`})}
 describe('repeating pure runtime: deterministic state and fresh planning',()=>{

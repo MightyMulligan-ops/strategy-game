@@ -76,3 +76,69 @@ export function gatherCombatEncounters(snapshot:CombatInitialSnapshot,frozen:Com
  }
  return {encounters,legs,stops,assigned,position};
 }
+
+/** Resolve each contact before searching for later arrivals in the city runtime. */
+export function chronologicalCityMovement(
+  initial: readonly import("@strategy-game/shared-types/server").CityFormation[],
+  routes: ReadonlyMap<string, readonly Leg[]>,
+  onMoment: (event: { time: number; contacts: readonly [string, string][]; arrivals: readonly string[] },
+    active: Map<string, import("@strategy-game/shared-types/server").CityFormation>,
+    stop: (id: string) => void, position: (id: string) => Point) => void,
+) {
+  const active = new Map(initial.map(f => [f.formationId, f]));
+  const stops = new Map<string, number>();
+  const ends = [...new Set([0, 250, ...[...routes.values()].flatMap(r => r.map(l => l.end))])].sort((a,b) => a-b);
+  let at = 0;
+  const position = (id: string, time = at): Point => {
+    const f = active.get(id)!;
+    if (stops.has(id) || !routes.has(id)) return world(f.position);
+    const route = routes.get(id)!;
+    const leg = route.find(l => l.start <= time && time < l.end);
+    if (!leg) return route.filter(l => l.end <= time).at(-1)?.to ?? world(f.position);
+    const fraction = (time - leg.start) / (leg.end - leg.start);
+    return { x: leg.from.x + (leg.to.x-leg.from.x)*fraction, y: leg.from.y + (leg.to.y-leg.from.y)*fraction };
+  };
+  const velocity = (id: string): Point => {
+    const leg = stops.has(id) ? undefined : routes.get(id)?.find(l => l.start <= at && at < l.end);
+    return leg ? { x: (leg.to.x-leg.from.x)/(leg.end-leg.start), y: (leg.to.y-leg.from.y)/(leg.end-leg.start) } : { x: 0, y: 0 };
+  };
+  const stop = (id: string) => {
+    if (!stops.has(id)) {
+      const point = position(id);
+      stops.set(id, at);
+      active.set(id, { ...active.get(id)!, position: milli(point) });
+    }
+  };
+  const walked = new Map<string, Point>();
+  let work = 0;
+  for (const end of ends) {
+    for (;;) {
+      if (++work > 20_000) throw Error("CITY_CHRONOLOGY_WORK_LIMIT");
+      const candidates: { time: number; ids: [string,string] }[] = [];
+      const forms = [...active.values()].sort((a,b) => compareIds(a.formationId,b.formationId));
+      for (let i=0;i<forms.length;i++) for (let j=i+1;j<forms.length;j++) {
+        const a=forms[i]!, b=forms[j]!;
+        if (a.ownerPlayerId === b.ownerPlayerId) continue;
+        const id=a.formationId, other=b.formationId;
+        const t=contactTime(position(id),velocity(id),position(other),velocity(other),end-at);
+        if (t!==null) candidates.push({time:at+t,ids:[id,other]});
+      }
+      if (candidates.length === 0) break;
+      at=Math.min(...candidates.map(c=>c.time));
+      const contacts=candidates.filter(c=>c.time===at).map(c=>c.ids);
+      const arrivals=at===end ? arrivalsAt(end, active, routes, stops) : [];
+      for (const id of arrivals) walked.set(id,position(id));
+      onMoment({time:at,contacts,arrivals},active,stop,position);
+    }
+    at=end;
+    const arrivals=arrivalsAt(end,active,routes,stops).filter(id=>!walked.has(id) || distanceSquared(walked.get(id)!,position(id))!==0);
+    if (arrivals.length) onMoment({time:at,contacts:[],arrivals},active,stop,position);
+  }
+  for (const f of [...active.values()]) active.set(f.formationId,{...f,position:milli(position(f.formationId,250))});
+  return {formations:[...active.values()].sort((a,b)=>compareIds(a.formationId,b.formationId)),stops};
+}
+
+function arrivalsAt(time: number, active: ReadonlyMap<string, unknown>, routes: ReadonlyMap<string, readonly Leg[]>,
+  stops: ReadonlyMap<string, number>) {
+  return [...routes].filter(([id, legs])=>active.has(id)&&!stops.has(id)&&legs.some(l=>l.end===time&&l.end>l.start)).map(([id])=>id).sort(compareIds);
+}

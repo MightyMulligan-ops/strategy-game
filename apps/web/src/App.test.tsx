@@ -191,15 +191,15 @@ describe('Sovereign account and lobby UI', () => {
   })
   it('creates with shared-schema validation and refreshes list/detail after confirmation', async () => {
     listed = false; await mount(); expect(text()).toContain('No open lobbies yet.')
-    await value('lobby-name', 'Morning Council'); await value('capacity', '10'); await value('turn-duration', '3600000'); await submit('#lobby-name')
-    expect(JSON.parse(posts()[0]?.[1]?.body as string)).toEqual({ schemaVersion: 1, settings: { name: 'Morning Council', playerCapacity: 10, turnDurationMs: 3600000, visibility: 'PUBLIC' } })
+    await value('lobby-name', 'Morning Council'); await value('capacity', '2'); await value('turn-duration', '3600000'); await value('starting-credits','3500'); await submit('#lobby-name')
+    expect(JSON.parse(posts()[0]?.[1]?.body as string)).toEqual({ schemaVersion: 1, settings: { name: 'Morning Council', playerCapacity: 2, turnDurationMs: 3600000, visibility: 'PUBLIC', startingCredits: 3500 } })
     expect(text()).toContain('Lobby created. You are the host.'); expect(text()).toContain('You are the host. Hosts cannot leave')
     expect([...host.querySelectorAll('button')].some((b) => /^(Join lobby|Leave lobby)/.test(b.textContent ?? ''))).toBe(false)
     expect(button('Start Match').disabled).toBe(true)
   })
-  it.each([[' padded ', '10'], ['Valid', '1'], ['Valid', '41'], ['Valid', '2.5']])('rejects invalid creation settings %s / %s', async (name, capacity) => {
+  it.each([[' padded ', '2'], ['Valid', '1'], ['Valid', '40'], ['Valid', '2.5']])('rejects invalid creation settings %s / %s', async (name, capacity) => {
     await mount(); await value('lobby-name', name!); await value('capacity', capacity!); await submit('#lobby-name')
-    expect(text()).toContain('Enter a name without surrounding spaces, 2–40 players'); expect(posts()).toHaveLength(0)
+    expect(text()).toContain('Enter a name without surrounding spaces, two players'); expect(posts()).toHaveLength(0)
   })
   it.each(['HOST', 'PARTICIPANT'] as const)('uses server flags for %s without offering forbidden actions', async (role) => {
     current = room(role); await mount(); await click('Inspect Evening Council')
@@ -297,7 +297,7 @@ describe('Sovereign account and lobby UI', () => {
   })
   it('rejects an invalid duration instead of submitting a malformed create command', async () => {
     await mount(); await value('lobby-name', 'Council'); await value('turn-duration', 'invalid'); await submit('#lobby-name')
-    expect(posts()).toHaveLength(0); expect(text()).toContain('a valid turn duration.')
+    expect(posts()).toHaveLength(0); expect(text()).toContain('valid turn duration and starting credits.')
   })
   it('prevents duplicate creates and conflicting account actions during a pending request', async () => {
     await mount(); await value('lobby-name', 'New Council')

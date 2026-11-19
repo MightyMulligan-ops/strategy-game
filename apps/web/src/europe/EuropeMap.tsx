@@ -21,6 +21,7 @@ const countryPaths = geography.countries.map(country => ({ name: country.name,
 const startView = { width: 1920, height: 920 }
 
 export default function EuropeMap({view:current,route,choose,world,interaction}:{interaction?:FormationMapInteraction|undefined;view:RepeatingCurrent;route:MovementRoute|null;choose:((p:Point)=>void)|null;world:PublicWorld}) {
+  const activeCities=current.schemaVersion===3?current.cities:[]
   const host = useRef<HTMLDivElement>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
   const cameraRef = useRef<Camera>(fitTheatre(startView))
@@ -179,11 +180,11 @@ export default function EuropeMap({view:current,route,choose,world,interaction}:
     </header>
       <details className="ep-options"><summary>Map options · cities and layers</summary><aside className="ep-inspector" aria-label="City inspector">
         <label htmlFor="ep-country-select">Find a country</label><select id="ep-country-select" value={hoverCountry??''} onChange={event=>{const c=countries.find(c=>c.name===event.target.value);if(c){setHoverCountry(c.name);target.current=clampCamera({...target.current,center:c.anchor},view)}}}><option value="">Choose a country</option>{countries.map(c=><option key={c.name} value={c.name}>{c.name}</option>)}</select>
-        <span className="ep-eyebrow">DISPLAY CITY · NOT A PLAYTEST CAMP</span>
+        <span className="ep-eyebrow">GEOGRAPHIC REFERENCE</span>
         <h1>{selectedCity.name}</h1><p>{selectedCity.country} <span>· {selectedCity.capital ? 'Capital' : 'City'}</span></p>
         <label htmlFor="ep-city-select">Find a city</label>
         <select id="ep-city-select" value={selected} onChange={event => selectCity(event.target.value)}>{cities.map(city => <option key={`${city.country}/${city.name}`} value={city.name}>{city.country} · {city.name}</option>)}</select>
-        <div className="ep-rule" /><p className="ep-muted">Country outlines and display cities do not indicate ownership or territory control. Only the two scenario camps are capture objectives. Geneva is unavailable for land gameplay: its original anchor is inland water.</p>
+        <div className="ep-rule" /><p className="ep-muted">Country outlines and display cities do not indicate ownership or territory control. {current.schemaVersion===3?'Only the three scenario cities are playable.':'Only the two scenario camps are capture objectives.'} Geneva is unavailable for land gameplay: its original anchor is inland water.</p>
         <div className="ep-layer-buttons"><button aria-pressed={borders} onClick={() => setBorders(!borders)}>Borders</button><button aria-pressed={labels} onClick={() => setLabels(!labels)}>City labels</button><button aria-pressed={countryLabels} onClick={()=>setCountryLabels(!countryLabels)}>Country names</button></div>
       </aside></details>
     <div className="ep-map" ref={host} tabIndex={0} role="region" aria-label="Europe map camera" aria-describedby="ep-instructions"
@@ -203,7 +204,7 @@ export default function EuropeMap({view:current,route,choose,world,interaction}:
         const marker=(event.target as Element).closest<HTMLElement>('[data-formation-id]')
         const formation=current.formations.find(f=>f.formationId===marker?.dataset.formationId)
         if(formation){
-          if(!interaction?.queueMove||draftMode||!formation.units.some(u=>u.kind==='LEADER'))return
+          if(!interaction?.queueMove||interaction.canDrag?.(formation.formationId)===false||draftMode||!formation.units.some(u=>u.kind==='LEADER'))return
           interaction.select(formation.formationId)
           target.current=cameraRef.current
           event.currentTarget.setPointerCapture(event.pointerId)
@@ -236,7 +237,7 @@ export default function EuropeMap({view:current,route,choose,world,interaction}:
         drag.current = null;setMovePreview(null)
         if(previous?.id===event.pointerId&&previous.formationId){
           if(!previous.moved||!interaction?.queueMove)return
-          if(previous.turn!==current.turn.turnNumber||previous.revision!==current.own.revision){setPickError('Planning changed during this drag. Review the latest turn and try again. No order was submitted.');return}
+          if(previous.turn!==current.turn.turnNumber||previous.revision!==current.own.revision||interaction.canDrag?.(previous.formationId)===false){setPickError('Planning changed during this drag. Review the latest turn and try again. No order was submitted.');return}
           const rect=event.currentTarget.getBoundingClientRect()
           if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom){setPickError('Drop inside the map. No order was submitted.');return}
           try{
@@ -275,12 +276,22 @@ export default function EuropeMap({view:current,route,choose,world,interaction}:
       <svg className="ep-borders" width={view.width} height={view.height} aria-hidden="true">
         {(()=>{const a=toScreen(europeGameToDisplay({x:0,y:0}),camera,view),b=toScreen(europeGameToDisplay({x:1000,y:500}),camera,view);return <rect x={a.x} y={a.y} width={b.x-a.x} height={b.y-a.y} fill="none" stroke="#f5d66d" strokeDasharray="6 5"/>})()}
         {route?.segments.map(segment=>{const a=toScreen(europeGameToDisplay(segment.from),camera,view),b=toScreen(europeGameToDisplay(segment.destination),camera,view);return <line key={segment.orderId} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#f5d66d" strokeWidth={3} strokeDasharray="5 5"/>})}
+        {current.schemaVersion===3&&current.cityPlan.dispatches.map(d=>{
+          const city=current.cities.find(c=>c.cityId===d.cityId)!
+          const a=toScreen(europeGameToDisplay(city.position),camera,view),b=toScreen(europeGameToDisplay(d.destination),camera,view)
+          return <line key={d.dispatchId} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#f5d66d" strokeWidth={3} strokeDasharray="5 5"/>
+        })}
         {movePreview&&(()=>{const a=toScreen(movePreview.from,camera,view),b=toScreen(movePreview.to,camera,view);return <g className="ep-move-preview"><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#f5d66d" strokeWidth={3} strokeDasharray="6 5"/><circle cx={b.x} cy={b.y} r={12} fill="none" stroke="#f5d66d" strokeWidth={2}/></g>})()}
         <polyline points={draft.map(p=>{const q=toScreen(p,camera,view);return `${q.x},${q.y}`}).join(' ')} fill="none" stroke="#a6b3c3" strokeWidth={3} strokeDasharray="3 6"/>
       </svg>
       <div className="ep-markers">
        {current.formations.map((f,i)=>{const p=toScreen(europeGameToDisplay(f.position),camera,view);return <button key={f.formationId} className="ep-formation" data-formation-id={f.formationId} aria-pressed={interaction?.selectedId===f.formationId} aria-label={'Formation '+(i+1)+', '+f.units.length+' units. Select or drag to queue movement'} style={{left:p.x,top:p.y}} onClick={()=>interaction?.select(f.formationId)}><span aria-hidden="true">&#9650;</span><strong>{f.units.length}</strong></button>})}
-       {world.territories.filter(t=>t.city).map(t=>{const p=toScreen(europeGameToDisplay(t.center),camera,view),own=current.ownedLocationIds.includes(t.city!.cityId);return <span key={t.city!.cityId} style={{position:'absolute',left:p.x,top:p.y+25,color:own?'#f5d66d':'#ddd',background:'#142c42',padding:4}}>Camp {t.center.x<500?'West':'East'} · {own?'currently yours':'current owner undisclosed'}</span>})}
+       {activeCities.map(c=>{
+         const p=toScreen(europeGameToDisplay(c.position),camera,view)
+         return <button key={c.cityId} className="ep-city-objective" style={{left:p.x,top:p.y+26}}
+           onClick={()=>interaction?.selectCity?.(c.cityId)}>{c.name}{c.owned?' · yours':c.neutral?' · neutral':''}</button>
+       })}
+       {current.schemaVersion!==3&&world.territories.filter(t=>t.city).map(t=>{const p=toScreen(europeGameToDisplay(t.center),camera,view),own=current.ownedLocationIds.includes(t.city!.cityId);return <span key={t.city!.cityId} style={{position:'absolute',left:p.x,top:p.y+25,color:own?'#f5d66d':'#ddd',background:'#142c42',padding:4}}>Camp {t.center.x<500?'West':'East'} · {own?'currently yours':'current owner undisclosed'}</span>})}
       </div>
 
       <div className="ep-camera-tools" aria-label="Map camera controls">

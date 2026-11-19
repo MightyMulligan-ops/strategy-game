@@ -372,3 +372,19 @@ describe("pure multi-force combat 1B", () => {
     expect(resolveMultiForceCombat(base, { maxRounds: 0, maxActions: 1 }).ok).toBe(false);
   });
 });
+
+it("keeps reserve Lieutenants vulnerable without granting extra actions or bonuses in city combat",()=>{
+ const attackers=formation("alpha",[troop("infantry",{hp:1}),leader("reserve","LIEUTENANT",{hp:1000,maxHp:1000}),leader("preferred","LIEUTENANT",{hp:1000,maxHp:1000})],"stationary");
+ const defenders=formation("beta",Array.from({length:6},(_,i)=>troop("enemy-"+i,
+  {attack:20,defense:20,maxHp:50,hp:50})));
+ const params=input([attackers,defenders]);
+ expect(resolveMultiForceCombat(params).ok).toBe(false);
+ const result=resolveMultiForceCombat(params,undefined,new Map([[attackers.formationId,"preferred"]]));
+ expect(result.ok).toBe(true);if(!result.ok)throw Error("Expected complete city combat");
+ expect(result.audit.rounds[0]?.stats.find(s=>s.unitId==="infantry")?.primaryLeaderId).toBe("preferred");
+ expect(result.audit.rounds[0]?.actions.filter(a=>a.sourcePlayerId==="alpha").map(a=>a.sourceUnitId).sort())
+  .toEqual(["infantry","preferred"]);
+ expect(result.audit.units.filter(u=>u.ownerPlayerId==="alpha").map(u=>u.finalHp)).toEqual([0,0,0]);
+ expect(result.audit.rounds[0]?.casualties).toEqual(expect.arrayContaining(["infantry","preferred","reserve"]));
+ expect(result.audit.rounds[0]?.hits.some(h=>h.targetUnitId==="reserve"||h.targetUnitId==="preferred")).toBe(true);
+});

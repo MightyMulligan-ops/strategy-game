@@ -1,3 +1,10 @@
+import type { CityId } from "@strategy-game/shared-types";
+import type { CityLoopState, CityLoopFrozen, CityCapture, CityFormation } from "@strategy-game/shared-types/server";
+import { chronologicalCityMovement } from "./combat-chronology.js";
+import type { Leg, Point } from "./combat-chronology.js";
+import { CITY_SCENARIO } from "./city-scenario.js";
+import { consolidateGarrison, ownGarrison } from "./city-garrison.js";
+import { europeLandPoint, europeLandSegment } from "./europe-playtest.js";
 import {MovementDraftOrdersSchema} from "@strategy-game/shared-types";
 import {CombatInitialSnapshotSchema,CombatFrozenInputSchema,CombatTurnResultSchema,CombatSetupSchema,CombatTurnRuntimeSchema,
  COMBAT_TURN_RUNTIME_PROFILE,FIRST_COMBAT_SETUP} from "@strategy-game/shared-types/server";
@@ -128,4 +135,143 @@ export function executeCombatForces(snapshot:CombatInitialSnapshot,frozen:Combat
   units:activeUnits,formations:activeForms,cityOwners};
  return freeze(CombatTurnResultSchema.parse({schemaVersion:3,kind:"combat_turn",runtimeProfile:COMBAT_TURN_RUNTIME_PROFILE,resolutionId,
   startingSnapshotId:snapshot.snapshotId,seed:frozen.resolutionSeed,nextState:{...next,snapshotId:`combat-resolved:${auditHash(next)}`},battles,audits}));
+}
+
+/** City-only battle and ownership timeline. After each complete battle the
+ * surviving formations are stationary and may defend against later arrivals. */
+export function executeCityForces(snapshot: CityLoopState, frozen: CityLoopFrozen, budget?: MultiForceBudget) {
+ const units = new Map(snapshot.units.map(u=>[u.unitId,u]));
+ const owners = new Map(snapshot.cityOwners.map(c=>[c.cityId,c.ownerPlayerId]));
+ const captures: CityCapture[] = [], battles: CombatTurnResult["battles"][number][] = [];
+ const routes = new Map<string, Leg[]>();
+ const forms = [...snapshot.formations].sort((a,b)=>compareIds(a.formationId,b.formationId));
+ const changing = new Map<string,Set<string>>();
+ for (const draft of frozen.cityDrafts) for (const dispatch of draft.dispatches) {
+  const garrison = ownGarrison(snapshot,draft.playerId,dispatch.cityId)!;
+  const reserved = changing.get(garrison.formationId) ?? new Set();
+  dispatch.unitIds.forEach(id=>reserved.add(id));
+  changing.set(garrison.formationId,reserved);
+  const formationId = `formation:${auditHash({ matchId:snapshot.config.gameId, turn:frozen.turn.turnNumber,
+   playerId:draft.playerId, dispatchId:dispatch.dispatchId })}`;
+  const f = {...garrison,formationId,garrisonCityId:null,unitIds:[...dispatch.unitIds].sort(compareIds)};
+  forms.push(f);
+  routes.set(formationId, [cityLeg(dispatch.dispatchId,1,world(f.position),dispatch.destination,0)]);
+ }
+ const initial = forms.map(f=>({...f,unitIds:f.unitIds.filter(id=>!changing.get(f.formationId)?.has(id))})).filter(f=>f.unitIds.length);
+ for (const f of initial) if (!routes.has(f.formationId)) {
+  const orders = frozen.players.find(p=>p.playerId===f.ownerPlayerId)!.orders.filter(o=>o.stackId===f.formationId);
+  let from=world(f.position),time=0;
+  routes.set(f.formationId,orders.map((o,i)=>{
+   const leg=cityLeg(o.orderId,i+1,from,o.destination,time);
+   from=leg.to;time=leg.end;return leg;
+  }));
+ }
+ const encounterByForm = new Map<string,string>();
+ const stopped = new Set<string>();
+ const capture = (cityId: CityId, owner: string) => {
+  const previous = owners.get(cityId)!;
+  if(previous!==owner){captures.push({cityId,fromPlayerId:previous,toPlayerId:owner});owners.set(cityId,owner)}
+ };
+ const motion=chronologicalCityMovement(initial,routes,({time,contacts,arrivals},active,stop,position)=>{
+  const groups: Set<string>[]=[];
+  for (const pair of contacts) {
+   const joined=groups.filter(g=>pair.some(id=>g.has(id)));
+   const group=new Set([...pair,...joined.flatMap(g=>[...g])]);
+   for (const g of joined) groups.splice(groups.indexOf(g),1);
+   groups.push(group);
+  }
+  const siteAt=(id:string)=>CITY_SCENARIO.find(c=>distanceSquared(c.position,position(id))===0);
+  // Simultaneous waypoint arrivals to a contested city participate together.
+  for (const city of CITY_SCENARIO) {
+   const atCity=arrivals.filter(id=>siteAt(id)?.cityId===city.cityId);
+   const touching=groups.filter(g=>[...g].some(id=>distanceSquared(city.position,position(id))<=400));
+   if(atCity.length===0||touching.length===0)continue;
+   const group=new Set([...atCity,...touching.flatMap(g=>[...g])]);
+   for(const g of touching)groups.splice(groups.indexOf(g),1);
+   groups.push(group);
+  }
+  for (const group of groups.sort((a,b)=>compareIds([...a].sort(compareIds)[0]!,[...b].sort(compareIds)[0]!))) {
+   const fighters=[...group].sort(compareIds).map(id=>active.get(id)!);
+   const moving=(id:string)=>!stopped.has(id)&&(routes.get(id)??[]).some(l=>l.end>l.start&&l.start<=time&&time<=l.end);
+   const point=fighters.find(f=>!moving(f.formationId));
+   const center=point?position(point.formationId):world(milli({
+    x:fighters.reduce((sum,f)=>sum+position(f.formationId).x,0)/fighters.length,
+    y:fighters.reduce((sum,f)=>sum+position(f.formationId).y,0)/fighters.length
+   }));
+   const city=CITY_SCENARIO.filter(c=>distanceSquared(c.position,center)<=400)
+    .sort((a,b)=>distanceSquared(a.position,center)-distanceSquared(b.position,center)||compareIds(a.cityId,b.cityId))[0];
+   const destination=city?.position??center;
+   if(!europeLandPoint(destination)||fighters.some(f=>!europeLandSegment(position(f.formationId),destination)))throw Error("CITY_CONTACT_SURFACE_UNAVAILABLE");
+   const encounterId=`encounter:${auditHash({snapshot:snapshot.snapshotId,time,sequence:battles.length,group:[...group].sort(compareIds)})}`;
+   const participants=new Set(fighters.map(f=>f.ownerPlayerId));
+   const garrisons = new Map(fighters.filter(f=>f.garrisonCityId!==null).map(f=>[f.formationId,
+    frozen.cityDrafts.find(d=>d.playerId===f.ownerPlayerId)?.commanders.find(c=>c.cityId===f.garrisonCityId)?.unitId??null]));
+   const input={
+    schemaVersion:1,rulesetVersion:MULTI_FORCE_COMBAT_VERSION,encounterId,seed:frozen.resolutionSeed,
+    ownership:city?{locationId:city.cityId,ownerPlayerId:owners.get(city.cityId)!}:null,
+    rules:{schedule:MULTI_FORCE_SCHEDULE,roll:MULTI_FORCE_ROLL,statFloor:"minimum-one-v1",alliances:"equivalence-v1",leadership:snapshot.combatPolicy.setup.leadership},
+    relationships:snapshot.combatPolicy.relationships.filter(r=>participants.has(r.from)&&participants.has(r.to)),
+    formations:fighters.map(f=>({formationId:f.formationId,ownerPlayerId:f.ownerPlayerId,stance:moving(f.formationId)?"moving":"stationary",
+     units:f.unitIds.map(id=>{
+      const {schemaVersion,ownerPlayerId,kind,...u}=units.get(id)!;void schemaVersion;void ownerPlayerId;
+      return {...u,kind:kind==="INFANTRY"?"TROOP":"LEADER",unitType:kind==="INFANTRY"?"INFANTRY":"LEADER"};
+     })}))
+   };
+   const result=resolveMultiForceCombat(input,budget,garrisons);
+   if(!result.ok)throw Error(`CITY_COMBAT_${result.error.code}`);
+   for(const f of fighters){stop(f.formationId);stopped.add(f.formationId);if(!encounterByForm.has(f.formationId))encounterByForm.set(f.formationId,encounterId)}
+   for(const casualty of result.audit.units){
+    if(casualty.finalHp===0)units.delete(casualty.unitId);
+    else units.set(casualty.unitId,{...units.get(casualty.unitId)!,hp:casualty.finalHp});
+   }
+   const survivors=fighters.map(f=>({...f,unitIds:f.unitIds.filter(id=>units.has(id)),position:milli(destination)}))
+    .filter(f=>f.unitIds.length);
+   for(const f of fighters)active.delete(f.formationId);
+   for(const f of survivors)active.set(f.formationId,f);
+   const recipient=result.audit.ownershipRecipientPlayerId;
+   if(city&&recipient){
+    capture(city.cityId,recipient);
+    merge(city.cityId,recipient,survivors.filter(f=>f.ownerPlayerId===recipient),active,stop);
+   }
+   battles.push({encounterId,position:milli(center),locationId:city?.cityId??null,
+    formations:input.formations.map(f=>({formationId:f.formationId,stance:f.stance==="moving"?"moving":"stationary"})),
+    outcome:result.audit.outcome,victoriousPlayerIds:result.audit.victoriousPlayerIds,recipientPlayerId:recipient,auditJson:JSON.stringify(result.audit)});
+  }
+  for(const city of CITY_SCENARIO){
+   const incoming=arrivals.filter(id=>!stopped.has(id)&&active.has(id)&&siteAt(id)?.cityId===city.cityId).map(id=>active.get(id)!);
+   if(!incoming.length)continue;
+   const actor=incoming[0]!.ownerPlayerId;
+   if(incoming.some(f=>f.ownerPlayerId!==actor))throw Error("CITY_CONTEST_UNRESOLVED");
+   capture(city.cityId,actor);
+   merge(city.cityId,actor,incoming,active,stop);
+  }
+ });
+ function merge(cityId:CityId,actor:string,arrivals:readonly CityFormation[],active:Map<string,CityFormation>,stop:(id:string)=>void){
+  for(const f of arrivals){stop(f.formationId);stopped.add(f.formationId)}
+  const same=consolidateGarrison(snapshot,[...active.values()],actor,cityId,arrivals);
+  active.clear();
+  for(const f of same)active.set(f.formationId,f);
+  const garrison=same.find(f=>f.garrisonCityId===cityId&&f.ownerPlayerId===actor);
+  if(garrison){stop(garrison.formationId);stopped.add(garrison.formationId)}
+ }
+ const audits:CombatTurnResult["audits"][number][]=[];
+ for(const f of initial){
+  const stop=motion.stops.get(f.formationId);let remaining=250;
+  for(const l of routes.get(f.formationId)??[]){
+   const before=stop!==undefined&&stop<l.start,blocked=stop!==undefined&&stop>=l.start&&stop<l.end;
+   const traveled=before?0:Math.max(0,Math.min(l.end,stop??l.end)-l.start);
+   const ratio=l.end===l.start?1:traveled/(l.end-l.start);
+   const to=milli({x:l.from.x+(l.to.x-l.from.x)*ratio,y:l.from.y+(l.to.y-l.from.y)*ratio});
+   const encounterId=encounterByForm.get(f.formationId)??null;
+   remaining-=traveled;
+   audits.push({auditId:`combat-move:${auditHash({ snapshot:snapshot.snapshotId,formationId:f.formationId,orderId:l.orderId })}`,
+    playerId:f.ownerPlayerId,formationId:f.formationId,orderId:l.orderId,moveNumber:l.moveNumber,sequence:audits.length,
+    outcome:before?"not_executed_after_encounter":blocked?"blocked_encounter":"executed",
+    from:milli(l.from),to,plannedDistance:l.end-l.start,traveled,remaining:Math.max(0,remaining),encounterId});
+  }
+ }
+ return {units:[...units.values()].sort((a,b)=>compareIds(a.unitId,b.unitId)),formations:motion.formations,captures,battles,audits};
+}
+function cityLeg(orderId:string,moveNumber:number,from:Point,to:Point,start:number):Leg{
+ return {orderId,moveNumber,from,to,start,end:start+Math.sqrt(distanceSquared(from,to))};
 }
