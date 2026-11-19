@@ -95,21 +95,39 @@ $$;
 CREATE FUNCTION city_loop_guard() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE key text; c "MatchConfiguration"; m "Match"; t "Turn"; p "PlayerTurnState"; prior "PlayerSubmissionRevision"; candidate jsonb; n bigint; clock_ms bigint;
 BEGIN
- IF TG_OP='DELETE' THEN key:=OLD."matchId"; ELSE key:=NEW."matchId"; END IF;
- SELECT * INTO m FROM "Match" WHERE "id"=key FOR UPDATE;
- IF NOT FOUND THEN IF TG_OP='DELETE' THEN RETURN OLD; END IF; RAISE EXCEPTION 'Loop parent required'; END IF;
- SELECT * INTO c FROM "MatchConfiguration" WHERE "matchId"=key;
+ -- Classify an existing row by its original parent before acquiring city locks.
+ -- Historical operations continue to their own guards, including reassignments.
+ IF TG_OP='INSERT' THEN key:=NEW."matchId"; ELSE key:=OLD."matchId"; END IF;
  IF TG_TABLE_NAME='MatchConfiguration' THEN
-  IF NEW."simulationVersion"='iberian-cities-v1' THEN IF TG_OP<>'INSERT' OR m."status"<>'OPEN' OR NOT city_loop_profile_ok(NEW) THEN RAISE EXCEPTION 'Invalid loop creation pin'; END IF; END IF; RETURN NEW;
+  IF NEW."simulationVersion"='iberian-cities-v1' THEN
+   SELECT * INTO STRICT m FROM "Match" WHERE "id"=key FOR UPDATE;
+   IF TG_OP<>'INSERT' OR m."status"<>'OPEN' OR NOT city_loop_profile_ok(NEW) THEN
+    RAISE EXCEPTION 'Invalid city creation pin';
+   END IF;
+  END IF;
+  RETURN NEW;
  END IF;
- IF TG_TABLE_NAME='GameSnapshotRecord' AND TG_OP='INSERT' THEN
-  IF (NEW."payload"->>'kind'='city_loop_state' OR NEW."payload"->'schemaVersion'='12'::jsonb) AND NOT city_loop_profile_ok(c) THEN RAISE EXCEPTION 'Loop snapshot requires creation pin'; END IF;
+ SELECT * INTO c FROM "MatchConfiguration" WHERE "matchId"=key;
+ IF TG_TABLE_NAME='GameSnapshotRecord' AND TG_OP<>'DELETE' THEN
+  IF (NEW."payload"->>'kind'='city_loop_state' OR NEW."payload"->'schemaVersion'='12'::jsonb) AND NOT city_loop_profile_ok(c) THEN
+   RAISE EXCEPTION 'City snapshot requires creation pin';
+  END IF;
  END IF;
  IF (c."simulationVersion"='iberian-cities-v1') IS NOT TRUE THEN
-  IF TG_TABLE_NAME='PlayerSubmissionRevision' AND TG_OP<>'DELETE' THEN
+  IF TG_OP='DELETE' THEN RETURN OLD; END IF;
+  IF TG_OP='UPDATE' THEN
+   IF NEW."matchId" IS DISTINCT FROM key AND EXISTS(SELECT 1 FROM "MatchConfiguration"
+      WHERE "matchId"=NEW."matchId" AND "simulationVersion"='iberian-cities-v1') THEN
+    RAISE EXCEPTION 'Historical artifact cannot be moved into city cohort';
+   END IF;
+  END IF;
+  IF TG_TABLE_NAME='PlayerSubmissionRevision' THEN
    IF NEW."cityDraft" IS NOT NULL OR NEW."kind"::text='CITY_EDIT' THEN RAISE EXCEPTION 'City revision requires its own creation pin'; END IF;
   END IF;
-  IF TG_OP='DELETE' THEN RETURN OLD; END IF; RETURN NEW; END IF;
+  RETURN NEW;
+ END IF;
+ SELECT * INTO m FROM "Match" WHERE "id"=key FOR UPDATE;
+ IF NOT FOUND THEN IF TG_OP='DELETE' THEN RETURN OLD; END IF; RAISE EXCEPTION 'City parent required'; END IF;
  IF NOT city_loop_profile_ok(c) THEN RAISE EXCEPTION 'Invalid loop pin'; END IF;
  IF TG_OP='UPDATE' THEN IF OLD."matchId" IS DISTINCT FROM NEW."matchId" THEN RAISE EXCEPTION 'Loop parent immutable'; END IF; END IF;
  IF TG_TABLE_NAME='MatchParticipant' THEN

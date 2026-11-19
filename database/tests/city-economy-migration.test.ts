@@ -13,3 +13,12 @@ test("city migration adds a cohort without changing the prior admission body or 
  expect(sql).toContain("INITIALLY DEFERRED");
  expect(sql).toContain('((c)."pinnedRuleset"->\'balance\')-\'startingCredits\'=');
 });
+
+
+test("scopes existing rows by their original parent before checking the city parent",()=>{
+ const sql=readFileSync(new URL("../prisma/migrations/202611190001_city_recruitment/migration.sql",import.meta.url),"utf8");
+ const guard=sql.split("CREATE FUNCTION city_loop_guard()")[1]!.split("CREATE FUNCTION city_loop_match_guard()")[0]!;
+ expect(guard).toContain('IF TG_OP=\'INSERT\' THEN key:=NEW."matchId"; ELSE key:=OLD."matchId"; END IF;');
+ expect(guard.indexOf("IS NOT TRUE THEN")).toBeLessThan(guard.indexOf("City parent required"));
+ expect(guard).toContain("Historical artifact cannot be moved into city cohort");
+});

@@ -1532,3 +1532,11 @@ as a subtraction of two untyped literals. Explicitly group the extracted
 balance object before removing the starting-credit field. The failed
 disposable service was cleaned up, and no integration cases ran in that
 attempt. The next push verifies the correction in normal hosted CI.
+
+Resume pass 5 preserves historical frozen-input guard selection. CI
+44559516964 applied the city migration and passed all five new cases. It had
+330 passes and one historical failure because the city trigger rejected a
+historical frozen-input reassignment using the proposed replacement parent.
+The city guard now classifies existing artifacts by their original parent
+before the city-only lock. It still rejects cross-cohort entry and city
+reassignment. The existing historical assertion and guard are unchanged.
