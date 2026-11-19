@@ -5,7 +5,7 @@ import {createPrivateKey,createPublicKey,sign,randomUUID} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
 import {canonical,parseManifest,QueueAuthority,OWNER_ID,issueDigest,MANUAL_FORBIDDEN_PATHS,MANUAL_FORBIDDEN_OPERATIONS,MANUAL_WATCHDOG_SECONDS,type QueueManifest} from './overnight-policy.ts';
 import {validateQueueLedger,type QueueLedger} from './overnight-ledger.ts';
-import {REPOSITORY,OWNER,SHA,sha256} from './codex-automation-policy.ts';
+import {REPOSITORY,OWNER,SHA,sha256,validScopePath,FEATURE_SCOPE_PROFILE} from './codex-automation-policy.ts';
 import {HOSTED_MODEL} from './codex-hosted-agents.ts';
 import {ControlDenied,requireControl} from './codex-run-control.ts';
 import type {GitHubTransport} from './codex-github-control.ts';
@@ -25,7 +25,8 @@ export async function manualCli(args:readonly string[],options:ManualOptions={})
  requireControl(process.env.OPENAI_API_KEY===undefined,'manual-provider-key-forbidden');
  const [mode,input,keyPath,output,confirmation]=args;
  requireControl(mode==='prepare'&&args.length===5&&confirmation==='--soft-limit-50'||
-   mode==='start'&&args.length===3&&keyPath==='--soft-limit-50','manual-usage');
+   mode==='start'&&args.length===3&&keyPath==='--soft-limit-50'||
+   mode==='freeze'&&args.length===4&&output==='--soft-limit-50','manual-usage');
  if(mode==='start')requireControl(!existsSync(input!+'.attempted'),'manual-attempt-already-recorded');
  const call=options.command??((parts:string[],body?:string)=>execFileSync('gh',parts,{encoding:'utf8',timeout:30000,maxBuffer:1024*1024,
   ...(body===undefined?{}:{input:body}),stdio:['pipe','pipe','pipe']}));
@@ -46,6 +47,19 @@ export async function manualCli(args:readonly string[],options:ManualOptions={})
   sha256(publicKey.export({type:'spki',format:'der'}))===pin,'manual-key-pin');
  const ledgerFile=get(ROOT+'/contents/.sovereign/overnight-ledger.json?ref=sovereign-overnight-ledger-v1');
  const ledger=decode(ledgerFile) as QueueLedger;validateQueueLedger(ledger);requireControl(ledger.active===null,'manual-active-or-uncertain-run');
+ if(mode==='freeze'){
+  requireControl(input==='110','manual-approved-issue');
+  const scope=decode(get(ROOT+'/contents/docs/CITY_RECRUITMENT_SCOPE.json?ref='+main));
+  requireControl(Object.keys(scope).sort().join(',')==='allowedPaths,issue,version'&&scope.version===1&&scope.issue===110&&
+   Array.isArray(scope.allowedPaths)&&scope.allowedPaths.length>0&&scope.allowedPaths.length<=128&&
+   new Set(scope.allowedPaths).size===scope.allowedPaths.length&&scope.allowedPaths.every((p:unknown)=>typeof p==='string'&&validScopePath(p,FEATURE_SCOPE_PROFILE)),'manual-frozen-paths');
+  const issue=get(ROOT+'/issues/110');
+  requireControl(issue.state==='open'&&!Object.hasOwn(issue,'pull_request')&&typeof issue.title==='string'&&typeof issue.body==='string'&&
+   Buffer.byteLength(issue.body)>0&&Buffer.byteLength(issue.body)<=32768,'manual-frozen-issue');
+  const frozen={sourceSha:main,issue:110,title:issue.title,issueDigest:issueDigest(issue.title,issue.body),scopeText:issue.body,allowedPaths:scope.allowedPaths};
+  writeFileSync(keyPath!,JSON.stringify(frozen,null,2)+'\n',{flag:'wx',mode:0o600});
+  console.log('FROZEN: current main, approved issue and exact paths. No signature, dispatch or paid work.');return;
+ }
  const local=readJson(input!);
  let manifest:QueueManifest,signature:Buffer,prepared:Record<string,unknown>;
  const authority=(m:QueueManifest,s:Buffer)=>new QueueAuthority(api,enrollment,Buffer.from(JSON.stringify(m)),s,{

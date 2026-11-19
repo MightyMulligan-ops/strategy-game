@@ -9,13 +9,15 @@ paste or commit it. This helper never needs or reads an OpenAI API key. The paid
 runner uses its existing isolated GitHub environment secret. GitHub CLI must be
 signed in as the existing repository owner; no new permissions/key are provisioned.
 
+The checked-in docs/CITY_RECRUITMENT_SCOPE.json fixes the 128 approved paths for Issue110. The read-only freeze command generates a local task file from current main and the exact live issue body; no hand-built digest or source hash is needed.
+
 The frozen task JSON contains exactly:
 - sourceSha: current merged main SHA
 - issue, title, issueDigest: the exact open issue and SHA256 of canonical {title,body}
 - scopeText: that exact issue body
 - allowedPaths: explicit supported city-feature-v1 paths, no wildcards
 
-Issue110's final file list and exact source must be frozen after source inspection.
+Issue110's explicit file list covers the inspected application/engine/shared contracts, new city modules, additive migration source and tests/docs. Freeze binds those paths to current merged main and the current approved issue. Paid code cannot modify the trusted scope JSON or controller.
 Do not use the expired Issue95 request or substitute another branch. Task approval
 has already been given in chat; this local operation supplies its cryptographic
 signature and one-use dispatch, not another gameplay approval.
@@ -24,6 +26,7 @@ In normal owner PowerShell, from the merged checkout, use the installed pinned
 pnpm/toolchain setup and these commands (replace only the two existing file paths):
 
 ```powershell
+node --experimental-transform-types scripts/overnight-manual.ts freeze 110 .cache/city-task.json --soft-limit-50
 node --experimental-transform-types scripts/overnight-manual.ts prepare .cache/city-task.json "PATH-TO-EXISTING-OWNER-KEY.pem" .cache/city-prepared.json --soft-limit-50
 node --experimental-transform-types scripts/overnight-manual.ts start .cache/city-prepared.json --soft-limit-50
 ```

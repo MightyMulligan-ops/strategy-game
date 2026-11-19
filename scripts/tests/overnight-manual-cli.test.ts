@@ -17,7 +17,7 @@ function fixture(){
  writeFileSync(input,JSON.stringify(request));writeFileSync(key,privateKey.export({type:'pkcs8',format:'pem'}),{mode:0o600});
  const remoteFile=(value:unknown,sha='b'.repeat(40))=>({sha,content:Buffer.from(JSON.stringify(value)).toString('base64')});
  const state={main,owner:OWNER,ownerId:OWNER_ID,pin:enrollment.fingerprint,ledger:emptyLedger(),remote:remoteFile({version:1,enabled:false,enrollment}),
-  source:readFileSync(new URL('../overnight-manual.ts',import.meta.url)),body,title,dispatches:0,failDispatch:false,failPut:false,corruptPublished:false};
+  source:readFileSync(new URL('../overnight-manual.ts',import.meta.url)),scopePaths:request.allowedPaths,body,title,dispatches:0,failDispatch:false,failPut:false,corruptPublished:false};
  const calls:{parts:string[];body?:string}[]=[];
  const command:ManualCommand=(parts,data)=>{
   calls.push({parts,...(data===undefined?{}:{body:data})});const route=parts[1],base='repos/'+REPOSITORY;
@@ -32,6 +32,7 @@ function fixture(){
   if(route===base+'/git/ref/heads/main')return JSON.stringify({ref:'refs/heads/main',object:{sha:state.main}});
   if(route?.includes('/collaborators/'))return JSON.stringify({permission:'admin',user:{login:OWNER,id:OWNER_ID,type:'User'}});
   if(route?.includes('/contents/scripts/overnight-manual.ts'))return JSON.stringify({content:state.source.toString('base64')});
+  if(route?.includes('/contents/docs/CITY_RECRUITMENT_SCOPE.json'))return JSON.stringify(remoteFile({version:1,issue:110,allowedPaths:state.scopePaths}));
   if(route?.includes('/actions/variables/'))return JSON.stringify({value:state.pin});
   if(route?.includes('/contents/.sovereign/queue.json'))return JSON.stringify(state.remote);
   if(route?.includes('/contents/.sovereign/overnight-ledger.json'))return JSON.stringify(remoteFile(state.ledger));
@@ -112,5 +113,22 @@ test('preparation requires the explicit soft-limit flag and exact frozen input',
   await expect(f.run(['prepare',f.input,f.key,f.output,'--anything'])).rejects.toThrow('manual-usage');
   writeFileSync(f.input,JSON.stringify({...f.request,extra:'unapproved'}));await expect(f.prepare()).rejects.toThrow('manual-frozen-input');
   expect(f.mutations()).toHaveLength(0);expect(canonical(f.state.ledger)).toContain('"active":null');
+ }finally{f.cleanup()}
+});
+
+test('freeze writes current source and exact issue/path metadata without signature or mutation',async()=>{
+ const f=fixture();try{
+  const output=join(f.root,'frozen.json');await f.run(['freeze','110',output,'--soft-limit-50']);
+  const task=JSON.parse(readFileSync(output,'utf8'));expect(task).toMatchObject(f.request);
+  expect(task).not.toHaveProperty('signature');expect(f.mutations()).toHaveLength(0);
+  await expect(f.run(['freeze','110',output,'--soft-limit-50'])).rejects.toThrow();
+ }finally{f.cleanup()}
+});
+test('freeze rejects controller paths and unrelated issues',async()=>{
+ const f=fixture();try{
+  const output=join(f.root,'frozen.json');f.state.scopePaths=['scripts/controller.ts'];
+  await expect(f.run(['freeze','110',output,'--soft-limit-50'])).rejects.toThrow('manual-frozen-paths');
+  await expect(f.run(['freeze','95',output,'--soft-limit-50'])).rejects.toThrow('manual-approved-issue');
+  expect(existsSync(output)).toBe(false);expect(f.mutations()).toHaveLength(0);
  }finally{f.cleanup()}
 });
