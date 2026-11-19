@@ -15,6 +15,9 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
+  const [accountOpen,setAccountOpen]=useState(false)
+  const accountPanel=useRef<HTMLElement>(null),accountButton=useRef<HTMLButtonElement>(null)
+  useEffect(()=>{if(accountOpen)accountPanel.current?.focus({preventScroll:true})},[accountOpen])
   const actionLock = useRef(false)
   const sessionRead = useRef<AbortController | null>(null)
   const beginLobbyAction = useCallback(() => {
@@ -132,7 +135,7 @@ function App() {
   const registered = !loading && !!user?.username
   return <main>
     <header className="masthead"><div className="brand-lockup"><img src="/assets/branding/emblem.svg" alt="" width="42" height="44" />
-      <img src="/assets/branding/wordmark.svg" alt="Sovereign" width="220" height="42" /></div><span className="eyebrow">Global Crown <span aria-hidden="true">/</span> In development</span></header>
+      <img src="/assets/branding/wordmark.svg" alt="Sovereign" width="220" height="42" /></div><span className="eyebrow">Global Crown <span aria-hidden="true">/</span> In development</span>{registered&&<button ref={accountButton} className="account-toggle" aria-controls="player-account-panel" aria-expanded={accountOpen} onClick={()=>setAccountOpen(v=>!v)}>Account</button>}</header>
     <div className={registered ? 'registered-layout' : 'auth-layout'}>
     {registered ? <LobbyBrowser busy={busy} onBegin={beginLobbyAction} onEnd={endLobbyAction} onSessionError={recheckAccount} /> :
       <section className="introduction" aria-labelledby="brand-title">
@@ -142,7 +145,7 @@ function App() {
         <p className="intro-copy">An original multiplayer strategy game.<br />Begin with an identity. Build what comes next.</p>
         <span className="development-label">Plan together. Play your own hand.</span>
       </section>}
-    <section className="account-panel" aria-label="Player account" aria-busy={loading || busy}>
+    <section ref={accountPanel} id="player-account-panel" tabIndex={-1} onKeyDown={e=>{if(e.key==='Escape'&&accountOpen){setAccountOpen(false);accountButton.current?.focus()}}} className={"account-panel"+(accountOpen?" account-open":"")} aria-label="Player account" aria-busy={loading || busy}>
       {loading ? <p role="status">Loading your account…</p> : !user ? <>
         <p className="eyebrow">Welcome, commander</p>
         <h2>Sign in to continue</h2>

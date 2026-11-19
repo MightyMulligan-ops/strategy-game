@@ -230,7 +230,7 @@ describe('Sovereign account and lobby UI', () => {
     current = room('HOST', 'OPEN', true, true); await click('Refresh details')
     expect(button('Start Match').disabled).toBe(false); expect(text()).toContain('All players are ready')
     await click('Start Match'); expect(button('Start Match').disabled).toBe(true)
-    expect(text()).toContain('Match started. Open the initial map to inspect your world.')
+    expect(text()).toContain('Match started. Open the map to plan your turn.')
     expect(text()).toContain('RUNNING'); expect(text()).toContain('5 minutes')
     expect(posts().at(-1)?.[1]?.body).toBe(JSON.stringify({ schemaVersion: 1 }))
     expect([...host.querySelectorAll('button')].some((b) => b.textContent?.startsWith('Mark '))).toBe(false)
@@ -358,4 +358,13 @@ describe('selected own formation account boundary (Issue 74)', () => {
     expect(host.querySelector('.formation-marker')).toBeNull(); expect(text()).not.toContain('private-spawn')
     expect(text()).toContain('Sign in to continue')
   })
+})
+
+it('updates lobby readiness and start state automatically without clearing the creation draft',async()=>{
+ vi.useFakeTimers()
+ try{
+  current=room('HOST','OPEN',false,true);await mount();await click('Inspect Evening Council');await value('lobby-name','My draft lobby');expect(button('Start Match').disabled).toBe(true)
+  current=room('HOST','OPEN',true,true);await act(async()=>vi.advanceTimersByTimeAsync(10_000));expect(button('Start Match').disabled).toBe(false);expect(host.querySelector<HTMLInputElement>('#lobby-name')!.value).toBe('My draft lobby')
+  current=room('HOST','RUNNING',true,true);await act(async()=>vi.advanceTimersByTimeAsync(10_000));expect(button('View map')).toBeDefined();expect(button('Start Match').disabled).toBe(true);expect(request.mock.calls.filter(([,o])=>o?.method==='POST')).toHaveLength(0)
+ }finally{vi.useRealTimers()}
 })

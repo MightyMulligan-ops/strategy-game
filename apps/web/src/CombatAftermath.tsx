@@ -2,7 +2,7 @@ import type {CombatAftermath as Aftermath} from '@strategy-game/shared-types'
 import type {KeyboardEvent} from 'react'
 
 /** Only authorized own fields enter this inspector. Loss membership is battle-wide. */
-export default function CombatAftermath({view,turnNumber}:{view:Aftermath;turnNumber?:number}) {
+export default function CombatAftermath({view,turnNumber,geographic=false}:{view:Aftermath;turnNumber?:number;geographic?:boolean}) {
  const outcomes={victory:'Victory',defeat:'Defeat',mutual_destruction:'Mutual destruction'}
  const ownership={own:'Your force receives ownership',ally:'An allied force receives ownership',opponent:'An opposing force receives ownership',unchanged:'Ownership unchanged'}
  function closeDisclosure(event:KeyboardEvent<HTMLDetailsElement>) {
@@ -12,7 +12,7 @@ export default function CombatAftermath({view,turnNumber}:{view:Aftermath;turnNu
  }
  return <>
   <p role="status">{turnNumber?`Turn ${turnNumber} resolved. Movement and battles are complete. Fresh planning is shown in the current turn panel.`:'Turn 1 resolved. Movement and battles are complete. Turn 2 has not opened.'}</p>
-  <p>These results concern only your formations. The map shows archived initial ownership; it is not a current ownership map.</p>
+  <p>These results concern only your formations. {geographic?'Camp markers show your current ownership. This history records ownership at the end of the selected turn. Country borders do not show control.':'The map shows archived initial ownership; it is not a current ownership map.'}</p>
   {view.battles.length===0?<p>No battles involved your formations this turn.</p>:view.battles.map(b=><article key={b.ownFormationIds.join(',')}>
    <h3>{outcomes[b.outcome]}</h3>
    <p>{b.lostUnitIds.length} own {b.lostUnitIds.length===1?'unit lost':'units lost'} · {b.survivingUnitIds.length} own {b.survivingUnitIds.length===1?'unit survived':'units survived'}.</p>

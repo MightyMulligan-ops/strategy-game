@@ -8,6 +8,7 @@ import {
 import type { LobbyDetail, LobbySummary } from '@strategy-game/shared-types'
 import { lobbyRequest, LobbyRequestError } from './lobby-api'
 import WorldView from './WorldView'
+import {useAutoRefresh} from './useAutoRefresh'
 
 function duration(ms: number): string {
   return ms % 3_600_000 === 0 ? `${ms / 3_600_000} hour${ms === 3_600_000 ? '' : 's'}`
@@ -45,6 +46,7 @@ export default function LobbyBrowser({ busy, onBegin, onEnd, onSessionError }: {
   const listRead = useRef<AbortController | null>(null)
   const detailRead = useRef<AbortController | null>(null)
   const mutation = useRef<AbortController | null>(null)
+  const selection = useRef<string|null>(null), writing = useRef(false)
 
   const explain = useCallback(async (error: unknown) => {
     if (error instanceof LobbyRequestError && (error.code === 'UNAUTHENTICATED' || error.code === 'USERNAME_REQUIRED')) {
@@ -54,36 +56,40 @@ export default function LobbyBrowser({ busy, onBegin, onEnd, onSessionError }: {
     return error instanceof LobbyRequestError ? error.message : 'Unable to connect. Please try again.'
   }, [onSessionError])
 
-  const loadList = useCallback(async () => {
+  const loadList = useCallback(async (background = false): Promise<boolean> => {
     listRead.current?.abort()
     const controller = new AbortController(); listRead.current = controller
-    setListLoading(true)
+    const timeout=setTimeout(()=>controller.abort('timeout'),15_000)
+    if (!background) setListLoading(true)
     try {
       const result = await lobbyRequest(`/api/lobbies?status=${listStatus}`, ListLobbiesResponseSchema, controller.signal)
-      if (!controller.signal.aborted) { setLobbies(result.lobbies); setListError('') }
+      if (!controller.signal.aborted) { setLobbies(result.lobbies); setListError(''); return true }
     } catch (error) {
-      if (!controller.signal.aborted) {
+      if (!controller.signal.aborted || controller.signal.reason==='timeout') {
         const message = await explain(error)
-        if (!controller.signal.aborted) { setLobbies(null); setListError(message) }
+        if (!controller.signal.aborted || controller.signal.reason==='timeout') { setLobbies(null); setListError(message) }
       }
-    } finally { if (!controller.signal.aborted) setListLoading(false) }
+    } finally { clearTimeout(timeout); if (!controller.signal.aborted || controller.signal.reason==='timeout') setListLoading(false); if (listRead.current === controller) listRead.current = null }
+    return false
   }, [explain, listStatus])
 
   function refreshList() { setListLoading(true); setListError(''); return loadList() }
 
-  const loadDetail = useCallback(async (id: string) => {
+  const loadDetail = useCallback(async (id: string, background = false): Promise<boolean> => {
     detailRead.current?.abort()
     const controller = new AbortController(); detailRead.current = controller
-    setSelected(id); setDetail(null); setDetailError(''); setDetailLoading(true)
+    const timeout=setTimeout(()=>controller.abort('timeout'),15_000)
+    selection.current=id; setSelected(id); if (!background) { setDetail(null); setDetailError(''); setDetailLoading(true) }
     try {
       const result = await lobbyRequest(`/api/lobbies/${encodeURIComponent(id)}`, ViewLobbyResponseSchema, controller.signal)
-      if (!controller.signal.aborted) setDetail(result.lobby)
+      if (!controller.signal.aborted) { setDetail(result.lobby); setDetailError(''); return true }
     } catch (error) {
-      if (!controller.signal.aborted) {
+      if (!controller.signal.aborted || controller.signal.reason==='timeout') {
         const message = await explain(error)
-        if (!controller.signal.aborted) setDetailError(message)
+        if (!controller.signal.aborted || controller.signal.reason==='timeout') { setDetail(null); setDetailError(message) }
       }
-    } finally { if (!controller.signal.aborted) setDetailLoading(false) }
+    } finally { clearTimeout(timeout); if (!controller.signal.aborted || controller.signal.reason==='timeout') setDetailLoading(false); if (detailRead.current === controller) detailRead.current = null }
+    return false
   }, [explain])
 
   useEffect(() => {
@@ -92,8 +98,17 @@ export default function LobbyBrowser({ busy, onBegin, onEnd, onSessionError }: {
     return () => { cancelled = true; listRead.current?.abort(); detailRead.current?.abort(); mutation.current?.abort() }
   }, [loadList])
 
+  useEffect(()=>{if(worldId!==null){listRead.current?.abort();detailRead.current?.abort()}},[worldId])
+  useAutoRefresh(async () => {
+    if (listRead.current || detailRead.current || writing.current) return true
+    const target=selected
+    if (!await loadList(true)) return false
+    return target && selection.current===target && !writing.current ? loadDetail(target, true) : true
+  }, !busy && !sessionInvalid && worldId === null)
+
   async function act(action: 'create' | 'join' | 'leave' | 'ready' | 'start', input?: object) {
     if (sessionInvalid || !onBegin()) return
+    writing.current=true; listRead.current?.abort(); detailRead.current?.abort()
     setActionError(''); setNotice('')
     const controller = new AbortController(); mutation.current = controller
     const target = detail?.lobbyId
@@ -111,7 +126,7 @@ export default function LobbyBrowser({ busy, onBegin, onEnd, onSessionError }: {
       if (controller.signal.aborted) return
       setNotice(action === 'create' ? 'Lobby created. You are the host.' : action === 'leave' ? 'You left the lobby.'
         : action === 'ready' ? 'Your readiness was updated.'
-          : action === 'start' ? ('outcome' in result && result.outcome === 'ALREADY_STARTED' ? 'This match has already started.' : 'Match started. Open the initial map to inspect your world.')
+          : action === 'start' ? ('outcome' in result && result.outcome === 'ALREADY_STARTED' ? 'This match has already started.' : 'Match started. Open the map to plan your turn.')
             : 'outcome' in result && result.outcome === 'ALREADY_JOINED' ? 'You already belong to this lobby.' : 'You joined the lobby.')
       if (action === 'create') setName('')
       await Promise.all([refreshList(), loadDetail(result.lobby.lobbyId)])
@@ -124,7 +139,7 @@ export default function LobbyBrowser({ busy, onBegin, onEnd, onSessionError }: {
         await Promise.all([refreshList(), ...(target ? [loadDetail(target)] : [])])
       }
     } finally {
-      onEnd()
+      writing.current=false; onEnd()
     }
   }
 
@@ -147,7 +162,7 @@ export default function LobbyBrowser({ busy, onBegin, onEnd, onSessionError }: {
   return <section className="lobby-workspace" aria-labelledby="lobbies-title">
     <div className="workspace-heading"><div><p className="eyebrow">Multiplayer / public lobbies</p><h1 id="lobbies-title">The assembly</h1>
       <p className="muted">Find your company. Set the pace. Prepare for what comes next.</p></div>
-      <span className="development-label">Lobby readiness · Gameplay coming later</span></div>
+      <span className="development-label">Updates automatically</span></div>
     <div className="lobby-grid">
       <section className="panel lobby-list" aria-labelledby="open-lobbies-title" aria-busy={listLoading}>
         <div className="section-heading"><h2 id="open-lobbies-title">{listStatus === 'OPEN' ? 'Open lobbies' : 'Started lobbies'}</h2><button disabled={disabled || listLoading} onClick={() => void refreshList()}>Refresh list</button></div>
@@ -180,7 +195,7 @@ export default function LobbyBrowser({ busy, onBegin, onEnd, onSessionError }: {
           {detail.viewer.role === 'HOST' && <><button className="primary" disabled={disabled || !detail.viewer.canStart}
             aria-describedby="start-reason" onClick={() => void act('start')}>Start Match</button>
             <p id="start-reason" className="small muted">{startReason}</p><p className="small muted">You are the host. Hosts cannot leave.</p></>}
-          {detail.status === 'RUNNING' && <p className="small muted">This match is running. Joining, leaving and readiness changes are closed. Gameplay setup is a future milestone.</p>}
+          {detail.status === 'RUNNING' && <p className="small muted">This match is running. Joining, leaving and readiness changes are closed. Participants can open the map to plan the current turn.</p>}
           {detail.status === 'OPEN' && !detail.availableSlots && <p className="small muted">This lobby is full.</p>}
         </>}
       </section>

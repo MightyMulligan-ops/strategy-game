@@ -1362,3 +1362,93 @@ Focused runner-only tree is based on mainb216e43, excluding command-UI commits a
 unpublished recruitment design edits. Exact-head CI is required before activation.
 New runner correction history1/5; prior histories preserved. Details and operating
 limits: MANUAL_PAID_RUNNER.md.
+
+## Owner-started Europe UI / automatic updates — 2026-11-18
+
+Baseline b216e43b1d00dafab9fab62886ea16ac9cb25a85; branch ui/live-europe-map.
+Owner reported successful two-browser combat, survivor carryover and logout
+isolation on the baseline Windows playtest. New work adds visible-tab automatic
+lobby/current-turn reads (10s, hidden/offline pause, bounded failure backoff),
+request/write race protection, preserved same-turn drafts/camera, country
+identification using unchanged display polygons, collapsed secondary map controls,
+full-width match planning and current-own Europe ownership wording. Main lobby
+visual redesign is deferred. Full scope/behavior/limits: LIVE_EUROPE_UI.md.
+
+New-task correction history: 1/5 updated one stale lobby-start copy assertion
+(first focused regression 98 passed/1 failed); 2/5 fixed an optional RequestInit
+access in the new test after build reported TS18048. No gameplay/security test
+expectation changed. Earlier implementation and repair histories remain intact.
+
+Final AUTH_ENABLED=false RUN_DATABASE_TESTS=0 checks: full build passed; full
+typecheck passed; final web build/typecheck and lint passed; full frontend suite
+258/258 passed; full suite 2397 passed/327 skipped/0 failed (113 passed/22 skipped
+files); git diff --check passed. Existing bundle-size advisory remains. New tests
+cover automatic lobby Ready/start visibility, no auto POST, hidden-tab pause,
+backoff/non-overlap, preserved input, next-turn reset, stale reads during writes,
+auth-loss clearing and country polygon/hole/ocean/anchor and hover behavior.
+
+No API/schema/gameplay/dependency/workflow/security edits; no DB connections,
+provisioning, real-browser acceptance of this layout, hosted CI, merge or
+deployment performed for this task. Implementation is prepared for feature-branch
+sharing/local owner testing; no PR or milestone completion is claimed. The user's
+Windows site changes only after fetching this branch and restarting pnpm dev.
+
+
+## Owner-started command interface refinement - 2026-11-18
+
+Base 72db7fbcb1db46bc900512d95b0b84a395559a60; branch ui/map-command-interface.
+Scope: interior/zoom-fitted country labels, full-height Sovereign command layout,
+contextual Units/Orders/Reports and Account panels, selectable own army markers
+and drag-to-queue movement through existing authoritative commands. Historical
+controls and automatic polling remain supported. Recruitment is not implemented:
+exact costs/limits/timing remain unresolved in GAME_DESIGN.md and the current
+Europe scenario has no recruitment command. Interaction recommendation and all
+source paths/limits are in COMMAND_INTERFACE.md. Main lobby redesign is deferred.
+
+Verification: 269 frontend tests passed (16 files); full build, final web build,
+root typecheck, web lint and diff checks passed. Full suite: 2391 passed, 18 failed,
+326 skipped. All failures are in five unchanged scripts test files, with python3
+EACCES, unsupported gateway socket path and malformed Windows C:\C:\... URL path
+errors. scripts diff against base is empty. This is not a green full-suite claim;
+no automation/workflow/security repair or hosted retry was attempted.
+
+Real signed local browser observed full-height layout and unit inspection; an
+invalid drop rejected; one valid drag queued an order without moving the stored
+army; reload retained that exact order; its cancellation returned the queue to
+empty/Unready. No Ready action or turn advance occurred. Current home test match:
+196b2135-26bf-4955-a7bb-7921692a274f. The two test commands advanced queue revision
+normally. New pointer cancellation, Ready/stale-revision and polygon label-fit
+regressions pass. Two-browser acceptance of this new refinement remains separate.
+
+New correction history 3/5: presentation type compatibility; pointer-release/focus
+handling; configurable test DOM rectangle. Earlier task and repair histories are
+unchanged. No backend, schema, gameplay balance, dependency or security changes;
+no database migration, merge or deployment. Source is prepared for feature-branch
+sharing, with final publication identity supplied in the task handoff. The running
+home app already uses this source through Vite; reload once for clean acceptance.
+
+Final command-interface recovery update: passes 4/5 and 5/5 added automatic initial-world recovery after observed dev-server restart, guarded a missing HMR canvas and updated the changed error-copy assertion. New recovery test passes. Final full run 2392 passed / 18 unchanged tooling failures / 326 skipped. Frontend totals 270 passing tests. Browser visibly recovered without Refresh; Account open/Escape/focus return and the final command view were verified. Final queue remains empty/Unready; no turn advance. All five correction passes are consumed; no unrelated tooling repair, PR CI retry, merge or deployment performed.
+
+## Approved Issue110 source preparation
+
+Owner approved the city economy/recruitment/garrison bundle, runner merge,
+latest UI integration, additive migration source, one paid gpt-6.2-astra/high/
+standard session with a conservative $50 estimated soft limit, one draft feature
+PR and unchanged disposable PostgreSQL CI. Feature merge/deployment and existing
+database access remain excluded. Runner109 merged as48a4e478a694a43907b6fc47a5e881aa2165dbce;
+CI44449618170 attempt1 passed2433 application and326 DB tests plus offline validation.
+
+This preparation imports exact UI blobs from2f1b73c4e464f93cf873a1f260c62181c5658cff
+and preserves both UI/runner evidence histories. GAME_DESIGN.md now records the
+approved income/capture/command defaults. No recruitment runtime code is added.
+Issue110 is approved, not paid-running. Current ledger inspection: active:null,
+runs:[]; fresh inspection/signature/dispatch still required. PR96's incompatible
+protocol remains unmerged; preserve/adapt its useful launcher before paid launch.
+
+The Windows executor disconnected with a local DEVELOPMENT_STATUS.md merge
+conflict. No reset/delete was performed; resolve locally preserving both histories
+when reconnected. Execution/signing/dispatch are unavailable here; remote-only
+source preparation uses exact existing blobs and awaits exact-head CI. No paid
+session or OpenAI API call, existing database operation or deployment occurred.
+Earlier command-interface5/5 and runner1/5 histories remain unchanged. This new
+source-integration preparation starts at0/5 corrections.
