@@ -1524,3 +1524,11 @@ had 2,491 passes, zero failures and 331 intentional PostgreSQL skips. The
 five new PostgreSQL cases run with the historical cases in the unchanged
 hosted workflow. The engine and mocked browser fixtures are distinct from
 a real player session. The PR is for draft review.
+
+[Draft PR #113](https://github.com/MightyMulligan-ops/strategy-game/pull/113)
+is in review. Resume pass 4 corrects the migration compilation failure in
+CI 44559113065. PostgreSQL parsed the chained JSON lookup and subtraction
+as a subtraction of two untyped literals. Explicitly group the extracted
+balance object before removing the starting-credit field. The failed
+disposable service was cleaned up, and no integration cases ran in that
+attempt. The next push verifies the correction in normal hosted CI.

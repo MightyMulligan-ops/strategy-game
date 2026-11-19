@@ -11,4 +11,5 @@ test("city migration adds a cohort without changing the prior admission body or 
  expect(sql.split("CREATE FUNCTION")[0]).not.toMatch(/UPDATE|DELETE|INSERT|TRUNCATE/);
  expect(sql).toMatch(/city_loop_credit_edit_ok\(/);
  expect(sql).toContain("INITIALLY DEFERRED");
+ expect(sql).toContain('((c)."pinnedRuleset"->\'balance\')-\'startingCredits\'=');
 });

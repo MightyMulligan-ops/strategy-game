@@ -10,7 +10,7 @@ CREATE FUNCTION city_loop_profile_ok(c "MatchConfiguration") RETURNS boolean LAN
   AND jsonb_typeof((c)."pinnedRuleset"#>'{balance,startingCredits}')='number'
   AND ((c)."pinnedRuleset"#>>'{balance,startingCredits}')::numeric BETWEEN 0 AND 1000000000
   AND ((c)."pinnedRuleset"#>>'{balance,startingCredits}')::numeric=trunc(((c)."pinnedRuleset"#>>'{balance,startingCredits}')::numeric)
-  AND (c)."pinnedRuleset"->'balance'-'startingCredits'='{"schemaVersion":1,"infantryPrice":100,"lieutenantPrice":200,"cityIncome":200,"capitalIncome":400,"capacity":5,"recruitmentTurns":1}'::jsonb
+  AND ((c)."pinnedRuleset"->'balance')-'startingCredits'='{"schemaVersion":1,"infantryPrice":100,"lieutenantPrice":200,"cityIncome":200,"capitalIncome":400,"capacity":5,"recruitmentTurns":1}'::jsonb
   AND (c)."config"=jsonb_build_object('schemaVersion',1,'gameId',(c)."matchId",'turnDurationMs',(c)."turnDurationMs")) IS TRUE;
 $$;
 CREATE FUNCTION city_loop_queue_ok(key text, n bigint, actor text, orders jsonb) RETURNS boolean LANGUAGE plpgsql STABLE AS $$
