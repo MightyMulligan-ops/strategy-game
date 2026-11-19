@@ -8,7 +8,7 @@ import EuropeCommand from './EuropeCommand'
 import type {PlanningMap} from './EuropeCommand'
 import {useAutoRefresh} from './useAutoRefresh'
 
-type Props={expectedSchemaVersion?:1|2;matchId:string;onSessionError:()=>Promise<void>;map?:PlanningMap}
+type Props={expectedSchemaVersion?:1|2|3;matchId:string;onSessionError:()=>Promise<void>;map?:PlanningMap}
 export default function LoopWorkspace(props:Props){return <LoopReader key={props.matchId} {...props}/>}
 function LoopReader({matchId,onSessionError,map,expectedSchemaVersion}:Props){
  const [view,setView]=useState<LoopCurrent|null>(null),[busy,setBusy]=useState(false),[notice,setNotice]=useState('')
@@ -49,17 +49,24 @@ function LoopReader({matchId,onSessionError,map,expectedSchemaVersion}:Props){
   try{if(!Number.isSafeInteger(n)||n<1||!turn||n>=turn)throw Error('Invalid history turn');const r=await fetch(`${base}/turns/${n}/aftermath`,{method:'GET',credentials:'same-origin',cache:'no-store',signal:c.signal});await checked(r,c.signal);const h=LoopHistorySchema.parse(await r.json());if(h.matchId!==matchId||h.turnNumber!==n||h.schemaVersion!==view?.schemaVersion)throw Error('Wrong history');if(!c.signal.aborted)setHistory(h)}catch{if(!c.signal.aborted)setHistoryError('Own history could not be verified. Choose one completed turn and try again.')}
  }
  const historyPanel=<>  {historyError&&<p role="alert">{historyError}</p>}
-  {history&&<section aria-label={`Your Turn ${history.turnNumber} aftermath`}><h3>Own Turn {history.turnNumber} history</h3><CombatAftermath view={history.aftermath} turnNumber={history.turnNumber} geographic={history.schemaVersion===2}/></section>}</>
- const geographic=expectedSchemaVersion===2||view?.schemaVersion===2
+  {history&&<section aria-label={`Your Turn ${history.turnNumber} aftermath`}><h3>Own Turn {history.turnNumber} history</h3><CombatAftermath view={history.aftermath} turnNumber={history.turnNumber} geographic={history.schemaVersion!==1} city={history.schemaVersion===3}/>
+    {history.schemaVersion===3&&<ul aria-label="Your economy report">{history.economy.map((entry,i)=><li key={i}>{entry.kind==='income'
+      ?`${cityName(entry.cityId)} paid ${entry.amount} credits of income.`
+      :entry.kind==='completed'
+        ?`${entry.order.quantity} ${entry.order.unitType==='INFANTRY'?'Infantry':'Lieutenant'} arrived at ${cityName(entry.order.cityId)} for Turn ${entry.order.arrivalTurn}.`
+        :`Recruitment at ${cityName(entry.order.cityId)} canceled ${entry.reason==='capture'?'after capture':'by you'}. Refunded ${entry.refund} credits.`}</li>)}</ul>}</section>}
+</>
+ const cityName=(id:string)=>view?.schemaVersion===3?view.cities.find(c=>c.cityId===id)?.name??id:id
+ const geographic=expectedSchemaVersion!==undefined&&expectedSchemaVersion!==1||view!==null&&view.schemaVersion!==1
  return <section ref={panel} tabIndex={-1} className={"panel loop-workspace"+(geographic?" command-shell":"")} aria-labelledby={title} aria-busy={busy}>
   {geographic?<details className="command-sync"><summary>Connection</summary><h2 id={title}>Combat planning</h2><p>Updates automatically while this tab is visible.</p><button onClick={()=>void refresh()}>Refresh current turn</button></details>:<><div className="section-heading"><h2 id={title}>Combat planning</h2><button onClick={()=>void refresh()}>Refresh current turn</button></div><p className="small muted">Updates automatically while this tab is visible.</p></>}
   {notice&&<p className="command-notice" role="alert">{notice}</p>}
   {!view?<p role="status">{busy?'Loading current turn…':'Current turn unavailable.'}</p>:<LoopControls key={`${matchId}:${view.schemaVersion}:${view.turn.turnNumber}`} view={view} busy={busy} historyPanel={historyPanel} mutate={c=>void mutate(c)} inspect={n=>void inspect(n)} {...(map?{map}:{})}/>}
-  {view?.schemaVersion!==2&&historyPanel}
+  {view?.schemaVersion===1&&historyPanel}
  </section>
 }
 type Controls={view:LoopCurrent;busy:boolean;mutate:(c:LoopCommand)=>void;inspect:(n:number)=>void;map?:Props['map'];historyPanel?:ReactNode}
-function LoopControls(props:Controls){return props.view.schemaVersion===2?<EuropeCommand {...props} view={props.view}/>:<HistoricalLoopControls {...props}/>}
+function LoopControls(props:Controls){return props.view.schemaVersion!==1?<EuropeCommand {...props} view={props.view}/>:<HistoricalLoopControls {...props}/>}
 function HistoricalLoopControls({view,busy,mutate,inspect,map}:{view:LoopCurrent;busy:boolean;mutate:(c:LoopCommand)=>void;inspect:(n:number)=>void;map?:Props['map']}){
  const [selected,setSelected]=useState(''),[x,setX]=useState(''),[y,setY]=useState(''),[historyTurn,setHistoryTurn]=useState(String(Math.max(1,view.turn.turnNumber-1))),[now,setNow]=useState(()=>Date.now())
  const detailsId=useId(),markerId=useId(),heading=useRef<HTMLHeadingElement>(null)
@@ -67,7 +74,7 @@ function HistoricalLoopControls({view,busy,mutate,inspect,map}:{view:LoopCurrent
  useEffect(()=>{if(focusRequest>0)heading.current?.focus()},[focusRequest])
  useEffect(()=>{const timer=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(timer)},[])
  const f=view.formations.find(f=>f.formationId===selected)??null,n=view.turn.turnNumber,locked=busy||view.turn.status!=='open',editable=!locked&&!view.own.ready
- const common={...(view.schemaVersion===2?{schemaVersion:2 as const,profile:view.profile}:{schemaVersion:1 as const}),turnNumber:n,expectedRevision:view.own.revision}
+ const common={schemaVersion:1 as const,turnNumber:n,expectedRevision:view.own.revision}
  let from=f?.position??{x:0,y:0},distance=0
  const segments=view.own.orders.filter(o=>o.stackId===f?.formationId).map((o,i)=>{const d=Math.sqrt((o.destination.x-from.x)**2+(o.destination.y-from.y)**2);distance+=d;const s={orderId:o.orderId,moveNumber:i+1,from,destination:o.destination,distance:d,cumulative:distance};from=o.destination;return s})
  const route:MovementRoute|null=f?{formationId:f.formationId,range:250,distance,remaining:Math.max(0,250-distance),segments}:null
@@ -87,7 +94,7 @@ function HistoricalLoopControls({view,busy,mutate,inspect,map}:{view:LoopCurrent
   <button disabled={!editable||!f?.units.some(u=>u.kind==='LEADER')||!x.trim()||!y.trim()} onClick={add}>Add movement</button>
   {f&&!f.units.some(u=>u.kind==='LEADER')&&<p>This surviving formation cannot move under the approved leadership/source-radius policy. Its original spawn is unchanged.</p>}
   <ol aria-label="Current own orders">{view.own.orders.map(o=><li key={o.orderId}>Formation {view.formations.findIndex(f=>f.formationId===o.stackId)+1} → {o.destination.x}, {o.destination.y}<button disabled={!editable} onClick={()=>mutate({...common,kind:'cancel_order',orderId:o.orderId})}>Cancel movement {o.orderId}</button></li>)}</ol>
-  <p>Current locations owned by you: {view.ownedLocationIds.join(', ')||'None'}. Other current ownership is not included. {view.schemaVersion===2?'Camp markers show your current ownership; country borders are geographic context.':'The map retains archived initial ownership/colors.'}</p>
+  <p>Current locations owned by you: {view.ownedLocationIds.join(', ')||'None'}. Other current ownership is not included. {'The map retains archived initial ownership/colors.'}</p>
   <fieldset disabled={busy||n===1}><legend>Inspect one completed own turn</legend><label>Completed turn number<input type="number" min={1} max={n-1} value={historyTurn} onChange={e=>setHistoryTurn(e.target.value)}/></label><button onClick={()=>inspect(Number(historyTurn))}>Read own aftermath</button></fieldset>
  </>
 }

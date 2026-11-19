@@ -36,7 +36,7 @@ export function restoreWorldArchive(stored: MatchWorld) {
 }
 type Player = { playerId: string; username: string | null };
 /** Allowlist projection. No seed, raw payload, generation settings or units. */
-export function projectWorld(stored: MatchWorld, players: readonly Player[]): PublicWorld {
+export function projectWorld(stored: MatchWorld, players: readonly Player[], cityRuntime = false): PublicWorld {
   const w = GeneratedWorldSchema.parse(stored.payload);
   if (stored.schemaVersion !== w.schemaVersion || stored.generatorVersion !== w.generatorVersion || stored.seed !== BigInt(w.seed) ||
       JSON.stringify([...w.players].sort()) !== JSON.stringify(players.map((p) => p.playerId).sort())) throw new WorldError("INTERNAL_ERROR");
@@ -54,9 +54,9 @@ export function projectWorld(stored: MatchWorld, players: readonly Player[]): Pu
       const city = cities.get(t.territoryId); const node = nodes.get(t.territoryId);
       return { territoryId: t.territoryId, row: t.row, column: t.column,
         polygon: t.polygon.map((p) => ({ x: p.x, y: p.y })), center: { x: t.center.x, y: t.center.y }, terrain: t.terrain,
-        ownerPlayerId: owners.get(t.territoryId), capital: capitals.has(t.territoryId),
-        city: city ? { cityId: city.cityId, kind: city.kind } : null,
-        resources: node ? [{ nodeId: node.nodeId, kind: node.kind, stockpile: node.stockpile }] : [] };
+        ownerPlayerId: cityRuntime ? null : owners.get(t.territoryId), capital: !cityRuntime && capitals.has(t.territoryId),
+        city: !cityRuntime && city ? { cityId: city.cityId, kind: city.kind } : null,
+        resources: !cityRuntime && node ? [{ nodeId: node.nodeId, kind: node.kind, stockpile: node.stockpile }] : [] };
     }), links: w.links.map((e) => ({ a: e.a, b: e.b }))
   });
   bounded(result); return result;
@@ -73,7 +73,7 @@ export class WorldRepository {
       const member = await tx.matchParticipant.findUnique({ where: { matchId_identityId: { matchId, identityId } }, select: { active: true } });
       if (!member?.active) throw new WorldError("NOT_FOUND");
       const match = await tx.match.findUnique({ where: { id: matchId }, include: {
-        world: true, participants: { where: { active: true }, select: { playerId: true, identity: { select: { username: true } } } }
+        world: true, configuration: {select:{simulationVersion:true}}, participants: { where: { active: true }, select: { playerId: true, identity: { select: { username: true } } } }
       } });
       if (!match) throw new WorldError("NOT_FOUND");
       if (match.status === "OPEN" && match.world) throw new WorldError("INTERNAL_ERROR");
@@ -81,7 +81,7 @@ export class WorldRepository {
       if (match.status === "OPEN") return ReadWorldResponseSchema.parse({ ...envelope, state: "NOT_STARTED" });
       if (!match.world) return ReadWorldResponseSchema.parse({ ...envelope, state: "UNINITIALIZED" });
       return ReadWorldResponseSchema.parse({ ...envelope, state: "READY", world: projectWorld(match.world,
-        match.participants.map((p) => ({ playerId: p.playerId, username: p.identity.username }))) });
+        match.participants.map((p) => ({ playerId: p.playerId, username: p.identity.username })),match.configuration?.simulationVersion==="iberian-cities-v1") });
     }, { isolationLevel: "RepeatableRead" });
   }
 }

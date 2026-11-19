@@ -1469,3 +1469,58 @@ This newly owner-approved launcher adaptation starts at0/5 corrections; prior
 histories remain preserved. See MANUAL_PAID_LAUNCH.md for exact owner-local steps.
 
 Launcher preparation also includes a read-only freeze command and the exact128-path Issue110 scope. It derives the issue digest/current main locally, avoids manual hash entry, and writes no signature or remote state. New freeze tests cover unsupported issue/controller paths and no-overwrite behavior. This is an implementation extension, not a correction or paid retry; final-head CI remains required.
+
+## Issue #110 — local city economy checkpoint, gameplay decision pending
+
+Standard Codex implementation started from current main
+`f9bb9613700003f607d2eaea1590a609f4c93fa5` on local branch
+`issue/110-city-recruitment`. Checked the open issue, owner repository
+permission, existing launch-preparation branches and open PRs. Found no
+competing active implementation. The task uses the direct owner approval
+for standard Codex and hosted CI after publication.
+
+Local work within the approved scope covers the separately versioned city
+runtime contracts, real land-validated city points, deterministic genesis,
+balance and initial credits, pure recruitment/refund/income calculations,
+garrison consolidation and commander fallback, dispatch validation, and a
+standalone city panel with fixture coverage. The new runtime has not been
+admitted to the production lobby, server routes, database or turn worker.
+
+The current engine gathers later arrivals into the first battle and limits
+capture to combat. The requested neutral-city play and same-turn recapture
+need a rule for unopposed city entry and later hostile arrivals. Owner
+decision requested. The settlement fixture verifies a supplied capture and
+recapture sequence, which does not verify the production resolver can
+generate one. No feature PR, hosted CI, migration, existing database access,
+paid runner, signing, deployment or home playtest occurred.
+
+Local verification with Node 24.22.1 and pnpm 12.18.0, using
+`AUTH_ENABLED=false RUN_DATABASE_TESTS=0`: frozen install, Prisma Client
+generation, build, typecheck, lint and diff checks passed. Full local suite
+**2,485 passed, 0 failed, 326 database tests skipped** across 144 files.
+Corrections covered a readonly schema accessor, construction of the refined
+city schema, and preparing the land mask before timing individual tests.
+A lint/typecheck/build sequence reran after refreshing generated type output.
+
+The owner approved undefended city entry and a new battle for later hostile
+arrivals in the standard Codex session. This resumes the same branch and
+existing implementation approval. The city runtime is now connected to the
+lobby, participant views, shared turn command route, deadline worker and
+map. It uses runtime pin 3, snapshot 12, frozen input 7, result 6 and
+commit 3. Migration `202611190001_city_recruitment` adds the city draft
+revision column, command kind and cohort guards. No historical row needs
+a backfill. A new database is used only by hosted CI, pending publication.
+
+Resume verification corrections: pass 1 narrowed a historical test fixture
+after adding the city state union and restored the existing order panel
+accessibility name. Pass 2 updated the stored-row fixture for the nullable
+revision field and extended the city acceptance cases. The full suite and
+final hosted evidence follow in the draft PR handoff.
+
+Pass 3 aligned the invalid-lobby message assertion with the new credit and
+two-seat validation. Checks completed with frozen pnpm 12.18.0, Prisma
+generation, full build, TypeScript and lint. The final database-free suite
+had 2,491 passes, zero failures and 331 intentional PostgreSQL skips. The
+five new PostgreSQL cases run with the historical cases in the unchanged
+hosted workflow. The engine and mocked browser fixtures are distinct from
+a real player session. The PR is for draft review.

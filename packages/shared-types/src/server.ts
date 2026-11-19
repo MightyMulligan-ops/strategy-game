@@ -1,3 +1,4 @@
+import { CityBalanceSchema, CityIdSchema, CityPlanSchema, CityReportEntrySchema } from "./city-economy.js";
 // Authoritative contracts for server code and tests only. Never broadcast these
 // records or import this entry point into the browser; use filtered DTOs instead.
 import { z } from "zod";
@@ -432,11 +433,68 @@ export const EuropeStateSchema=z.strictObject({...LoopStateSchema.unwrap().shape
 export const EuropeFrozenSchema=LoopFrozenSchema.unwrap().extend({schemaVersion:z.literal(6),kind:z.literal('europe_loop_frozen'),runtimeProfile:EuropeRuntimeSchema}).readonly();
 export const EuropeResultSchema=LoopResultSchema.unwrap().extend({schemaVersion:z.literal(5),kind:z.literal('europe_loop_result'),runtimeProfile:EuropeRuntimeSchema,nextState:EuropeStateSchema}).readonly();
 export const EuropeCommitSchema=z.strictObject({schemaVersion:z.literal(2),kind:z.literal('europe_loop_commit'),result:EuropeResultSchema,nextOpenedAtMs:nonnegativeInteger}).readonly();
-export const RepeatingRuntimeSchema=z.union([LoopRuntimeSchema,EuropeRuntimeSchema]);
-export const RepeatingStateSchema=z.union([LoopStateSchema,EuropeStateSchema]);
-export const RepeatingFrozenSchema=z.union([LoopFrozenSchema,EuropeFrozenSchema]);
-export const RepeatingResultSchema=z.union([LoopResultSchema,EuropeResultSchema]);
-export const RepeatingCommitSchema=z.union([LoopCommitSchema,EuropeCommitSchema]);
+export const CITY_RUNTIME_VERSION = "iberian-cities-v1";
+export const CITY_RUNTIME = Object.freeze({
+  ...EUROPE_RUNTIME, schemaVersion: 3 as const,
+  ruleset: Object.freeze({ rulesetId: "iberian-cities", version: "1" } as const),
+  simulationVersion: CITY_RUNTIME_VERSION,
+  europe: Object.freeze({ ...EUROPE_POLICY, scenarioId: "iberian-three-cities-v1" } as const)
+});
+export const CityRuntimeSchema = EuropeRuntimeSchema.unwrap().extend({
+  schemaVersion: z.literal(3),
+  ruleset: z.strictObject({ rulesetId: z.literal("iberian-cities"), version: z.literal("1") }).readonly(),
+  simulationVersion: z.literal(CITY_RUNTIME_VERSION),
+  europe: europePolicySchema.unwrap().extend({ scenarioId: z.literal(CITY_RUNTIME.europe.scenarioId) }).readonly(),
+  balance: CityBalanceSchema
+}).readonly();
+export const CityEconomyStateSchema = z.strictObject({
+  balance: CityBalanceSchema,
+  treasury: z.array(z.strictObject({ playerId: identifier, credits: nonnegativeInteger }).readonly()).length(2).readonly(),
+  commanders: CityPlanSchema.unwrap().shape.commanders
+}).readonly();
+export const CityOwnerSchema = z.strictObject({ cityId: CityIdSchema, ownerPlayerId: identifier.nullable() }).readonly();
+export const CityCaptureSchema = z.strictObject({
+  cityId: CityIdSchema, fromPlayerId: identifier.nullable(), toPlayerId: identifier
+}).readonly();
+export const CityDraftSchema = CityPlanSchema.unwrap().extend({
+  playerId: identifier,
+  manualCancellations: z.array(CityReportEntrySchema.unwrap().options[1].extend({ reason: z.literal("manual") }).readonly()).readonly()
+}).readonly();
+export const CityLoopStateSchema = z.strictObject({
+  ...EuropeStateSchema.unwrap().shape,
+  schemaVersion: z.literal(12), kind: z.literal("city_loop_state"),
+  ruleset: CityRuntimeSchema.unwrap().shape.ruleset, simulationVersion: z.literal(CITY_RUNTIME_VERSION),
+  units: z.array(CombatTurnUnitSchema).readonly(),
+  formations: z.array(z.strictObject({ ...CombatTurnFormationSchema.unwrap().shape, position: MilliPointSchema,
+    unitIds: z.array(ArmyUnitIdSchema).min(1).readonly(), garrisonCityId: CityIdSchema.nullable() }).readonly()).readonly(),
+  cityOwners: z.array(CityOwnerSchema).length(3).readonly(),
+  economy: CityEconomyStateSchema
+}).refine(s => s.stateVersion === s.completedTurnNumber).readonly();
+export const CityLoopFrozenSchema = EuropeFrozenSchema.unwrap().extend({
+  schemaVersion: z.literal(7), kind: z.literal("city_loop_frozen"), runtimeProfile: CityRuntimeSchema,
+  cityDrafts: z.array(CityDraftSchema).length(2).readonly()
+}).readonly();
+export const CityLoopResultSchema = EuropeResultSchema.unwrap().extend({
+  schemaVersion: z.literal(6), kind: z.literal("city_loop_result"), runtimeProfile: CityRuntimeSchema,
+  nextState: CityLoopStateSchema, captures: z.array(CityCaptureSchema).readonly(),
+  economyReports: z.array(z.strictObject({ playerId: identifier, entries: z.array(CityReportEntrySchema).readonly() }).readonly()).length(2).readonly()
+}).readonly();
+export const CityLoopCommitSchema = z.strictObject({ schemaVersion: z.literal(3), kind: z.literal("city_loop_commit"),
+  result: CityLoopResultSchema, nextOpenedAtMs: nonnegativeInteger }).readonly();
+export type CityLoopFrozen = z.infer<typeof CityLoopFrozenSchema>;
+export type CityLoopState = z.infer<typeof CityLoopStateSchema>;
+export type CityEconomyState = z.infer<typeof CityEconomyStateSchema>;
+export type CityOwner = z.infer<typeof CityOwnerSchema>;
+export type CityCapture = z.infer<typeof CityCaptureSchema>;
+export type CityDraft = z.infer<typeof CityDraftSchema>;
+export type CityFormation = CityLoopState["formations"][number];
+export type CityUnit = CityLoopState["units"][number];
+export type CityRuntime = z.infer<typeof CityRuntimeSchema>;
+export const RepeatingRuntimeSchema=z.union([LoopRuntimeSchema,EuropeRuntimeSchema,CityRuntimeSchema]);
+export const RepeatingStateSchema=z.union([LoopStateSchema,EuropeStateSchema,CityLoopStateSchema]);
+export const RepeatingFrozenSchema=z.union([LoopFrozenSchema,EuropeFrozenSchema,CityLoopFrozenSchema]);
+export const RepeatingResultSchema=z.union([LoopResultSchema,EuropeResultSchema,CityLoopResultSchema]);
+export const RepeatingCommitSchema=z.union([LoopCommitSchema,EuropeCommitSchema,CityLoopCommitSchema]);
 export type RepeatingState=z.infer<typeof RepeatingStateSchema>;
 export type RepeatingFrozen=z.infer<typeof RepeatingFrozenSchema>;
 export type RepeatingResult=z.infer<typeof RepeatingResultSchema>;

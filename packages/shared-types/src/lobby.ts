@@ -1,3 +1,4 @@
+import { StartingCreditsSchema } from "./city-economy.js";
 import { z } from "zod";
 import { UsernameSchema } from "./auth.js";
 import { identifier, nonnegativeInteger, positiveInteger, version } from "./primitives.js";
@@ -27,6 +28,7 @@ export const LobbySettingsSchema = z.strictObject({
   // Future turn initialization must check openedAtMs + turnDurationMs for safe
   // deadline arithmetic. Lobby start creates no turn/deadline.
   turnDurationMs: positiveInteger,
+  startingCredits: StartingCreditsSchema.optional(),
   visibility: z.literal("PUBLIC")
 }).readonly();
 export type LobbySettings = z.infer<typeof LobbySettingsSchema>;

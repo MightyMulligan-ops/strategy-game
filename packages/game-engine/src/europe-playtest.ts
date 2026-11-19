@@ -15,6 +15,7 @@ function surface(){
  }return cached;
 }
 const project=(p:Point)=>({x:EUROPE_SCENARIO.originX+p.x*100,y:EUROPE_SCENARIO.originY+p.y*100});
+export const europeMaskLandPoint=(p:Point)=>surface().classifyContinuousPoint(p)==='LAND';
 export const europeLandPoint=(p:Point)=>surface().classifyContinuousPoint(project(p))==='LAND';
 export const europeLandSegment=(a:Point,b:Point)=>surface().validateContinuousLandSegment(project(a),project(b));
 export function validateEuropeScenario(archive:InitialWorldArchive){

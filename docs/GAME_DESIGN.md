@@ -307,8 +307,11 @@ those ranks in the initial Infantry/Lieutenant implementation.
 
 Starting funds is a validated host setting; prices/income/capacity are versioned
 developer balance settings. Other atWar setup options remain inspiration until
-their mechanics are implemented. Full approved scope and launch boundaries:
-[CITY_RECRUITMENT_TASK.md](CITY_RECRUITMENT_TASK.md).
+their mechanics are implemented. In the new city runtime, a field army claims an undefended city by ending
+its movement leg at the city point. Simultaneous hostile arrivals can contest
+the same battle. Resolve that battle before subsequent hostile arrivals can
+contest the city again. See [city economy and replay](CITY_ECONOMY.md) and the
+[approved task scope](CITY_RECRUITMENT_TASK.md).
 
 ## 6. Combat
 

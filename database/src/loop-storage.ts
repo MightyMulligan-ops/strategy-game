@@ -3,7 +3,9 @@ import {RepeatingCommandSchema as LoopCommandSchema,TurnRecordSchema} from '@str
 import {RepeatingCommitSchema as LoopCommitSchema,RepeatingRuntimeSchema as LoopRuntimeSchema,RepeatingFrozenSchema as LoopFrozenSchema} from '@strategy-game/shared-types/server';
 import type {LoopState,LoopResult,InitialWorldArchive} from '@strategy-game/shared-types/server';
 import {planLoop,validateLoopState,reviseLoop,freezeLoop,resolveLoop,loopSame} from '@strategy-game/game-engine/server';
-import type {TurnState,PlayerTurnDraft} from '@strategy-game/game-engine';
+import {initialCityDraft} from "@strategy-game/game-engine/server";
+import type {RepeatingDraft} from "@strategy-game/game-engine/server";
+import type {TurnState} from '@strategy-game/game-engine';
 import type {Prisma} from './generated/prisma/client.js';
 import {storedTurnInclude} from './turn-storage.js';
 import type {StoredTurnRow} from './turn-storage.js';
@@ -13,15 +15,15 @@ import {PersistenceError} from './errors.js';
 export function loopInvalid():never{throw new PersistenceError('invalid_storage','Repeating turn storage is inconsistent')}
 export function restoreLoopDrafts(row:StoredTurnRow,snapshot:LoopState,archive:InitialWorldArchive){
  return [...row.players].sort((a,b)=>a.playerId<b.playerId?-1:1).map(p=>{
-  const history=[...p.revisions].sort((a,b)=>a.revision<b.revision?-1:1);let d:PlayerTurnDraft={playerId:p.playerId,revision:0,ready:false,orders:[]};
+  const history=[...p.revisions].sort((a,b)=>a.revision<b.revision?-1:1);let d:RepeatingDraft={playerId:p.playerId,revision:0,ready:false,orders:[],...(snapshot.kind==="city_loop_state"?{city:initialCityDraft(snapshot,p.playerId)}:{})};
   const expected=new Map<string,Omit<ReturnType<typeof orderRows>[number],'active'|'draftPosition'|'moveNumber'> & {active:boolean;draftPosition:number|null;moveNumber:number|null}>();
   if(p.matchId!==row.matchId||p.turnNumber!==row.number||!p.active||history.length!==safeNumber(p.revision)+1)loopInvalid();
   for(const [i,h]of history.entries()){
    if(h.revision!==BigInt(i)||h.matchId!==row.matchId||h.turnNumber!==row.number||h.playerId!==p.playerId)loopInvalid();
-   if(i===0){if(h.kind!=='INITIAL'||h.ready||h.command!==null||!same(h.orders,[]))loopInvalid();continue}
-   const c=LoopCommandSchema.parse(h.command);if(h.kind!==(c.kind==='set_ready'?'SET_READY':c.kind==='replace_orders'?'REPLACE_ORDERS':'CANCEL_ORDER'))loopInvalid();
-   d=reviseLoop(snapshot,archive,d,c);if(h.ready!==d.ready||!same(h.orders,json(d.orders)))loopInvalid();
-   if(c.kind==='set_ready')continue;
+   if(i===0){if(!same(h.cityDraft??null,d.city?json(d.city):null))loopInvalid();if(h.kind!=='INITIAL'||h.ready||h.command!==null||!same(h.orders,[]))loopInvalid();continue}
+   const c=LoopCommandSchema.parse(h.command);if(h.kind!==(c.kind==='set_ready'?'SET_READY':c.kind==='replace_orders'?'REPLACE_ORDERS':c.kind==='city_edit'?'CITY_EDIT':'CANCEL_ORDER'))loopInvalid();
+   d=reviseLoop(snapshot,archive,d,c);if(h.ready!==d.ready||!same(h.orders,json(d.orders))||!same(h.cityDraft??null,d.city?json(d.city):null))loopInvalid();
+   if(c.kind==='set_ready'||c.kind==='city_edit')continue;
    for(const [id,o]of expected)if(o.active)expected.set(id,{...o,active:false,draftPosition:null,moveNumber:null,lastRevision:BigInt(i)});
    for(const o of orderRows(row.matchId,safeNumber(row.number),d))expected.set(o.orderId,o);
   }
@@ -63,8 +65,11 @@ export async function readLoop(tx:Prisma.TransactionClient,matchId:string,reques
  const genesis=await tx.gameSnapshotRecord.findUniqueOrThrow({where:{matchId_stateVersion:{matchId,stateVersion:0n}}});
  const start=planLoop(a.snapshot.config,a.snapshot.players,archive,profile,a.snapshot.combatPolicy.setup).snapshot;
  if(genesis.snapshotId!==start.snapshotId||!same(genesis.payload,json(start))||genesis.completedTurnNumber!==0n)loopInvalid();
+ if(profile.simulationVersion==='iberian-cities-v1'&&(a.snapshot.kind!=='city_loop_state'||!same(a.snapshot.economy.balance,profile.balance)))loopInvalid();
+ if(a.snapshot.kind!=='city_loop_state'){
  for(const unit of a.snapshot.units){const original=start.units.find(u=>u.unitId===unit.unitId);if(!original)loopInvalid();const {hp:oldHp,...originalFields}=original,{hp:newHp,...fields}=unit;void oldHp;void newHp;if(!same(fields,originalFields))loopInvalid()}
  for(const form of a.snapshot.formations){const original=start.formations.find(f=>f.formationId===form.formationId);if(!original||form.ownerPlayerId!==original.ownerPlayerId||form.unitIds.some(id=>!original.unitIds.includes(id)))loopInvalid()}
+ }
  if(n>1){const previous=restoreLoopRow(await fetch(n-1),archive);if(!previous.result||!loopSame(previous.result.nextState,a.snapshot)||previous.nextOpenedAtMs!==a.state.turn.openedAtMs)loopInvalid()}
  if(a.result){const next=await fetch(n+1);if(next.startingSnapshot.snapshotId!==a.result.nextState.snapshotId||!same(next.startingSnapshot.payload,json(a.result.nextState))||next.openedAtMs!==BigInt(a.nextOpenedAtMs!))loopInvalid()}
  if(n===current&&a.result||n<current&&!a.result)loopInvalid();

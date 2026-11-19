@@ -112,7 +112,9 @@ function freeze<T>(value: T): T {
   if (value && typeof value === "object") { for (const v of Object.values(value)) freeze(v); Object.freeze(value); }
   return value;
 }
-function parse(value: unknown): MultiForceInput {
+type CityBattleRules = ReadonlyMap<string, string | null>;
+
+function parse(value: unknown, garrisons?: CityBattleRules): MultiForceInput {
   const x = record(value, ["schemaVersion", "rulesetVersion", "encounterId", "seed", "ownership", "rules", "relationships", "formations"]);
   if (x.schemaVersion !== 1 || x.rulesetVersion !== MULTI_FORCE_COMBAT_VERSION) fail("UNSUPPORTED_VERSION");
   const encounterId = id(x.encounterId), seed = integer(x.seed, 0, 0xffffffff);
@@ -155,7 +157,7 @@ function parse(value: unknown): MultiForceInput {
         maxHp, hp: integer(u.hp, 1, maxHp), attack: integer(u.attack, 1, MULTI_FORCE_LIMITS.stat),
         defense: integer(u.defense, 1, MULTI_FORCE_LIMITS.stat), leadershipEligible: u.leadershipEligible };
       if (kind === "TROOP") return { ...base, kind };
-      if (!ranks.includes(u.rank as Rank) || seenRanks.has(u.rank as Rank)) fail("INVALID_INPUT");
+      if (!ranks.includes(u.rank as Rank) || (seenRanks.has(u.rank as Rank) && !garrisons?.has(formationId))) fail("INVALID_INPUT");
       const rank = u.rank as Rank, specialization = id(u.specialization); seenRanks.add(rank);
       return { ...base, kind, rank, specialization };
     }).sort((a, b) => compareIds(a.unitId, b.unitId));
@@ -214,10 +216,23 @@ function rotate<T>(items: readonly T[], offset: number): T[] {
 }
 type Fighter = { unit: MultiForceUnit; formation: MultiForceFormation; hp: number };
 type Army = { formation: MultiForceFormation; roster: Fighter[] };
-function modified(army: Army, fighter: Fighter, input: MultiForceInput) {
+function effectiveLeaders(army: Army, garrisons?: CityBattleRules) {
+  const city = garrisons?.has(army.formation.formationId);
+  const preferred = garrisons?.get(army.formation.formationId);
   const leaders = army.roster.filter(u => u.hp > 0 && u.unit.kind === "LEADER")
     .sort((a, b) => ranks.indexOf((a.unit as Extract<MultiForceUnit, { kind: "LEADER" }>).rank) -
-      ranks.indexOf((b.unit as Extract<MultiForceUnit, { kind: "LEADER" }>).rank));
+      ranks.indexOf((b.unit as Extract<MultiForceUnit, { kind: "LEADER" }>).rank) ||
+      (city ? Number(b.unit.unitId === preferred) - Number(a.unit.unitId === preferred) || compareIds(a.unit.unitId, b.unit.unitId) : 0));
+  if (!city) return leaders;
+  const seen = new Set<string>();
+  return leaders.filter(({unit}) => {
+    if (unit.kind !== "LEADER" || seen.has(unit.rank)) return false;
+    seen.add(unit.rank);
+    return true;
+  });
+}
+function modified(army: Army, fighter: Fighter, input: MultiForceInput, garrisons?: CityBattleRules) {
+  const leaders = effectiveLeaders(army, garrisons);
   const primary = leaders[0];
   let attack = fighter.unit.attack, defense = fighter.unit.defense;
   if (fighter.unit.leadershipEligible && primary?.unit.kind === "LEADER") {
@@ -231,7 +246,7 @@ function modified(army: Army, fighter: Fighter, input: MultiForceInput) {
   return { unitId: fighter.unit.unitId, primaryLeaderId: primary?.unit.unitId ?? null,
     attack: Math.max(1, attack), defense: Math.max(1, defense) };
 }
-function fight(input: MultiForceInput, budget: MultiForceBudget): MultiForceAudit {
+function fight(input: MultiForceInput, budget: MultiForceBudget, garrisons?: CityBattleRules): MultiForceAudit {
   const armies: Army[] = input.formations.map(formation => ({ formation, roster:
     [false, true].flatMap(leaders => shuffle(formation.units.filter(u => (u.kind === "LEADER") === leaders),
       rng(input, JSON.stringify(["unit-order", formation.formationId, leaders]))))
@@ -280,12 +295,15 @@ function fight(input: MultiForceInput, budget: MultiForceBudget): MultiForceAudi
     const orderedArmies = armyTurns.filter(living);
     forceTurns = rotate(ordered, 1);
     armyTurns = rotate(orderedArmies, 1);
-    const stats = armies.flatMap(a => a.roster.filter(u => u.hp > 0).map(u => modified(a, u, input)));
+    const stats = armies.flatMap(a => a.roster.filter(u => u.hp > 0).map(u => modified(a, u, input, garrisons)));
     const statMap = new Map(stats.map(s => [s.unitId, s]));
     // Interleave owners, then formations within each owner; each unit once.
     const queues = new Map(ordered.map(p => {
       const own = orderedArmies.filter(a => a.formation.ownerPlayerId === p);
-      const rosters = own.map(a => a.roster.filter(u => u.hp > 0));
+      const rosters = own.map(a => {
+        const leaders = garrisons?.has(a.formation.formationId) ? new Set(effectiveLeaders(a, garrisons)) : null;
+        return a.roster.filter(u => u.hp > 0 && (!leaders || u.unit.kind === "TROOP" || leaders.has(u)));
+      });
       const queue: Fighter[] = [];
       for (let index = 0; rosters.some(q => index < q.length); index++) for (const roster of rosters) if (roster[index]) queue.push(roster[index]!);
       return [p, queue] as const;
@@ -341,6 +359,10 @@ function fight(input: MultiForceInput, budget: MultiForceBudget): MultiForceAudi
       if (u.hp > 0 && hp === 0) casualties.push(u.unit.unitId);
       u.hp = hp;
     }
+    if (garrisons) for (const army of armies) {
+      if (army.roster.some(u => u.unit.kind === "TROOP" && u.hp > 0)) continue;
+      for (const u of army.roster) if (u.hp > 0) { u.hp = 0; casualties.push(u.unit.unitId); }
+    }
     const pairRoles = orderedArmies.flatMap((a, i) => orderedArmies.slice(i + 1).filter(b => hostile(a.formation.ownerPlayerId, b.formation.ownerPlayerId)).map(b => ({
       a: a.formation.formationId, b: b.formation.formationId, aRole: roleFor(a.formation, b.formation, number), bRole: roleFor(b.formation, a.formation, number)
     })));
@@ -349,7 +371,8 @@ function fight(input: MultiForceInput, budget: MultiForceBudget): MultiForceAudi
   const victoriousPlayerIds = activePlayers();
   const survivingStrength = victoriousPlayerIds.map(playerId => ({ playerId, strength: armies.filter(a => a.formation.ownerPlayerId === playerId)
     .reduce((total, a) => total + a.roster.filter(u => u.hp > 0).reduce((sum, u) => {
-      const stat = modified(a, u, input); return sum + stat.attack + stat.defense;
+      if (garrisons?.has(a.formation.formationId) && u.unit.kind === "LEADER" && !effectiveLeaders(a, garrisons).includes(u)) return sum;
+      const stat = modified(a, u, input, garrisons); return sum + stat.attack + stat.defense;
     }, 0), 0) }));
   const greatest = Math.max(0, ...survivingStrength.map(s => s.strength));
   const candidates = survivingStrength.filter(s => s.strength === greatest).map(s => s.playerId);
@@ -357,8 +380,8 @@ function fight(input: MultiForceInput, budget: MultiForceBudget): MultiForceAudi
   const ownershipRecipientPlayerId = input.ownership && candidates.length ? candidates[raw === null ? 0 : Math.floor(raw * candidates.length / 0x100000000)]! : null;
   const units = armies.flatMap(a => a.roster.map(u => ({ unitId: u.unit.unitId, formationId: a.formation.formationId,
     ownerPlayerId: a.formation.ownerPlayerId, originalSpawnNodeId: u.unit.originalSpawnNodeId,
-    encounterHp: u.hp, finalHp: u.hp > 0 ? u.unit.maxHp : 0 }))).sort((a, b) => compareIds(a.unitId, b.unitId));
-  return freeze({ schemaVersion: 1, kind: "server_multi_force_combat_audit", battleId: `multi-combat:${auditHash(input)}`, input,
+    encounterHp: u.hp, finalHp: garrisons ? u.hp : u.hp > 0 ? u.unit.maxHp : 0 }))).sort((a, b) => compareIds(a.unitId, b.unitId));
+  return freeze({ schemaVersion: 1, kind: "server_multi_force_combat_audit", battleId: `multi-combat:${auditHash(garrisons ? { input, garrisons: [...garrisons].sort(([a],[b]) => compareIds(a,b)) } : input)}`, input,
     outcome: victoriousPlayerIds.length ? "victory" : "mutual_destruction", victoriousPlayerIds,
     ownershipRecipientPlayerId, ownershipTie: { candidates: input.ownership ? candidates : [], raw }, survivingStrength, rounds, units });
 }
@@ -368,12 +391,12 @@ function fight(input: MultiForceInput, budget: MultiForceBudget): MultiForceAudi
  * Limits bound input and audit allocation; they are not gameplay draw rules. */
 export function resolveMultiForceCombat(value: unknown, workBudget: unknown = {
   maxRounds: MULTI_FORCE_LIMITS.rounds, maxActions: MULTI_FORCE_LIMITS.actions
-}): MultiForceResult {
+}, garrisons?: CityBattleRules): MultiForceResult {
   try {
-    const input = parse(value), b = record(workBudget, ["maxRounds", "maxActions"]);
+    const input = parse(value, garrisons), b = record(workBudget, ["maxRounds", "maxActions"]);
     const budget = { maxRounds: integer(b.maxRounds, 1, MULTI_FORCE_LIMITS.rounds),
       maxActions: integer(b.maxActions, 1, MULTI_FORCE_LIMITS.actions) };
-    return freeze({ ok: true, audit: fight(input, budget) });
+    return freeze({ ok: true, audit: fight(input, budget, garrisons) });
   } catch (error) {
     const code = error instanceof InputError ? error.code : "INVALID_INPUT";
     return freeze({ ok: false, error: { code, recoverable: code === "WORK_LIMIT" } });
