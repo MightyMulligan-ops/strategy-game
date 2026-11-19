@@ -2,7 +2,8 @@
  * key enrollment and a fresh authenticated GitHub owner-permission lookup.
  * No issue/comment/label or worker-provided boolean can enroll a key. */
 import {createPublicKey, verify} from 'node:crypto';
-import {canonicalScope, sha256, validPath, REPOSITORY, OWNER, SHA, DIGEST, type TaskScope} from './codex-automation-policy.ts';
+import {canonicalScope, sha256, validPath, validScopePath, FEATURE_SCOPE_PROFILE, REPOSITORY, OWNER, SHA, DIGEST, type TaskScope} from './codex-automation-policy.ts';
+import {HOSTED_MODEL} from './codex-hosted-agents.ts';
 import {requireControl} from './codex-run-control.ts';
 import type {GitHubTransport} from './codex-github-control.ts';
 
@@ -10,12 +11,16 @@ export const OWNER_ID = 353505747;
 export const MAX_CODING_SECONDS = 900; // Preserve the pilot's 15-minute ceiling.
 export const FORBIDDEN_OPERATIONS = ['dependencies','workflows','permissions','secrets','databases','migrations','merge','deploy','recursive-dispatch'] as const;
 export const FORBIDDEN_PATHS = ['.github/','.git/','database/','scripts/','docs/','AGENTS.md','package.json','pnpm-lock.yaml','pnpm-workspace.yaml'] as const;
+export const MANUAL_FORBIDDEN_PATHS = ['.github/','.git/','scripts/','AGENTS.md','package.json','pnpm-lock.yaml','pnpm-workspace.yaml'] as const;
+export const MANUAL_FORBIDDEN_OPERATIONS = ['dependencies','workflows','permissions','secrets','existing-databases','task-side-migrations','merge','deploy','recursive-dispatch'] as const;
 export type QueueTask = Readonly<{
   issue:number; title:string; issueDigest:string; scopeText:string; approvalId:string;
   approvalDigest:string; allowedPaths:readonly string[]; codingSeconds:number; maxSessions:1;
 }>;
+export const MANUAL_WATCHDOG_SECONDS = 5*60*60;
+export type ManualExecution = Readonly<{mode:'manual-cost-v1';model:typeof HOSTED_MODEL;softLimitMicroUsd:50000000}>;
 export type QueueManifest = Readonly<{
-  version:1; repository:typeof REPOSITORY; enabled:true; queueId:string; authorizationId:string;
+  version:1; execution?:ManualExecution; repository:typeof REPOSITORY; enabled:true; queueId:string; authorizationId:string;
   baselineSha:string; baselinePolicy:'exact-main-independent-prs-v1'; timezone:'America/New_York';
   localDate:string; startsAt:string; endsAt:string; dispatchGraceSeconds:900;
   forbiddenPaths:readonly string[]; forbiddenOperations:readonly string[]; tasks:readonly QueueTask[];
@@ -45,25 +50,30 @@ export function parseManifest(bytes:Uint8Array):QueueManifest|DisabledManifest {
     requireControl(d.version===1&&d.repository===REPOSITORY&&Array.isArray(d.tasks)&&d.tasks.length===0,'queue-disabled-config');
     return raw as DisabledManifest;
   }
-  const m=object(raw,['version','repository','enabled','queueId','authorizationId','baselineSha','baselinePolicy','timezone','localDate','startsAt','endsAt','dispatchGraceSeconds','forbiddenPaths','forbiddenOperations','tasks']);
+  const manual=Object.hasOwn(raw,'execution');
+  const m=object(raw,[...(manual?['execution']:[]),'version','repository','enabled','queueId','authorizationId','baselineSha','baselinePolicy','timezone','localDate','startsAt','endsAt','dispatchGraceSeconds','forbiddenPaths','forbiddenOperations','tasks']);
   requireControl(m.version===1&&m.repository===REPOSITORY&&m.enabled===true&&
     typeof m.queueId==='string'&&ID.test(m.queueId)&&typeof m.authorizationId==='string'&&ID.test(m.authorizationId)&&
     typeof m.baselineSha==='string'&&SHA.test(m.baselineSha)&&m.baselinePolicy==='exact-main-independent-prs-v1'&&
     m.timezone==='America/New_York'&&m.dispatchGraceSeconds===900&&
-    canonical(m.forbiddenPaths)===canonical(FORBIDDEN_PATHS)&&canonical(m.forbiddenOperations)===canonical(FORBIDDEN_OPERATIONS),'queue-policy');
+    canonical(m.forbiddenPaths)===canonical(manual?MANUAL_FORBIDDEN_PATHS:FORBIDDEN_PATHS)&&canonical(m.forbiddenOperations)===canonical(manual?MANUAL_FORBIDDEN_OPERATIONS:FORBIDDEN_OPERATIONS),'queue-policy');
+  if(manual){
+    const e=object(m.execution,['mode','model','softLimitMicroUsd']);
+    requireControl(e.mode==='manual-cost-v1'&&e.model===HOSTED_MODEL&&e.softLimitMicroUsd===50000000,'queue-manual-policy');
+  }
   requireControl(typeof m.localDate==='string'&&typeof m.startsAt==='string'&&typeof m.endsAt==='string'&&
-    m.startsAt===easternStart(m.localDate)&&new Date(m.endsAt).toISOString()===m.endsAt&&
-    Date.parse(m.endsAt)>Date.parse(m.startsAt)&&Date.parse(m.endsAt)-Date.parse(m.startsAt)<=4*60*60*1000,'queue-window');
-  requireControl(Array.isArray(m.tasks)&&m.tasks.length>=1&&m.tasks.length<=3,'queue-task-count');
+    (manual ? /^\d{4}-\d{2}-\d{2}$/.test(m.localDate)&&new Date(m.startsAt).toISOString()===m.startsAt : m.startsAt===easternStart(m.localDate))&&new Date(m.endsAt).toISOString()===m.endsAt&&
+    Date.parse(m.endsAt)>Date.parse(m.startsAt)&&Date.parse(m.endsAt)-Date.parse(m.startsAt)<=(manual?6:4)*60*60*1000,'queue-window');
+  requireControl(Array.isArray(m.tasks)&&m.tasks.length>=1&&m.tasks.length<=(manual?1:3),'queue-task-count');
   const issues=new Set<number>(),approvals=new Set<string>();
   for(const rawTask of m.tasks){
     const t=object(rawTask,['issue','title','issueDigest','scopeText','approvalId','approvalDigest','allowedPaths','codingSeconds','maxSessions']);
     requireControl(typeof t.issue==='number'&&Number.isSafeInteger(t.issue)&&t.issue>0&&t.issue!==76&&!issues.has(t.issue),'queue-issue');
     text(t.title,256);requireControl(typeof t.scopeText==='string'&&t.scopeText.trim().length>0&&Buffer.byteLength(t.scopeText)<=32*1024,'queue-scope');
     requireControl(typeof t.issueDigest==='string'&&DIGEST.test(t.issueDigest)&&typeof t.approvalId==='string'&&ID.test(t.approvalId)&&!approvals.has(t.approvalId),'queue-approval-id');
-    requireControl(Array.isArray(t.allowedPaths)&&t.allowedPaths.length>=1&&t.allowedPaths.length<=25&&new Set(t.allowedPaths).size===t.allowedPaths.length&&
-      t.allowedPaths.every(p=>typeof p==='string'&&validPath(p)&&!FORBIDDEN_PATHS.some(f=>p===f||p.startsWith(f))),'queue-paths');
-    requireControl(typeof t.codingSeconds==='number'&&Number.isSafeInteger(t.codingSeconds)&&t.codingSeconds>=1&&t.codingSeconds<=MAX_CODING_SECONDS&&t.maxSessions===1,'queue-session-limit');
+    requireControl(Array.isArray(t.allowedPaths)&&t.allowedPaths.length>=1&&t.allowedPaths.length<=(manual?128:25)&&new Set(t.allowedPaths).size===t.allowedPaths.length&&
+      t.allowedPaths.every(p=>typeof p==='string'&&(manual?validScopePath(p,FEATURE_SCOPE_PROFILE):validPath(p)&&!FORBIDDEN_PATHS.some(f=>p===f||p.startsWith(f)))),'queue-paths');
+    requireControl(typeof t.codingSeconds==='number'&&Number.isSafeInteger(t.codingSeconds)&&t.codingSeconds>=1&&t.codingSeconds<=(manual?MANUAL_WATCHDOG_SECONDS:MAX_CODING_SECONDS)&&t.maxSessions===1,'queue-session-limit');
     const {approvalDigest,...approved}=t;
     requireControl(typeof approvalDigest==='string'&&approvalDigest===sha256(canonical(approved)),'queue-task-digest');
     issues.add(t.issue);approvals.add(t.approvalId);
@@ -82,7 +92,7 @@ export function easternStart(date:string):string {
   requireControl(matches.length===1,'queue-ambiguous-window');return matches[0]!.toISOString();
 }
 export function taskScope(m:QueueManifest,t:QueueTask):TaskScope {
-  const s={repository:REPOSITORY,issue:t.issue,sourceSha:m.baselineSha,baseSha:m.baselineSha,
+  const s={...(m.execution?{profile:FEATURE_SCOPE_PROFILE}:{}),repository:REPOSITORY,issue:t.issue,sourceSha:m.baselineSha,baseSha:m.baselineSha,
     approvedPaths:t.allowedPaths,acceptanceDigest:sha256(t.scopeText),expiresAt:m.endsAt};
   canonicalScope(s);return s;
 }
@@ -99,13 +109,14 @@ export class QueueAuthority {
   async check(now:Date,dispatch=false):Promise<QueueManifest|DisabledManifest>{
     const m=parseManifest(this.bytes);if(!m.enabled)return m;
     const e=this.trigger;
+    requireControl(!m.execution||e.event==='workflow_dispatch','queue-manual-only');
     requireControl(e.repository===REPOSITORY&&e.ref==='refs/heads/main'&&e.sourceSha===m.baselineSha&&e.attempt===1&&/^\d{1,20}$/.test(e.runId)&&
       (e.event==='workflow_dispatch'?e.actor===OWNER&&e.actorId===OWNER_ID:e.event==='schedule'),'queue-trigger');
     const key=createPublicKey(this.enrollment.publicKeyPem);
     requireControl(key.asymmetricKeyType==='ed25519'&&sha256(key.export({type:'spki',format:'der'}))===this.enrollment.fingerprint&&
       this.signature.length===64&&verify(null,Buffer.from('SOVEREIGN-OVERNIGHT-V1\n'+canonical(m)),key,this.signature),'queue-owner-signature');
     const ms=now.getTime(),start=Date.parse(m.startsAt),end=Date.parse(m.endsAt);
-    requireControl(Number.isFinite(ms)&&ms>=start&&ms<end&&(!dispatch||ms<start+m.dispatchGraceSeconds*1000),'queue-expired-or-late');
+    requireControl(Number.isFinite(ms)&&ms>=start&&ms<end&&(!dispatch||m.execution!==undefined||ms<start+m.dispatchGraceSeconds*1000),'queue-expired-or-late');
     const get=async(path:string)=>{
       const r=await this.api.request('GET',path);requireControl(r.status===200&&r.data!==null&&typeof r.data==='object'&&!Array.isArray(r.data),'queue-authority-unavailable');
       return r.data as Record<string,unknown>;

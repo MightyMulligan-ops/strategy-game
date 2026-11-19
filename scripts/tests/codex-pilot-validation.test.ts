@@ -139,3 +139,12 @@ test('host checks actual source bytes, not worker Git metadata, and rejects new 
     expect(()=>verifyWorkspaceTree(repo,workspace,tree)).toThrow('validation-tree-untracked');
   }finally{rmSync(root,{recursive:true,force:true});}
 });
+
+test('feature validation generates the changed schema client only inside isolation',()=>{
+  const calls:string[]=[],argsSeen:readonly string[][]=[];
+  const run:Runner=(_exe,args)=>{calls.push(args.at(-1)!);(argsSeen as string[][]).push([...args]);return {status:0,stdout:args.at(-1)==='--version'?PNPM_VERSION:''}};
+  vi.spyOn(process.stdout,'write').mockImplementation(()=>true);
+  runIsolatedChecks('/fixture',fixtureImage,'1001:1001',()=>{},run,true);
+  expect(calls).toEqual(['--version','db:generate',...REQUIRED_CHECKS]);
+  expect(argsSeen[1]).toContain('none');expect(argsSeen[1]).toContain('--read-only');
+});

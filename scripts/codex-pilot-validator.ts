@@ -72,11 +72,12 @@ export function isolatedArguments(workspace:string,image:string,user:string):str
 }
 /** No shell/AND-list. A nonzero exit, missing executable, signal, timeout or
  * failed tree verification aborts before the next command and before a receipt. */
-export function runIsolatedChecks(workspace:string,image:string,user:string,verifyTree:()=>void,run:Runner=execute):readonly CheckSuccess[]{
+export function runIsolatedChecks(workspace:string,image:string,user:string,verifyTree:()=>void,run:Runner=execute,generateClient=false):readonly CheckSuccess[]{
   const args=isolatedArguments(workspace,image,user);
   const version=checked(run,'docker',[...args,'--version'],'validation-pnpm-unavailable').trim();
   requireControl(version===PNPM_VERSION,'validation-pnpm-version');
   verifyTree();
+  if(generateClient)checked(run,'docker',[...args,'db:generate'],'validation-client-generation');
   const checks:CheckSuccess[]=[];
   for(const command of REQUIRED_CHECKS){
     process.stdout.write(`Validator starting ${command}\n`);
@@ -174,7 +175,7 @@ function main():void{
   const run=smoke?smokeCommand:execute;
   const image=buildValidationImage(repo,'sovereign-validation:'+env.GITHUB_RUN_ID,run);
   copyValidationWorkspace(repo,workspace);
-  const checks=runIsolatedChecks(workspace,image,user,()=>verifyWorkspaceTree(repo,workspace,expected),run);
+  const checks=runIsolatedChecks(workspace,image,user,()=>verifyWorkspaceTree(repo,workspace,expected),run,bundle?verifyBundle(bundle).scope.profile==='city-feature-v1':false);
   if(bundle){
     requireControl(typeof env.GITHUB_OUTPUT==='string'&&typeof env.GITHUB_SHA==='string','validation-output');
     writeValidationReceipt(dir,{runId:env.GITHUB_RUN_ID!,sourceSha:env.GITHUB_SHA!},image,checks,bundle,env.GITHUB_OUTPUT!);
