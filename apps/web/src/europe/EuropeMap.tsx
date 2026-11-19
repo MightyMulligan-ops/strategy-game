@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { clampCamera, fitSpain, fitTheatre, limits, panBy, project, THEATRE, toScreen, toWorld, visibleTiles, zoomAt } from './camera'
 import type { Camera, Point, Viewport } from './camera'
+import type { FormationMapInteraction } from './map-interaction'
 import { TileCache } from './tile-cache'
 import { IMAGERY_CREDIT, IMAGERY_LICENSE_URL, IMAGERY_TILE_BUDGET, loadImageryTile, releaseImageryTile } from './imagery'
 import type { ImageryTile } from './imagery'
 import geography from './geography.json'
-import {countries,countryAt} from './countries'
+import {countries,countryAt,fitCountryLabel} from './countries'
 import overviewUrl from './overview.jpg'
 import './europe.css'
 import {europeGameToDisplay,europeDisplayToGame,EUROPE_SCENARIO_VIEW} from '@strategy-game/shared-types'
@@ -19,7 +20,7 @@ const countryPaths = geography.countries.map(country => ({ name: country.name,
   }).join(' ') + ' Z').join(' ')).join(' ') }))
 const startView = { width: 1920, height: 920 }
 
-export default function EuropeMap({view:current,route,choose,world}:{view:RepeatingCurrent;route:MovementRoute|null;choose:((p:Point)=>void)|null;world:PublicWorld}) {
+export default function EuropeMap({view:current,route,choose,world,interaction}:{interaction?:FormationMapInteraction|undefined;view:RepeatingCurrent;route:MovementRoute|null;choose:((p:Point)=>void)|null;world:PublicWorld}) {
   const host = useRef<HTMLDivElement>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
   const cameraRef = useRef<Camera>(fitTheatre(startView))
@@ -35,7 +36,8 @@ export default function EuropeMap({view:current,route,choose,world}:{view:Repeat
   const [errors, setErrors] = useState(0)
   const [cached, setCached] = useState(0)
   const cacheRef = useRef<TileCache<ImageryTile<ImageBitmap>> | null>(null)
-  const drag = useRef<{ id: number; x: number; y: number; startX: number; startY: number; moved: boolean } | null>(null)
+  const drag = useRef<{ id: number; x: number; y: number; startX: number; startY: number; moved: boolean; formationId?:string; from?:Point; turn?:number; revision?:number } | null>(null)
+  const [movePreview,setMovePreview]=useState<{from:Point;to:Point}|null>(null)
   const [draft,setDraft]=useState<Point[]>([])
   const [draftMode,setDraftMode]=useState(false)
   const [pickError,setPickError]=useState('')
@@ -69,7 +71,8 @@ export default function EuropeMap({view:current,route,choose,world}:{view:Repeat
       }
       const c = cameraRef.current
       const dpr = Math.min(2, window.devicePixelRatio || 1)
-      const surface = canvas.current!
+      const surface = canvas.current
+      if(!surface)return
       if (surface.width !== Math.round(v.width * dpr) || surface.height !== Math.round(v.height * dpr)) {
         surface.width = Math.round(v.width * dpr); surface.height = Math.round(v.height * dpr)
       }
@@ -122,7 +125,7 @@ export default function EuropeMap({view:current,route,choose,world}:{view:Repeat
     observer.observe(element)
     const wheel = (event: WheelEvent) => {
       // Preserve browser accessibility zoom (Ctrl + wheel).
-      if (event.ctrlKey || (event.target as Element).closest('aside')) return
+      if (event.ctrlKey || drag.current?.formationId || (event.target as Element).closest('aside,details')) return
       event.preventDefault()
       const rect = element.getBoundingClientRect()
       const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? rect.height : 1)
@@ -147,10 +150,11 @@ export default function EuropeMap({view:current,route,choose,world}:{view:Repeat
   const selectedCity = cities.find(city => city.name === selected)!
   const onMap = (p: Point) => p.x >= 24 && p.x <= view.width - 24 && p.y >= 24 && p.y <= view.height - 24
   const zoomPercent = Math.round(camera.scale / limits(view).max * 100)
+  const cityDetail=camera.scale/limits(view).min>2.1
   const visibleLabels = new Set<string>()
   const labelBoxes: { x: number; y: number; right: number; bottom: number }[] = []
   for (const city of [...cities].sort((a, b) => Number(b.name === selected) - Number(a.name === selected) || Number(b.capital) - Number(a.capital))) {
-    if (!labels || !(city.capital || camera.scale / limits(view).min > 2.1 || city.name === selected)) continue
+    if (!labels || !(cityDetail || city.name === selected)) continue
     const p = toScreen(project(city.lon, city.lat), camera, view)
     const box = { x: p.x + 11, y: p.y - 11, right: p.x + 20 + city.name.length * 7, bottom: p.y + 9 }
     if (!onMap(p) || box.right > view.width - 8 || labelBoxes.some(b => box.x < b.right + 6 && box.right + 6 > b.x && box.y < b.bottom + 3 && box.bottom + 3 > b.y)) continue
@@ -160,9 +164,10 @@ export default function EuropeMap({view:current,route,choose,world}:{view:Repeat
   const countryBoxes:{x:number;y:number;right:number;bottom:number}[]=[]
   const visibleCountries=new Set<string>()
   for(const country of [...countries].sort((a,b)=>(b.bounds.right-b.bounds.left)*(b.bounds.bottom-b.bounds.top)-(a.bounds.right-a.bounds.left)*(a.bounds.bottom-a.bounds.top))){
-    const p=toScreen(country.anchor,camera,view),w=country.name.length*9+20
-    if(!onMap(p)||(country.bounds.right-country.bounds.left)*camera.scale<65)continue
-    const box={x:p.x-w/2,y:p.y-18,right:p.x+w/2,bottom:p.y+18}
+    const p=toScreen(country.anchor,camera,view),label=fitCountryLabel(country,camera.scale)
+    if(!onMap(p)||!label)continue
+    const box={x:p.x-label.width/2,y:p.y-label.height/2,right:p.x+label.width/2,bottom:p.y+label.height/2}
+    if(box.x<8||box.y<8||box.right>view.width-8||box.bottom>view.height-8)continue
     if(countryBoxes.some(b=>box.x<b.right&&box.right>b.x&&box.y<b.bottom&&box.bottom>b.y))continue
     countryBoxes.push(box);visibleCountries.add(country.name)
   }
@@ -183,6 +188,7 @@ export default function EuropeMap({view:current,route,choose,world}:{view:Repeat
       </aside></details>
     <div className="ep-map" ref={host} tabIndex={0} role="region" aria-label="Europe map camera" aria-describedby="ep-instructions"
       onKeyDown={event => {
+        if(event.key==='Escape'){drag.current=null;setMovePreview(null);return}
         if (event.target !== event.currentTarget || event.ctrlKey || event.metaKey || event.altKey) return
         if (event.key === '+' || event.key === '=') { event.preventDefault(); zoom(1.35) }
         else if (event.key === '-') { event.preventDefault(); zoom(1 / 1.35) }
@@ -193,7 +199,19 @@ export default function EuropeMap({view:current,route,choose,world}:{view:Repeat
         }
       }}
       onPointerDown={event => {
-        if (event.button !== 0 || (event.target as Element).closest('button,select,aside,a')) return
+        if(event.button!==0)return
+        const marker=(event.target as Element).closest<HTMLElement>('[data-formation-id]')
+        const formation=current.formations.find(f=>f.formationId===marker?.dataset.formationId)
+        if(formation){
+          if(!interaction?.queueMove||draftMode||!formation.units.some(u=>u.kind==='LEADER'))return
+          interaction.select(formation.formationId)
+          target.current=cameraRef.current
+          event.currentTarget.setPointerCapture(event.pointerId)
+          const orders=current.own.orders.filter(o=>o.stackId===formation.formationId),from=europeGameToDisplay(orders.at(-1)?.destination??formation.position)
+          drag.current={id:event.pointerId,x:event.clientX,y:event.clientY,startX:event.clientX,startY:event.clientY,moved:false,formationId:formation.formationId,from,turn:current.turn.turnNumber,revision:current.own.revision}
+          return
+        }
+        if((event.target as Element).closest('button,select,aside,a,details'))return
         event.currentTarget.focus({ preventScroll: true })
         event.currentTarget.setPointerCapture(event.pointerId)
         drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, moved: false }
@@ -205,20 +223,35 @@ export default function EuropeMap({view:current,route,choose,world}:{view:Repeat
         const previous = drag.current
         if (!previous || previous.id !== event.pointerId) return
         if (!previous.moved && Math.hypot(event.clientX - previous.startX, event.clientY - previous.startY) < 4) return
+        if(previous.formationId){
+          const to=toWorld({x:event.clientX-rect.left,y:event.clientY-rect.top},cameraRef.current,viewportRef.current)
+          setMovePreview({from:previous.from!,to});drag.current={...previous,moved:true};return
+        }
         const next = panBy(target.current, view, { x: event.clientX - previous.x, y: event.clientY - previous.y })
         // Drag follows the pointer directly; wheel/buttons ease between positions.
         target.current = next; cameraRef.current = next; setCamera(next)
         drag.current = { ...previous, x: event.clientX, y: event.clientY, moved: true }
       }} onPointerUp={event => {
         const previous = drag.current
-        drag.current = null
+        drag.current = null;setMovePreview(null)
+        if(previous?.id===event.pointerId&&previous.formationId){
+          if(!previous.moved||!interaction?.queueMove)return
+          if(previous.turn!==current.turn.turnNumber||previous.revision!==current.own.revision){setPickError('Planning changed during this drag. Review the latest turn and try again. No order was submitted.');return}
+          const rect=event.currentTarget.getBoundingClientRect()
+          if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom){setPickError('Drop inside the map. No order was submitted.');return}
+          try{
+            const p=toWorld({x:event.clientX-rect.left,y:event.clientY-rect.top},cameraRef.current,viewportRef.current)
+            interaction.queueMove(previous.formationId,europeDisplayToGame(p));setPickError('')
+          }catch{setPickError('Drop inside the outlined playtest area. No order was submitted.')}
+          return
+        }
         if (previous?.id === event.pointerId && !previous.moved) {
           const rect = event.currentTarget.getBoundingClientRect()
           const p=toWorld({ x: event.clientX - rect.left, y: event.clientY - rect.top }, cameraRef.current, viewportRef.current)
           if(draftMode){setDraft(points=>points.length<32?[...points,p]:points);return}
           if(choose)try{choose(europeDisplayToGame(p));setPickError('')}catch{setPickError('Choose a destination inside the outlined playtest area. No order was submitted.')}
         }
-      }} onPointerCancel={() => { drag.current = null }} onLostPointerCapture={() => { drag.current = null }}>
+      }} onPointerCancel={() => { drag.current = null;setMovePreview(null) }} onLostPointerCapture={() => { drag.current = null;setMovePreview(null) }}>
       <canvas ref={canvas} className="ep-terrain" aria-hidden="true" />
       <svg className="ep-borders" width={view.width} height={view.height} aria-hidden="true">
         {borders && <g transform={`translate(${view.width / 2 - camera.center.x * camera.scale},${view.height / 2 - camera.center.y * camera.scale}) scale(${camera.scale})`}>
@@ -228,24 +261,25 @@ export default function EuropeMap({view:current,route,choose,world}:{view:Repeat
       <div className="ep-markers" aria-hidden="true">
         {cities.map(city => {
           const p = toScreen(project(city.lon, city.lat), camera, view)
-          if (!onMap(p)) return null
+          if (!onMap(p)||!cityDetail&&!city.capital&&city.name!==selected) return null
           const chosen = city.name === selected
           const show = visibleLabels.has(city.name)
-          return <button key={`${city.country}/${city.name}`} tabIndex={-1} aria-hidden="true" className={`ep-city ${city.capital ? 'capital' : ''} ${chosen ? 'selected' : ''}`} style={{ left: p.x, top: p.y }} onClick={() => setSelected(city.name)} title={`${city.name}, ${city.country}${city.capital ? ' · Capital' : ''}`}>
+          return <button key={`${city.country}/${city.name}`} tabIndex={-1} aria-hidden="true" className={`ep-city ${city.capital ? 'capital' : ''} ${chosen ? 'selected' : ''} ${cityDetail?'':'overview'}`} style={{ left: p.x, top: p.y }} onClick={() => setSelected(city.name)} title={`${city.name}, ${city.country}${city.capital ? ' · Capital' : ''}`}>
             <span className="ep-dot">{city.capital ? '◆' : '●'}</span>{show && <span className="ep-city-name">{city.name}</span>}
           </button>
         })}
       </div>
-      <div className="ep-country-labels" aria-hidden="true">{countryLabels&&countries.map(country=>{const p=toScreen(country.anchor,camera,view);return visibleCountries.has(country.name)?<span key={country.name} className="ep-country-name" style={{left:p.x,top:p.y}}>{country.name}</span>:null})}</div>
+      <div className="ep-country-labels" aria-hidden="true">{countryLabels&&countries.map(country=>{const p=toScreen(country.anchor,camera,view),label=fitCountryLabel(country,camera.scale);return visibleCountries.has(country.name)&&label?<span key={country.name} className="ep-country-name" style={{left:p.x,top:p.y,fontSize:label.fontSize,width:label.width,height:label.height}}>{country.name}</span>:null})}</div>
       {hoverCountry&&<output className="ep-country-tooltip" aria-live="polite">{hoverCountry} · geographic border</output>}
 
       <svg className="ep-borders" width={view.width} height={view.height} aria-hidden="true">
         {(()=>{const a=toScreen(europeGameToDisplay({x:0,y:0}),camera,view),b=toScreen(europeGameToDisplay({x:1000,y:500}),camera,view);return <rect x={a.x} y={a.y} width={b.x-a.x} height={b.y-a.y} fill="none" stroke="#f5d66d" strokeDasharray="6 5"/>})()}
         {route?.segments.map(segment=>{const a=toScreen(europeGameToDisplay(segment.from),camera,view),b=toScreen(europeGameToDisplay(segment.destination),camera,view);return <line key={segment.orderId} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#f5d66d" strokeWidth={3} strokeDasharray="5 5"/>})}
+        {movePreview&&(()=>{const a=toScreen(movePreview.from,camera,view),b=toScreen(movePreview.to,camera,view);return <g className="ep-move-preview"><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#f5d66d" strokeWidth={3} strokeDasharray="6 5"/><circle cx={b.x} cy={b.y} r={12} fill="none" stroke="#f5d66d" strokeWidth={2}/></g>})()}
         <polyline points={draft.map(p=>{const q=toScreen(p,camera,view);return `${q.x},${q.y}`}).join(' ')} fill="none" stroke="#a6b3c3" strokeWidth={3} strokeDasharray="3 6"/>
       </svg>
       <div className="ep-markers">
-       {current.formations.map(f=>{const p=toScreen(europeGameToDisplay(f.position),camera,view);return <span key={f.formationId} style={{position:'absolute',left:p.x,top:p.y,color:'#fff',background:'#142c42',padding:8,transform:'translate(-50%,-50%)'}} title={`Own formation ${f.formationId}`}>▲ Own</span>})}
+       {current.formations.map((f,i)=>{const p=toScreen(europeGameToDisplay(f.position),camera,view);return <button key={f.formationId} className="ep-formation" data-formation-id={f.formationId} aria-pressed={interaction?.selectedId===f.formationId} aria-label={'Formation '+(i+1)+', '+f.units.length+' units. Select or drag to queue movement'} style={{left:p.x,top:p.y}} onClick={()=>interaction?.select(f.formationId)}><span aria-hidden="true">&#9650;</span><strong>{f.units.length}</strong></button>})}
        {world.territories.filter(t=>t.city).map(t=>{const p=toScreen(europeGameToDisplay(t.center),camera,view),own=current.ownedLocationIds.includes(t.city!.cityId);return <span key={t.city!.cityId} style={{position:'absolute',left:p.x,top:p.y+25,color:own?'#f5d66d':'#ddd',background:'#142c42',padding:4}}>Camp {t.center.x<500?'West':'East'} · {own?'currently yours':'current owner undisclosed'}</span>})}
       </div>
 
@@ -261,7 +295,7 @@ export default function EuropeMap({view:current,route,choose,world}:{view:Repeat
       {pickError&&<div className="ep-tile-error" role="alert">{pickError}</div>}
       {errors > 0 && <div className="ep-tile-error" role="status">Some satellite detail is unavailable. Available imagery and the overview remain visible. <button onClick={() => cacheRef.current?.retry(tile => tile.degraded)}>Retry imagery</button></div>}
     </div>
-    <details className="ep-help"><summary>Map help and playtest limits</summary><p>Defense drawings are local uncommitted drafts: no surface approval, assignment, control or combat effect. Click destinations only after selecting an own formation; map clicks fill the coordinate fields and never submit. Current own markers and camp ownership come from the server; background cities and borders are context. Projection {EUROPE_SCENARIO_VIEW.projectionId}.</p></details>
-    <footer className="ep-footer"><span id="ep-instructions">Drag to pan · Scroll or + / − to zoom · Focus map and use arrows to pan · Find cities with the selector</span><span>{cached}/{IMAGERY_TILE_BUDGET} tiles cached · Sentinel-2 regional detail · Spain-wide zoom cap</span></footer>
+    <details className="ep-help"><summary>Map help and playtest limits</summary><p>Defense drawings are local uncommitted drafts: no surface approval, assignment, control or combat effect. Drag an own formation to queue movement; the stored army moves only after the turn resolves. Alternatively select a formation, click a destination and use Add movement. Current own markers and camp ownership come from the server; background cities and borders are context. Projection {EUROPE_SCENARIO_VIEW.projectionId}.</p></details>
+    <footer className="ep-footer"><span id="ep-instructions">Drag an army to queue a move; drag empty map to pan · Scroll or + / − to zoom · Focus map and use arrows to pan · Find cities with the selector</span><span>{cached}/{IMAGERY_TILE_BUDGET} tiles cached · Sentinel-2 regional detail · Spain-wide zoom cap</span></footer>
   </main>
 }

@@ -32,6 +32,14 @@ beforeEach(() => {
 })
 afterEach(async () => { await act(async () => root.unmount()); host.remove(); vi.unstubAllGlobals() })
 async function mount() { await act(async () => root.render(<StrictMode><WorldView matchId="match" onClose={close} onSessionError={session} /></StrictMode>)) }
+
+it('recovers an initial world read after a service restart without a refresh click',async()=>{
+ vi.useFakeTimers()
+ try{
+  request.mockImplementation(async()=>json({},503));await mount();expect(host.textContent).toContain('Automatic updates will retry');expect(host.querySelector('[aria-label="Initial territory map"]')).toBeNull()
+  request.mockImplementation(async()=>json(ready));await act(async()=>vi.advanceTimersByTimeAsync(10_000));expect(host.querySelector('[aria-label="Initial territory map"]')).not.toBeNull();expect(host.textContent).not.toContain('Unable to load the world');expect(transport.mock.calls.some(([,options])=>options.method==='POST')).toBe(false)
+ }finally{vi.useRealTimers()}
+})
 async function click(name: string) { await act(async () => [...host.querySelectorAll('button')].find((b) => b.textContent === name)!.click()) }
 function gridWorld(columns = 3, rows = 3) {
   return { ...world, bounds: { width: columns * 100, height: rows * 100 }, grid: { columns, rows },
@@ -179,7 +187,7 @@ describe('read-only initial map', () => {
   })
   it('keeps network failure distinct and recovers a READY map after an explicit refresh', async () => {
     request.mockRejectedValue(new TypeError('private-network-detail')); await mount()
-    expect(host.querySelector('[role="alert"]')?.textContent).toBe('Unable to load the world. Refresh to try again.')
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe('Unable to load the world. Automatic updates will retry; Refresh is also available.')
     expect(host.textContent).not.toContain('private-network-detail'); expect(host.querySelector('#world-unavailable-title')).toBeNull()
     expect(request).toHaveBeenCalledOnce(); expect(session).not.toHaveBeenCalled()
     request.mockImplementation(async () => json(ready)); await click('Refresh world')

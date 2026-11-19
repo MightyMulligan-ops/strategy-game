@@ -1375,3 +1375,39 @@ provisioning, real-browser acceptance of this layout, hosted CI, merge or
 deployment performed for this task. Implementation is prepared for feature-branch
 sharing/local owner testing; no PR or milestone completion is claimed. The user's
 Windows site changes only after fetching this branch and restarting pnpm dev.
+
+
+## Owner-started command interface refinement - 2026-11-18
+
+Base 72db7fbcb1db46bc900512d95b0b84a395559a60; branch ui/map-command-interface.
+Scope: interior/zoom-fitted country labels, full-height Sovereign command layout,
+contextual Units/Orders/Reports and Account panels, selectable own army markers
+and drag-to-queue movement through existing authoritative commands. Historical
+controls and automatic polling remain supported. Recruitment is not implemented:
+exact costs/limits/timing remain unresolved in GAME_DESIGN.md and the current
+Europe scenario has no recruitment command. Interaction recommendation and all
+source paths/limits are in COMMAND_INTERFACE.md. Main lobby redesign is deferred.
+
+Verification: 269 frontend tests passed (16 files); full build, final web build,
+root typecheck, web lint and diff checks passed. Full suite: 2391 passed, 18 failed,
+326 skipped. All failures are in five unchanged scripts test files, with python3
+EACCES, unsupported gateway socket path and malformed Windows C:\C:\... URL path
+errors. scripts diff against base is empty. This is not a green full-suite claim;
+no automation/workflow/security repair or hosted retry was attempted.
+
+Real signed local browser observed full-height layout and unit inspection; an
+invalid drop rejected; one valid drag queued an order without moving the stored
+army; reload retained that exact order; its cancellation returned the queue to
+empty/Unready. No Ready action or turn advance occurred. Current home test match:
+196b2135-26bf-4955-a7bb-7921692a274f. The two test commands advanced queue revision
+normally. New pointer cancellation, Ready/stale-revision and polygon label-fit
+regressions pass. Two-browser acceptance of this new refinement remains separate.
+
+New correction history 3/5: presentation type compatibility; pointer-release/focus
+handling; configurable test DOM rectangle. Earlier task and repair histories are
+unchanged. No backend, schema, gameplay balance, dependency or security changes;
+no database migration, merge or deployment. Source is prepared for feature-branch
+sharing, with final publication identity supplied in the task handoff. The running
+home app already uses this source through Vite; reload once for clean acceptance.
+
+Final command-interface recovery update: passes 4/5 and 5/5 added automatic initial-world recovery after observed dev-server restart, guarded a missing HMR canvas and updated the changed error-copy assertion. New recovery test passes. Final full run 2392 passed / 18 unchanged tooling failures / 326 skipped. Frontend totals 270 passing tests. Browser visibly recovered without Refresh; Account open/Escape/focus return and the final command view were verified. Final queue remains empty/Unready; no turn advance. All five correction passes are consumed; no unrelated tooling repair, PR CI retry, merge or deployment performed.

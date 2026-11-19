@@ -1,6 +1,7 @@
 import {lazy,Suspense} from 'react'
 const EuropeMap=lazy(()=>import('./europe/EuropeMap'))
 import LoopWorkspace from './LoopWorkspace'
+import {useAutoRefresh} from './useAutoRefresh'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
 import { ReadWorldResponseSchema } from '@strategy-game/shared-types'
@@ -123,21 +124,24 @@ function MatchWorldView({ matchId, onClose, onSessionError }: { matchId: string;
     read.current?.abort(); setResult(null); setSelectedFormationId(null); setSessionUnavailable(true)
     try { await onSessionError() } catch { /* Do not retain private match data on account failure. */ }
   }, [onSessionError])
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async ():Promise<boolean> => {
     read.current?.abort(); const controller = new AbortController(); read.current = controller
+    const timeout=setTimeout(()=>controller.abort('timeout'),15_000)
     setLoading(true); setResult(null); setError('')
     try {
       const response = await lobbyRequest(`/api/matches/${encodeURIComponent(matchId)}/world`, ReadWorldResponseSchema, controller.signal)
       if (response.matchId !== matchId) throw new Error('Mismatched response')
-      if (!controller.signal.aborted) { setResult(response); if (response.state !== 'READY') setSelectedFormationId(null) }
+      if (!controller.signal.aborted) { setResult(response); if (response.state !== 'READY') setSelectedFormationId(null); return true }
     } catch (failure) {
-      if (controller.signal.aborted) return
+      if (controller.signal.aborted&&controller.signal.reason!=='timeout') return false
       setSelectedFormationId(null)
       if (failure instanceof LobbyRequestError && ['UNAUTHENTICATED', 'USERNAME_REQUIRED'].includes(failure.code ?? '')) await sessionError()
-      if (!controller.signal.aborted) setError(failure instanceof LobbyRequestError && failure.code === 'NOT_FOUND'
-        ? 'World unavailable or you no longer have access to this match.' : 'Unable to load the world. Refresh to try again.')
-    } finally { if (!controller.signal.aborted) setLoading(false) }
+      if (!controller.signal.aborted||controller.signal.reason==='timeout') setError(failure instanceof LobbyRequestError && failure.code === 'NOT_FOUND'
+        ? 'World unavailable or you no longer have access to this match.' : 'Unable to load the world. Automatic updates will retry; Refresh is also available.')
+    } finally { clearTimeout(timeout); if (!controller.signal.aborted||controller.signal.reason==='timeout') setLoading(false) }
+    return false
   }, [matchId, sessionError])
+  useAutoRefresh(async()=>loading?true:refresh(),!sessionUnavailable&&(result===null||result.state==='NOT_STARTED'))
   useEffect(() => {
     let cancelled = false; queueMicrotask(() => { if (!cancelled) void refresh() })
     return () => { cancelled = true; read.current?.abort() }
@@ -148,10 +152,10 @@ function MatchWorldView({ matchId, onClose, onSessionError }: { matchId: string;
     <button type="button" onClick={onClose}>Back to lobbies</button>
   </section>
   return <section className="world-workspace" aria-labelledby="world-title" aria-busy={loading}>
-    <div className="section-heading"><h1 id="world-title">Initial world</h1><button onClick={onClose}>Back to lobbies</button><button disabled={loading} onClick={() => void refresh()}>Refresh world</button></div>
+    <div className="section-heading"><h1 id="world-title">{isLoop?'Command map':'Initial world'}</h1><button onClick={onClose}>Back to lobbies</button><button disabled={loading} onClick={() => void refresh()}>Refresh world</button></div>
     {loading ? <p role="status">Loading world…</p> : error ? <p role="alert">{error}</p>
       : result?.state === 'READY' ? <Formations matchId={matchId} world={result.world} onSessionError={sessionError}
-        onLoopReady={markLoop} renderLoop={europe=><LoopWorkspace expectedSchemaVersion={europe?2:1} matchId={matchId} onSessionError={sessionError} map={(formation,route,inspection,context)=>context.view.schemaVersion===2?<Suspense fallback={<p role="status">Loading Europe display…</p>}><EuropeMap world={result.world} view={context.view} route={route} choose={context.choose}/></Suspense>:<MapView world={result.world} formation={formation} route={route} choose={null} inspection={inspection} policy={{radius:10,pending:false,combat:true,loop:true}}/>}/>} selectedFormationId={selectedFormationId} onSelectionChange={setSelectedFormationId}
+        onLoopReady={markLoop} renderLoop={europe=><LoopWorkspace expectedSchemaVersion={europe?2:1} matchId={matchId} onSessionError={sessionError} map={(formation,route,inspection,context)=>context.view.schemaVersion===2?<Suspense fallback={<p role="status">Loading Europe display…</p>}><EuropeMap world={result.world} view={context.view} route={route} choose={context.choose} interaction={context.interaction}/></Suspense>:<MapView world={result.world} formation={formation} route={route} choose={null} inspection={inspection} policy={{radius:10,pending:false,combat:true,loop:true}}/>}/>} selectedFormationId={selectedFormationId} onSelectionChange={setSelectedFormationId}
         map={(formation,inspection,policy) => <><MovementQueue matchId={matchId} world={result.world} formation={formation} onSessionError={sessionError}
           map={(route, choose) => <MapView inspection={inspection} world={result.world} formation={formation} route={route} choose={choose} {...(policy?{policy}:{})} />} />{policy&&<MovementResolution matchId={matchId} onSessionError={sessionError} combat={policy.combat??false}/>}</>} />
         : result?.state === 'UNINITIALIZED' ? <section className="panel" role="status" aria-live="polite" aria-atomic="true" aria-labelledby="world-unavailable-title">

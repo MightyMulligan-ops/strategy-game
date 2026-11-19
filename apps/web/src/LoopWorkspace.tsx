@@ -1,12 +1,14 @@
 import {useCallback,useEffect,useId,useRef,useState} from 'react'
 import type {ReactNode} from 'react'
 import {RepeatingCommandSchema as LoopCommandSchema,RepeatingCurrentSchema as LoopCurrentSchema,RepeatingHistorySchema as LoopHistorySchema,MovementDraftErrorSchema} from '@strategy-game/shared-types'
-import type {RepeatingCurrent as LoopCurrent,RepeatingCommand as LoopCommand,OwnFormation,MovementRoute} from '@strategy-game/shared-types'
+import type {RepeatingCurrent as LoopCurrent,RepeatingCommand as LoopCommand,MovementRoute} from '@strategy-game/shared-types'
 import type {FormationInspection} from './Formations'
 import CombatAftermath from './CombatAftermath'
+import EuropeCommand from './EuropeCommand'
+import type {PlanningMap} from './EuropeCommand'
 import {useAutoRefresh} from './useAutoRefresh'
 
-type Props={expectedSchemaVersion?:1|2;matchId:string;onSessionError:()=>Promise<void>;map?:(formation:OwnFormation|null,route:MovementRoute|null,inspection:FormationInspection,context:{view:LoopCurrent;choose:((p:{x:number;y:number})=>void)|null})=>ReactNode}
+type Props={expectedSchemaVersion?:1|2;matchId:string;onSessionError:()=>Promise<void>;map?:PlanningMap}
 export default function LoopWorkspace(props:Props){return <LoopReader key={props.matchId} {...props}/>}
 function LoopReader({matchId,onSessionError,map,expectedSchemaVersion}:Props){
  const [view,setView]=useState<LoopCurrent|null>(null),[busy,setBusy]=useState(false),[notice,setNotice]=useState('')
@@ -46,16 +48,19 @@ function LoopReader({matchId,onSessionError,map,expectedSchemaVersion}:Props){
   past.current?.abort();const c=new AbortController();past.current=c;setHistory(null);setHistoryError('');const turn=view?.turn.turnNumber
   try{if(!Number.isSafeInteger(n)||n<1||!turn||n>=turn)throw Error('Invalid history turn');const r=await fetch(`${base}/turns/${n}/aftermath`,{method:'GET',credentials:'same-origin',cache:'no-store',signal:c.signal});await checked(r,c.signal);const h=LoopHistorySchema.parse(await r.json());if(h.matchId!==matchId||h.turnNumber!==n||h.schemaVersion!==view?.schemaVersion)throw Error('Wrong history');if(!c.signal.aborted)setHistory(h)}catch{if(!c.signal.aborted)setHistoryError('Own history could not be verified. Choose one completed turn and try again.')}
  }
- return <section ref={panel} tabIndex={-1} className="panel loop-workspace" aria-labelledby={title} aria-busy={busy}>
-  <div className="section-heading"><h2 id={title}>Combat planning</h2><button onClick={()=>void refresh()}>Refresh current turn</button></div>
-  <p className="small muted">Updates automatically while this tab is visible.</p>
-  {notice&&<p role="alert">{notice}</p>}
-  {!view?<p role="status">{busy?'Loading current turn…':'Current turn unavailable.'}</p>:<LoopControls key={`${matchId}:${view.schemaVersion}:${view.turn.turnNumber}`} view={view} busy={busy} mutate={c=>void mutate(c)} inspect={n=>void inspect(n)} {...(map?{map}:{})}/>}
-  {historyError&&<p role="alert">{historyError}</p>}
-  {history&&<section aria-label={`Your Turn ${history.turnNumber} aftermath`}><h3>Own Turn {history.turnNumber} history</h3><CombatAftermath view={history.aftermath} turnNumber={history.turnNumber} geographic={history.schemaVersion===2}/></section>}
+ const historyPanel=<>  {historyError&&<p role="alert">{historyError}</p>}
+  {history&&<section aria-label={`Your Turn ${history.turnNumber} aftermath`}><h3>Own Turn {history.turnNumber} history</h3><CombatAftermath view={history.aftermath} turnNumber={history.turnNumber} geographic={history.schemaVersion===2}/></section>}</>
+ const geographic=expectedSchemaVersion===2||view?.schemaVersion===2
+ return <section ref={panel} tabIndex={-1} className={"panel loop-workspace"+(geographic?" command-shell":"")} aria-labelledby={title} aria-busy={busy}>
+  {geographic?<details className="command-sync"><summary>Connection</summary><h2 id={title}>Combat planning</h2><p>Updates automatically while this tab is visible.</p><button onClick={()=>void refresh()}>Refresh current turn</button></details>:<><div className="section-heading"><h2 id={title}>Combat planning</h2><button onClick={()=>void refresh()}>Refresh current turn</button></div><p className="small muted">Updates automatically while this tab is visible.</p></>}
+  {notice&&<p className="command-notice" role="alert">{notice}</p>}
+  {!view?<p role="status">{busy?'Loading current turn…':'Current turn unavailable.'}</p>:<LoopControls key={`${matchId}:${view.schemaVersion}:${view.turn.turnNumber}`} view={view} busy={busy} historyPanel={historyPanel} mutate={c=>void mutate(c)} inspect={n=>void inspect(n)} {...(map?{map}:{})}/>}
+  {view?.schemaVersion!==2&&historyPanel}
  </section>
 }
-function LoopControls({view,busy,mutate,inspect,map}:{view:LoopCurrent;busy:boolean;mutate:(c:LoopCommand)=>void;inspect:(n:number)=>void;map?:Props['map']}){
+type Controls={view:LoopCurrent;busy:boolean;mutate:(c:LoopCommand)=>void;inspect:(n:number)=>void;map?:Props['map'];historyPanel?:ReactNode}
+function LoopControls(props:Controls){return props.view.schemaVersion===2?<EuropeCommand {...props} view={props.view}/>:<HistoricalLoopControls {...props}/>}
+function HistoricalLoopControls({view,busy,mutate,inspect,map}:{view:LoopCurrent;busy:boolean;mutate:(c:LoopCommand)=>void;inspect:(n:number)=>void;map?:Props['map']}){
  const [selected,setSelected]=useState(''),[x,setX]=useState(''),[y,setY]=useState(''),[historyTurn,setHistoryTurn]=useState(String(Math.max(1,view.turn.turnNumber-1))),[now,setNow]=useState(()=>Date.now())
  const detailsId=useId(),markerId=useId(),heading=useRef<HTMLHeadingElement>(null)
  const [focusRequest,requestFocus]=useState(0)

@@ -20,3 +20,10 @@
 .ep-country-tooltip{position:absolute;left:12px;top:12px;background:#0a0f16e8;border:1px solid #536170;border-radius:4px;padding:5px 10px;pointer-events:none;color:#e8eaef;font-size:13px}
 @media(max-width:650px){.ep-options .ep-inspector{grid-template-columns:minmax(0,1fr)}.ep-options .ep-inspector .ep-muted{display:block}.ep-camera-tools{width:140px}.ep-country-name{font-size:14px}.ep-header{padding:10px}.ep-fixture{display:none}}
 @media(forced-colors:active){.ep-country-name{color:CanvasText;opacity:1;text-shadow:none;background:Canvas}.ep-country-tooltip{background:Canvas;color:CanvasText}}
+
+/* Label dimensions are fitted to an interior circle by countries.ts. */
+.ep-country-name{letter-spacing:.08em;line-height:1.4;text-align:center;overflow:hidden;font-family:"Segoe UI",system-ui,sans-serif;white-space:nowrap}
+.ep-markers .ep-formation{position:absolute;pointer-events:auto;transform:translate(-50%,-50%);display:flex;align-items:center;gap:6px;min-width:52px;min-height:44px;padding:7px 10px;background:#0e1a26ed;border:1px solid #c9cdd6;border-radius:5px;color:#f4f1e8;box-shadow:0 3px 12px #0008;cursor:grab;touch-action:none;user-select:none}
+.ep-formation[aria-pressed=true]{border-color:#d4af37;box-shadow:0 0 0 2px #d4af3755,0 3px 12px #0008}.ep-formation:active{cursor:grabbing}.ep-formation strong{font-variant-numeric:tabular-nums}
+.ep-move-preview{pointer-events:none}
+.ep-city.overview .ep-dot{font-size:7px;opacity:.8}.ep-city.overview.selected .ep-dot{font-size:12px;opacity:1}
